@@ -885,6 +885,12 @@ ArchNetworkBSD::getUnblockPipe()
 const int*
 ArchNetworkBSD::getUnblockPipeForThread(ArchThread thread)
 {
+    // Serialise creation: polling and a caller waking the poll can race here.
+    ARCH->lockMutex(m_mutex);
+    struct Unlock {
+        ArchMutex mutex;
+        ~Unlock() { ARCH->unlockMutex(mutex); }
+    } unlock{m_mutex};
     ArchMultithreadPosix* mt = ArchMultithreadPosix::getInstance();
     int* unblockPipe          = (int*)mt->getNetworkDataForThread(thread);
     if (unblockPipe == NULL) {
@@ -892,9 +898,22 @@ ArchNetworkBSD::getUnblockPipeForThread(ArchThread thread)
         if (pipe(unblockPipe) != -1) {
             try {
                 setBlockingOnSocket(unblockPipe[0], false);
-                mt->setNetworkDataForCurrentThread(unblockPipe);
+                // Wake-ups can accumulate. A full pipe must not block the UI.
+                setBlockingOnSocket(unblockPipe[1], false);
+                if (fcntl(unblockPipe[0], F_SETFD, FD_CLOEXEC) == -1 ||
+                    fcntl(unblockPipe[1], F_SETFD, FD_CLOEXEC) == -1) {
+                    throwError(errno);
+                }
+                mt->setNetworkDataForThread(thread, unblockPipe, [](void* data) {
+                    auto* pipe = static_cast<int*>(data);
+                    ::close(pipe[0]);
+                    ::close(pipe[1]);
+                    delete[] pipe;
+                });
             }
             catch (...) {
+                ::close(unblockPipe[0]);
+                ::close(unblockPipe[1]);
                 delete[] unblockPipe;
                 unblockPipe = NULL;
             }

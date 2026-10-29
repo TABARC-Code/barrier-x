@@ -79,3 +79,8 @@ endif()
 add_executable(integtests ${sources})
 target_link_libraries(integtests
     arch base client common io ipc mt net platform server synlib ${GTEST_LIBRARIES} ${GMOCK_LIBRARIES} ${libs} ${OPENSSL_LIBS})
+
+if (NOT APPLE)
+    add_test(NAME network-transfers COMMAND integtests --gtest_filter=NetworkTests.*)
+    set_tests_properties(network-transfers PROPERTIES TIMEOUT 60)
+endif()

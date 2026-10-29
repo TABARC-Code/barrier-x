@@ -38,6 +38,9 @@ public:
     explicit NonBlockingStream(int fd = 0);
     ~NonBlockingStream();
 
+    NonBlockingStream(const NonBlockingStream&) = delete;
+    NonBlockingStream& operator=(const NonBlockingStream&) = delete;
+
     bool try_read_char(char &ch) const;
 
 private:

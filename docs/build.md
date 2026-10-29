@@ -18,7 +18,7 @@ git submodule update --init ext/gulrak-filesystem
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug \
   -DBARRIER_BUILD_GUI=OFF -DBARRIER_BUILD_INSTALLER=OFF \
   -DBARRIER_BUILD_TESTS=ON -DBARRIER_USE_EXTERNAL_GTEST=ON
-cmake --build build --target barriers barrierc unittests --parallel 2
+cmake --build build --target barriers barrierc unittests integtests --parallel 2
 ctest --test-dir build --output-on-failure
 ```
 
@@ -34,7 +34,8 @@ No temporary dependencies are shipped in the repository.
 
 ## Regression coverage
 
-CTest registers the unit suite, an SSL lifecycle subset and client/server
+CTest registers the unit suite, a network lifecycle subset, four socket-transfer
+integration tests and client/server
 `--help`/`--version` checks. Informational commands exit successfully; actual
 argument errors still fail. Unit test return codes reach CTest without filtering.
 
@@ -50,6 +51,27 @@ lifecycle checks but do not claim these injected-allocation tests.
 Before the fix, both `DestroyBeforeInitialisation` and
 `ClientContextAllocationFailureThrows` crashed with exit status 139.
 The normal unit suite contains 144 tests, including nine lifecycle tests.
+
+Version 2.4.3 adds four TLS-version handshake tests, one POSIX wake-up ownership
+test and five non-blocking stream tests (154 unit tests in this Linux build).
+The handshake tests use
+actual OpenSSL contexts created by `SecureSocket`, connected through paired
+memory BIOs. Both roles reject TLS 1.0/1.1 and accept TLS 1.2/1.3. The test
+temporarily lowers only its own OpenSSL security levels so version rejection
+does not accidentally depend on distribution cipher restrictions. It does not
+test pairing, certificate pinning or a real two-machine network session.
+
+The wake-up test verifies that a target thread retains its pipe, the caller's
+pipe remains unchanged, writes do not block when full, and both descriptors
+close when the target's last reference is released. This follows actual leak
+reports from the initial hosted run; leak suppression has not been added.
+
+Non-blocking stream tests cover pipes with data, empty pipes, EOF, invalid
+descriptors and restoration of file flags. The integration run exposed an
+inherited assertion on EOF from detached stdin, uninitialised terminal state
+on non-terminal descriptors and a shadowed saved-flags member; these are fixed.
+The four existing network tests passed actual localhost transfers in both
+directions. The 2.4.3 network lifecycle subset contains 19 unit tests.
 
 ## Sanitisers
 
@@ -76,6 +98,13 @@ passed. The nine lifecycle tests also passed with AddressSanitizer and UBSan.
 LeakSanitizer could not complete process inspection in this environment; that
 local run used `detect_leaks=0` after recording the failure. Hosted CI retains
 `detect_leaks=1`. A local leak-check pass is not claimed.
+
+The 2.4.2 hosted Debug run found 376 bytes of inherited thread/wake-up storage
+leaks. Version 2.4.3 fixes the ownership and reference-counting paths; consult
+the new hosted run before treating leak verification as complete.
+
+TLS policy API reference:
+[OpenSSL minimum protocol version](https://docs.openssl.org/3.0/man3/SSL_CTX_set_min_proto_version/).
 
 ## Outstanding platform checks
 

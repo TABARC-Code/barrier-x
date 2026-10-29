@@ -45,7 +45,7 @@ public:
     //! @name manipulators
     //@{
 
-    void                setNetworkDataForCurrentThread(void*);
+    void setNetworkDataForThread(ArchThread, void*, void (*cleanup)(void*));
 
     //@}
     //! @name accessors

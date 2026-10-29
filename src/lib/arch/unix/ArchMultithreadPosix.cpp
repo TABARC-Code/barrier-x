@@ -54,6 +54,7 @@ setSignalSet(sigset_t* sigset)
 class ArchThreadImpl {
 public:
     ArchThreadImpl();
+    ~ArchThreadImpl();
 
 public:
     int                    m_refCount;
@@ -64,6 +65,7 @@ public:
     bool                m_cancelling;
     bool                m_exited;
     void*                m_networkData;
+    void (*m_networkCleanup)(void*);
 };
 
 ArchThreadImpl::ArchThreadImpl() :
@@ -72,11 +74,18 @@ ArchThreadImpl::ArchThreadImpl() :
     m_cancel(false),
     m_cancelling(false),
     m_exited(false),
-    m_networkData(NULL)
+    m_networkData(NULL),
+    m_networkCleanup(nullptr)
 {
     // do nothing
 }
 
+ArchThreadImpl::~ArchThreadImpl()
+{
+    if (m_networkCleanup) {
+        m_networkCleanup(m_networkData);
+    }
+}
 
 //
 // ArchMultithreadPosix
@@ -134,15 +143,21 @@ ArchMultithreadPosix::~ArchMultithreadPosix()
 {
     assert(s_instance != NULL);
 
+    closeThread(m_mainThread);
     s_instance = NULL;
 }
 
 void
-ArchMultithreadPosix::setNetworkDataForCurrentThread(void* data)
+ArchMultithreadPosix::setNetworkDataForThread(ArchThread thread, void* data,
+                                             void (*cleanup)(void*))
 {
     std::lock_guard<std::mutex> lock(m_threadMutex);
-    ArchThreadImpl* thread = find(pthread_self());
+    assert(thread != nullptr);
+    assert(thread->m_networkData == nullptr);
+    // The caller may be waking a different thread. Do not borrow a reference
+    // to the current thread or silently replace its existing pipe.
     thread->m_networkData = data;
+    thread->m_networkCleanup = cleanup;
 }
 
 void*
@@ -377,28 +392,27 @@ ArchMultithreadPosix::closeThread(ArchThread thread)
 {
     assert(thread != NULL);
 
-    // decrement ref count and clean up thread if no more references
-    if (--thread->m_refCount == 0) {
+    {
+        std::lock_guard<std::mutex> lock(m_threadMutex);
+        // Parent and worker can release their references at the same time.
+        if (--thread->m_refCount != 0) {
+            return;
+        }
         // detach from thread (unless it's the main thread)
         if (thread->func_) {
             pthread_detach(thread->m_thread);
         }
 
-        // remove thread from list
-        {
-            std::lock_guard<std::mutex> lock(m_threadMutex);
-            assert(findNoRef(thread->m_thread) == thread);
-            erase(thread);
-        }
-
-        // done with thread
-        delete thread;
+        assert(findNoRef(thread->m_thread) == thread);
+        erase(thread);
     }
+    delete thread;
 }
 
 ArchThread
 ArchMultithreadPosix::copyThread(ArchThread thread)
 {
+    std::lock_guard<std::mutex> lock(m_threadMutex);
     refThread(thread);
     return thread;
 }

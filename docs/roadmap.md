@@ -2,7 +2,7 @@
 
 Updated 29 October 2026. Starting point: upstream-derived commit
 `653e4badeb88f61de901581667d4465d7b1e2d52` on `master`.
-Current development version: **2.4.2-snapshot**.
+Current development version: **2.4.3-snapshot**.
 
 The aim is dependable control across several computers, with a clear account
 of which device receives input and what it may share. Security, recovery and
@@ -26,7 +26,7 @@ planning update. A snapshot is not a tested release.
 | --- | --- | --- | --- |
 | BX-000 | Implemented, 2.4.1-snapshot | Source planning notes, corrected assessment, backlog and version tracking | Comment-only source comparison, both version declarations matched, whitespace check; no application build claimed |
 | BX-001 | In progress, 2.4.2-snapshot | SSL wrapper ownership, cleanup before initialisation, context allocation failure, repeated close and exception propagation implemented | Nine lifecycle tests, including injected context failures; handshake/session allocation and real concurrent shutdown remain to check; see build.md |
-| BX-002 | Planned | Define TLS minimum and peer authentication policy; test both roles and migrate trust settings | Reject unsupported TLS, unknown and changed identities; verify approved peers; failed or missing trust storage never silently grants access |
+| BX-002 | In progress, 2.4.3-snapshot | TLS 1.2 minimum implemented; TLS 1.3 remains available. Peer policy and trust-setting migration remain planned | Real memory-BIO handshakes reject TLS 1.0/1.1 and accept 1.2/1.3 in both roles; later pinning/pairing and real network tests still required |
 | BX-003 | Planned | Authenticate local management commands and authorise the caller | Unauthorised local users cannot change daemon commands or read privileged state; exercise service/session boundaries and endpoint permissions |
 | BX-004 | Planned | Replace deprecated certificate APIs, protect key files and handle generation/write failures | Supported OpenSSL build, restrictive creation permissions, checked return values, no partial certificate accepted after failure |
 | BX-005 | In progress, 2.4.2-snapshot | GCC 13 header fixes, optional test dependencies, CTest registration and pinned Linux CI workflow implemented | Ubuntu CLI and unit build established; Debug/Release CI added; Qt GUI, Windows/macOS, packaging and dependency replacement remain outstanding |
@@ -68,6 +68,8 @@ is a fairly low bar for a useful status indicator.
 | BX-022 | Deferred | Hardware security-key forwarding research | Validate the OS device model, origin/user-presence expectations and threat model; generic HID packets are not a complete FIDO forwarding design |
 | BX-023 | Deferred | Operational history and diagnostics | Start with connection/focus/failure metadata and redacted exports; content logging or keystroke replay needs a separate explicit design and user decision |
 | BX-024 | Planned | Release provenance, dependency inventory and private security-reporting route | Document actual reporting route, hashes, build inputs and platform checks; set up signing only when the identity and verification process exist |
+| BX-025 | In progress, 2.4.3-snapshot | POSIX wake-up pipes now belong to the target thread and close with it; creation/reference changes serialised; full pipes do not block callers | Descriptor ownership/closure regression and 10,000 wake-ups; hosted leak scanning is the completion check because local inspection is restricted |
+| BX-026 | Implemented, 2.4.3-snapshot | Detached stdin/EOF handling and saved descriptor flags fixed | Five pipe/EOF/flag regression tests; actual localhost transfer tests now run without the inherited stdin assertion |
 
 ## Next four weeks
 

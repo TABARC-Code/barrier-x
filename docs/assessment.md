@@ -64,3 +64,12 @@ The listener preserves the original exception type during cleanup.
 
 This does not close the TLS policy, IPC authentication, key-file handling or
 session allocation work. See `build.md` for the checked environment and tests.
+
+## Follow-up: 2.4.3-snapshot
+
+The TLS floor is now explicit and covered by real version-negotiation tests in
+both roles. Pairing and trust policy remain separate outstanding work.
+Hosted leak scanning exposed incorrect wake-up pipe ownership and missing
+cleanup in the inherited POSIX implementation; target-thread storage, cleanup
+callbacks and serialised reference changes address those findings. Completion
+depends on the follow-up leak-check result, not the patch description.

@@ -409,25 +409,42 @@ SecureSocket::initContext(bool server)
         showSecureLibInfo();
     }
 
-    // SSLv23_method uses TLSv1, with the ability to fall back to SSLv3
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+    if (server) {
+        method = TLS_server_method();
+    }
+    else {
+        method = TLS_client_method();
+    }
+#else
+    // Keep older headers buildable until the bundled dependency is replaced.
     if (server) {
         method = SSLv23_server_method();
     }
     else {
         method = SSLv23_client_method();
     }
+#endif
 
     // create new context from method
-    SSL_METHOD* m = const_cast<SSL_METHOD*>(method);
-    m_ssl->m_context = SSL_CTX_new(m);
+    m_ssl->m_context = SSL_CTX_new(method);
 
     if (m_ssl->m_context == NULL) {
         isFatal(true);
         throw XSocketCreate("could not create SSL context: " + getError());
     }
 
-    // FUTURE(BX-002): enforce and test the agreed TLS floor in both roles.
-    SSL_CTX_set_options(m_ssl->m_context, SSL_OP_NO_SSLv3);
+    // TLS 1.2 is the minimum; leave newer versions available for negotiation.
+    // An old peer gets a failed connection, rather than a quiet downgrade.
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+    if (SSL_CTX_set_min_proto_version(m_ssl->m_context, TLS1_2_VERSION) != 1) {
+        isFatal(true);
+        throw XSocketCreate("could not set minimum TLS version: " + getError());
+    }
+#else
+    SSL_CTX_set_options(m_ssl->m_context, SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 |
+                        SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1);
+#endif
 
     if (security_level_ == ConnectionSecurityLevel::ENCRYPTED_AUTHENTICATED) {
         // We want to ask for peer certificate, but not verify it. If we don't ask for peer
