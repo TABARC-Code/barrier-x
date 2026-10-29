@@ -34,6 +34,10 @@ FingerprintData get_ssl_cert_fingerprint(X509* cert, FingerprintType type);
 
 FingerprintData get_pem_file_cert_fingerprint(const std::string& path, FingerprintType type);
 
+// Publish a complete key/certificate through a temporary sibling file. The
+// parent directory must be trusted. POSIX files are created with mode 0600;
+// Windows access still depends on the directory ACL. Existing identities are
+// preserved if generation, writing or replacement fails.
 void generate_pem_self_signed_cert(const std::string& path);
 
 std::string create_fingerprint_randomart(const std::vector<std::uint8_t>& dgst_raw);

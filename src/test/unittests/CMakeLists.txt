@@ -68,11 +68,13 @@ target_link_libraries(unittests
     arch base client server common io net platform server synlib mt ipc ${GTEST_LIBRARIES} ${GMOCK_LIBRARIES} ${libs} ${OPENSSL_LIBS})
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_definitions(unittests PRIVATE BARRIER_TEST_WRAP_SSL_CONTEXT BARRIER_TEST_WRAP_POLL)
-    set_property(TARGET unittests APPEND_STRING PROPERTY LINK_FLAGS " -Wl,--wrap=SSL_CTX_new -Wl,--wrap=poll")
+    target_compile_definitions(unittests PRIVATE BARRIER_TEST_WRAP_SSL_CONTEXT BARRIER_TEST_WRAP_POLL BARRIER_TEST_WRAP_CERTIFICATE_IO)
+    set_property(TARGET unittests APPEND_STRING PROPERTY LINK_FLAGS " -Wl,--wrap=SSL_CTX_new -Wl,--wrap=poll -Wl,--wrap=EVP_PKEY_keygen -Wl,--wrap=PEM_write_X509 -Wl,--wrap=fflush -Wl,--wrap=fsync -Wl,--wrap=rename")
 endif()
 
 add_test(NAME unit COMMAND unittests)
 set_tests_properties(unit PROPERTIES TIMEOUT 120)
 add_test(NAME ssl-lifecycle COMMAND unittests --gtest_filter=SecureSocketTests.*:ArchWakeupTests.*:NonBlockingStreamTests.*)
 set_tests_properties(ssl-lifecycle PROPERTIES TIMEOUT 30)
+add_test(NAME certificate-storage COMMAND unittests --gtest_filter=CertificateStorageTests.*)
+set_tests_properties(certificate-storage PROPERTIES TIMEOUT 90)

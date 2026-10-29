@@ -79,6 +79,22 @@ cancellation throws before normal cleanup. Linux builds contain 155 unit tests
 and 20 tests in the network lifecycle subset. The additional linker wrapper
 is confined to the test executable.
 
+Version 2.4.5 adds twelve certificate-storage tests (167 Linux unit tests).
+They verify a matching RSA-3072 key and SHA-256 self-signature, replacement,
+Unicode paths, mode 0600 with a permissive umask, non-inheritable descriptors,
+symlink refusal, hardlink preservation and five injected failure points.
+Failed operations must preserve the destination and remove their temporary file.
+The checks do not dump PEM contents when an assertion fails.
+
+Certificate publication uses an exclusive, randomly named sibling file, checked
+PEM writes, flush, file synchronisation, close and rename. This prevents a failed
+write from truncating the current identity. It does not promise power-loss
+durability for the directory rename, or safety in an untrusted shared directory.
+Existing valid identities are not regenerated merely by updating barrier-x.
+Their permission migration remains open. Windows uses exclusive CRT creation
+with non-inheritable descriptors and retains inherited directory ACLs; Windows
+owner-only ACL enforcement and Windows/macOS execution are not yet verified.
+
 ## Sanitisers
 
 Use a separate build directory:
@@ -91,7 +107,7 @@ cmake -S . -B build-sanitised -G Ninja -DCMAKE_BUILD_TYPE=Debug \
   -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=address,undefined'
 cmake --build build-sanitised --target unittests --parallel 2
 ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1 \
-  ctest --test-dir build-sanitised -R '^ssl-lifecycle$' --output-on-failure
+  ctest --test-dir build-sanitised -R '^(ssl-lifecycle|certificate-storage)$' --output-on-failure
 ```
 
 The Linux workflow runs Debug and Release builds plus the sanitised lifecycle
@@ -113,8 +129,13 @@ Verified follow-up: [2.4.3 hosted run 40815018907](https://github.com/TABARC-Cod
 passed both Debug and Release, including the Debug ASan/UBSan/LeakSanitizer step.
 This verifies the tested paths, not all possible thread or network behaviour.
 
+The same checks passed for [2.4.4 run 40815563644](https://github.com/TABARC-Code/barrier-x/actions/runs/40815563644).
+The certificate-storage subset is included in hosted sanitiser runs from 2.4.5.
+
 TLS policy API reference:
 [OpenSSL minimum protocol version](https://docs.openssl.org/3.0/man3/SSL_CTX_set_min_proto_version/).
+Certificate generation reference:
+[OpenSSL EVP key generation](https://docs.openssl.org/3.0/man3/EVP_PKEY_keygen/).
 
 ## Outstanding platform checks
 

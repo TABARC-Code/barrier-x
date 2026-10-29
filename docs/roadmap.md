@@ -2,7 +2,7 @@
 
 Updated 29 October 2026. Starting point: upstream-derived commit
 `653e4badeb88f61de901581667d4465d7b1e2d52` on `master`.
-Current development version: **2.4.4-snapshot**.
+Current development version: **2.4.5-snapshot**.
 
 The aim is dependable control across several computers, with a clear account
 of which device receives input and what it may share. Security, recovery and
@@ -28,13 +28,15 @@ planning update. A snapshot is not a tested release.
 | BX-001 | In progress, 2.4.2-snapshot | SSL wrapper ownership, cleanup before initialisation, context allocation failure, repeated close and exception propagation implemented | Nine lifecycle tests, including injected context failures; handshake/session allocation and real concurrent shutdown remain to check; see build.md |
 | BX-002 | In progress, 2.4.3-snapshot | TLS 1.2 minimum implemented; TLS 1.3 remains available. Peer policy and trust-setting migration remain planned | Real memory-BIO handshakes reject TLS 1.0/1.1 and accept 1.2/1.3 in both roles; later pinning/pairing and real network tests still required |
 | BX-003 | Planned | Authenticate local management commands and authorise the caller | Unauthorised local users cannot change daemon commands or read privileged state; exercise service/session boundaries and endpoint permissions |
-| BX-004 | Planned | Replace deprecated certificate APIs, protect key files and handle generation/write failures | Supported OpenSSL build, restrictive creation permissions, checked return values, no partial certificate accepted after failure |
+| BX-004 | In progress, 2.4.5-snapshot | EVP RSA-3072 generation, checked certificate construction and sibling-file publication implemented; new POSIX files use mode 0600 | Twelve storage tests cover key matching/signature, permissions, links, Unicode and injected generation/write/flush/sync/replacement failures. Existing-key permission migration, Windows ACL hardening and Windows/macOS validation remain open |
 | BX-005 | In progress, 2.4.2-snapshot | GCC 13 header fixes, optional test dependencies, CTest registration and pinned Linux CI workflow implemented | Ubuntu CLI and unit build established; Debug/Release CI added; Qt GUI, Windows/macOS, packaging and dependency replacement remain outstanding |
 | BX-006 | Investigate | Bound protocol, clipboard and transfer accumulation; retain input responsiveness | Follow receive paths, fuzz malformed lengths/sequences, test queued-byte limits and cancellation; distinguish measured limits from assumptions |
 | BX-007 | Planned | Connection and pairing UX: discovered, approved, connected, focused, paused, failed | Status comes from engine state; actionable errors; accessible controls; tested local-return path and key release on disconnect |
 
-BX-001 and BX-005 are the next implementation tasks. Establish a build and
-regression harness before changing the trust policy. Review relevant patches
+The Linux build and regression harness are established. Next, finish the
+remaining SSL lifecycle checks and review local management authorisation.
+Existing-key permission migration and platform builds remain prerequisites to
+claiming complete certificate hardening. Review relevant patches
 from other forks individually; importing a whole fork would import its mistakes
 as well. See `assessment.md` for the starting evidence and corrections.
 
@@ -70,7 +72,7 @@ is a fairly low bar for a useful status indicator.
 | BX-024 | Planned | Release provenance, dependency inventory and private security-reporting route | Document actual reporting route, hashes, build inputs and platform checks; set up signing only when the identity and verification process exist |
 | BX-025 | Implemented, 2.4.3-snapshot | POSIX wake-up pipes now belong to the target thread and close with it; creation/reference changes serialised; full pipes do not block callers | Descriptor ownership/closure regression, 10,000 wake-ups and hosted Debug/Release checks including leak scanning passed in run 40815018907 |
 | BX-026 | Implemented, 2.4.3-snapshot | Detached stdin/EOF handling and saved descriptor flags fixed | Five pipe/EOF/flag regression tests; actual localhost transfer tests now run without the inherited stdin assertion |
-| BX-027 | In progress, 2.4.4-snapshot | Poll descriptor storage now unwinds safely when cancellation throws | Deterministic interrupted-poll test; hosted sanitiser run must verify cleanup |
+| BX-027 | Implemented, 2.4.4-snapshot | Poll descriptor storage now unwinds safely when cancellation throws | Deterministic interrupted-poll test and hosted Debug/Release checks including leak scanning passed in run 40815563644 |
 
 ## Next four weeks
 

@@ -52,15 +52,26 @@
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 #include <openssl/pem.h>
+#include <openssl/rand.h>
+#include <openssl/rsa.h>
+#include <openssl/bn.h>
 #include <algorithm>
+#include <cerrno>
 #include <cstdio>
 #include <cstring>
+#include <memory>
 #include <stdexcept>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #if SYSAPI_WIN32
 // Windows builds require a shim that makes it possible to link to different
 // versions of the Win32 C runtime. See OpenSSL FAQ.
 #include <openssl/applink.c>
+#include <io.h>
+#include <share.h>
+#else
+#include <unistd.h>
 #endif
 
 namespace barrier {
@@ -74,6 +85,104 @@ const EVP_MD* get_digest_for_type(FingerprintType type)
         case FingerprintType::SHA256: return EVP_sha256();
     }
     throw std::runtime_error("Unknown fingerprint type " + std::to_string(static_cast<int>(type)));
+}
+
+void require_success(int result, const char* operation)
+{
+    if (result != 1) {
+        throw std::runtime_error(operation);
+    }
+}
+
+void write_identity(const fs::path& destination, EVP_PKEY* key, X509* certificate)
+{
+    auto status = fs::symlink_status(destination);
+    if (fs::is_symlink(status) || (fs::exists(status) && !fs::is_regular_file(status))) {
+        throw std::runtime_error("Certificate destination must be a regular file");
+    }
+
+    fs::path temporary;
+    int descriptor = -1;
+    for (int attempt = 0; attempt < 8; ++attempt) {
+        unsigned char random[16];
+        require_success(RAND_bytes(random, sizeof(random)), "Could not name certificate temporary file");
+        temporary = destination;
+        std::vector<std::uint8_t> bytes(random, random + sizeof(random));
+        temporary += ".tmp." + barrier::string::to_hex(bytes, 2);
+#if SYSAPI_WIN32
+        errno_t error = _wsopen_s(&descriptor, temporary.native().c_str(),
+                                  _O_WRONLY | _O_CREAT | _O_EXCL | _O_BINARY | _O_NOINHERIT,
+                                  _SH_DENYRW, _S_IREAD | _S_IWRITE);
+        if (error == 0) {
+            break;
+        }
+        if (error != EEXIST) {
+            throw std::runtime_error("Could not create certificate temporary file");
+        }
+#else
+        // Restrict access at creation. Fixing the mode after writing is late.
+        descriptor = ::open(temporary.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+        if (descriptor != -1) {
+            break;
+        }
+        if (errno != EEXIST) {
+            throw std::runtime_error("Could not create certificate temporary file");
+        }
+#endif
+    }
+    if (descriptor == -1) {
+        throw std::runtime_error("Could not reserve certificate temporary file");
+    }
+
+    FILE* file = nullptr;
+    bool published = false;
+    auto cleanup = finally([&]() {
+        if (file) {
+            std::fclose(file);
+        }
+        else if (descriptor != -1) {
+#if SYSAPI_WIN32
+            _close(descriptor);
+#else
+            ::close(descriptor);
+#endif
+        }
+        if (!published) {
+            std::error_code ignored;
+            fs::remove(temporary, ignored);
+        }
+    });
+#if SYSAPI_WIN32
+    file = _fdopen(descriptor, "wb");
+#else
+    file = fdopen(descriptor, "wb");
+#endif
+    if (!file) {
+        throw std::runtime_error("Could not open certificate output stream");
+    }
+    descriptor = -1; // The stream now owns it.
+    require_success(PEM_write_PrivateKey(file, key, nullptr, nullptr, 0, nullptr, nullptr),
+                    "Could not write certificate private key");
+    require_success(PEM_write_X509(file, certificate), "Could not write certificate");
+    if (std::fflush(file) != 0) {
+        throw std::runtime_error("Could not flush certificate output");
+    }
+#if SYSAPI_WIN32
+    if (_commit(_fileno(file)) != 0) {
+#else
+    if (::fsync(fileno(file)) != 0) {
+#endif
+        throw std::runtime_error("Could not synchronise certificate output");
+    }
+    FILE* completed = file;
+    file = nullptr;
+    if (std::fclose(completed) != 0) {
+        throw std::runtime_error("Could not close certificate output");
+    }
+    // Keep the previous identity until the new key and certificate are complete.
+    // The parent directory must be trusted; this is not a shared-folder API.
+    fs::rename(temporary, destination);
+    published = true;
 }
 
 } // namespace
@@ -158,48 +267,54 @@ FingerprintData get_pem_file_cert_fingerprint(const std::string& path, Fingerpri
 
 void generate_pem_self_signed_cert(const std::string& path)
 {
-    // FUTURE(BX-004): use supported EVP key generation, check every write and
-    // create the private-key file with restrictive permissions from the start.
-    auto expiration_days = 365;
-
-    auto* private_key = EVP_PKEY_new();
-    if (!private_key) {
-        throw std::runtime_error("Could not allocate private key for certificate");
+    std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)> generator(
+                EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, nullptr), EVP_PKEY_CTX_free);
+    if (!generator) {
+        throw std::runtime_error("Could not allocate key generator");
     }
-    auto private_key_free = finally([private_key](){ EVP_PKEY_free(private_key); });
-
-    auto* rsa = RSA_generate_key(2048, RSA_F4, nullptr, nullptr);
-    if (!rsa) {
-        throw std::runtime_error("Failed to generate RSA key");
+    require_success(EVP_PKEY_keygen_init(generator.get()), "Could not initialise key generator");
+    require_success(EVP_PKEY_CTX_set_rsa_keygen_bits(generator.get(), 3072),
+                    "Could not configure RSA key size");
+    EVP_PKEY* generated = nullptr;
+    int generated_ok = EVP_PKEY_keygen(generator.get(), &generated);
+    std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)> private_key(generated, EVP_PKEY_free);
+    if (generated_ok != 1 || !private_key) {
+        throw std::runtime_error("Could not generate certificate private key");
     }
-    EVP_PKEY_assign_RSA(private_key, rsa);
 
-    auto* cert = X509_new();
+    std::unique_ptr<X509, decltype(&X509_free)> cert(X509_new(), X509_free);
     if (!cert) {
         throw std::runtime_error("Could not allocate certificate");
     }
-    auto cert_free = finally([cert]() { X509_free(cert); });
-
-    ASN1_INTEGER_set(X509_get_serialNumber(cert), 1);
-    X509_gmtime_adj(X509_get_notBefore(cert), 0);
-    X509_gmtime_adj(X509_get_notAfter(cert), expiration_days * 24 * 3600);
-    X509_set_pubkey(cert, private_key);
-
-    auto* name = X509_get_subject_name(cert);
-    X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
-                               reinterpret_cast<const unsigned char *>("Barrier"), -1, -1, 0);
-    X509_set_issuer_name(cert, name);
-
-    X509_sign(cert, private_key, EVP_sha256());
-
-    auto fp = fopen_utf8_path(path.c_str(), "w");
-    if (!fp) {
-        throw std::runtime_error("Could not open certificate output path");
+    unsigned char serial[16];
+    require_success(RAND_bytes(serial, sizeof(serial)), "Could not generate certificate serial");
+    serial[0] = (serial[0] & 0x7f) | 1;
+    std::unique_ptr<BIGNUM, decltype(&BN_free)> number(
+                BN_bin2bn(serial, sizeof(serial), nullptr), BN_free);
+    if (!number || !BN_to_ASN1_INTEGER(number.get(), X509_get_serialNumber(cert.get()))) {
+        throw std::runtime_error("Could not set certificate serial");
     }
-    auto file_close = finally([fp]() { std::fclose(fp); });
+    require_success(X509_set_version(cert.get(), 2), "Could not set certificate version");
+    if (!X509_gmtime_adj(X509_get_notBefore(cert.get()), 0) ||
+        !X509_gmtime_adj(X509_get_notAfter(cert.get()), 365L * 24 * 60 * 60)) {
+        throw std::runtime_error("Could not set certificate validity");
+    }
+    require_success(X509_set_pubkey(cert.get(), private_key.get()), "Could not set certificate key");
 
-    PEM_write_PrivateKey(fp, private_key, nullptr, nullptr, 0, nullptr, nullptr);
-    PEM_write_X509(fp, cert);
+    auto* name = X509_get_subject_name(cert.get());
+    if (!name) {
+        throw std::runtime_error("Could not allocate certificate subject");
+    }
+    require_success(X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
+                    reinterpret_cast<const unsigned char*>("Barrier"), -1, -1, 0),
+                    "Could not set certificate subject");
+    require_success(X509_set_issuer_name(cert.get(), name), "Could not set certificate issuer");
+    if (X509_sign(cert.get(), private_key.get(), EVP_sha256()) <= 0) {
+        throw std::runtime_error("Could not sign certificate");
+    }
+    // FUTURE(BX-004): migrate existing key permissions and review Windows ACLs.
+    // Generation alone cannot tighten a valid identity that is never replaced.
+    write_identity(fs::u8path(path), private_key.get(), cert.get());
 }
 
 /*

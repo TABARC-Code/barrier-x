@@ -1,10 +1,12 @@
 # barrier-x
 
-Development version: **2.4.4-snapshot**, based on Barrier 2.4.
+Development version: **2.4.5-snapshot**, based on Barrier 2.4.
 See the [development plan](docs/roadmap.md),
 [starting assessment](docs/assessment.md) and [fork changes](docs/changes.md).
 This snapshot sets a TLS 1.2 minimum, fixes POSIX wake-up resource ownership,
-and retains the SSL lifecycle fixes and Linux checks. See [build and test notes](docs/build.md)
+and publishes generated certificates only after checked writes. New POSIX key
+files are owner-only; existing-key permission migration and Windows ACL review
+remain open. See [build and test notes](docs/build.md)
 for coverage and remaining checks. The inherited documentation below describes Barrier;
 its badges and download links refer to upstream builds, not verified fork builds.
 

@@ -73,3 +73,16 @@ Hosted leak scanning exposed incorrect wake-up pipe ownership and missing
 cleanup in the inherited POSIX implementation; target-thread storage, cleanup
 callbacks and serialised reference changes address those findings. Completion
 depends on the follow-up leak-check result, not the patch description.
+
+## Follow-up: 2.4.5-snapshot
+
+Two storage regressions were reproduced against the old generator: mode 0666
+under a permissive umask, and replacement of an existing identity despite a
+certificate-write failure. New certificates use checked EVP RSA-3072 generation
+and a private POSIX temporary file, then replace the destination only after
+successful write, flush, synchronisation and close. Failure tests also cover
+the replacement operation itself and require the old contents to survive.
+
+This is generation hardening. Existing valid files may still have legacy
+permissions, and Windows files still inherit their directory ACL. Both remain
+explicit BX-004 follow-up work. No change to peer trust policy is claimed.

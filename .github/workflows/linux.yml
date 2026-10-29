@@ -58,11 +58,11 @@ jobs:
           -DBARRIER_BUILD_TESTS=ON -DBARRIER_USE_EXTERNAL_GTEST=ON
           -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer'
           -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=address,undefined'
-      - name: Check SSL lifecycle with sanitisers
+      - name: Check network and certificate storage with sanitisers
         if: matrix.sanitise
         env:
           ASAN_OPTIONS: detect_leaks=1
           UBSAN_OPTIONS: halt_on_error=1
         run: |
           cmake --build build-sanitised --target unittests --parallel 2
-          ctest --test-dir build-sanitised -R '^ssl-lifecycle$' --output-on-failure
+          ctest --test-dir build-sanitised -R '^(ssl-lifecycle|certificate-storage)$' --output-on-failure

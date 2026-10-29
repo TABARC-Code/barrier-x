@@ -1,5 +1,23 @@
 # barrier-x changes
 
+## 2.4.5-snapshot — 29 October 2026
+
+- Replaced deprecated RSA generation with EVP and 3072-bit keys.
+- Checked certificate fields, signatures and every output step.
+- Wrote new identities through an exclusive temporary file before replacement.
+- Created POSIX key files with mode 0600 and non-inheritable descriptors.
+- Preserved existing identities on generation, write, flush, sync and replacement failure.
+- Added twelve certificate-storage tests and extended sanitiser coverage.
+
+Existing valid certificates are not automatically regenerated. Their permission
+migration and Windows ACL hardening remain open; this update does not claim
+owner-only Windows access. The parent profile directory must be trusted.
+
+Checks: 167 unit tests, four localhost transfer tests and all eight CTest
+entries passed. The network lifecycle and certificate-storage subsets passed
+ASan/UBSan locally (32 targeted tests). Local leak inspection remains restricted;
+hosted leak scanning stays enabled. GUI and Windows/macOS execution are unverified.
+
 ## 2.4.4-snapshot — 29 October 2026
 
 - Kept POSIX poll storage owned when thread cancellation throws.
