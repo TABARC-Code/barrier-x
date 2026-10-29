@@ -22,6 +22,9 @@
 
 #include <cstdint>
 
+// FUTURE(BX-012, BX-015): negotiate extensions before adding messages for text
+// injection, clipboard formats or control ownership. Keep old peers explicit;
+// accepting their greeting is not proof that the rest of the session works.
 // protocol version number
 // 1.0:  initial protocol
 // 1.1:  adds KeyCode to key press, release, and repeat

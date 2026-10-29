@@ -158,6 +158,8 @@ FingerprintData get_pem_file_cert_fingerprint(const std::string& path, Fingerpri
 
 void generate_pem_self_signed_cert(const std::string& path)
 {
+    // FUTURE(BX-004): use supported EVP key generation, check every write and
+    // create the private-key file with restrictive permissions from the start.
     auto expiration_days = 365;
 
     auto* private_key = EVP_PKEY_new();

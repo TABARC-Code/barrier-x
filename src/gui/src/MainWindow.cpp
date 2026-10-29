@@ -96,6 +96,8 @@ static const char* barrierIconNames[] =
 
 static const char* barrierLargeIcon = ":/res/icons/256x256/barrier.ico";
 
+// FUTURE(BX-007): show trusted identity, connection failure and input focus as
+// separate states. A running process does not mean another machine is usable.
 MainWindow::MainWindow(QSettings& settings, AppConfig& appConfig) :
     m_Settings(settings),
     m_AppConfig(&appConfig),

@@ -54,6 +54,8 @@ IpcServer::IpcServer(IEventQueue* events, SocketMultiplexer* socketMultiplexer, 
 void
 IpcServer::init()
 {
+    // FUTURE(BX-003): authenticate the caller before accepting commands.
+    // Loopback keeps traffic local; it does not establish which user sent it.
     m_socket = new TCPListenSocket(m_events, m_socketMultiplexer, IArchNetwork::kINET);
 
     m_address.resolve();

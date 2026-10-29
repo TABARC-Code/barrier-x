@@ -55,6 +55,8 @@ public:
     HTML fragment (but not necessarily a complete HTML document).
     Newlines are LF.
     */
+    // FUTURE(BX-010): extend the existing text/HTML/bitmap formats with PNG
+    // negotiation and per-device policy. Extra formats need size limits too.
     enum EFormat {
         kText,            //!< Text format, UTF-8, newline is LF
         kHTML,            //!< HTML format, HTML fragment, UTF-8, newline is LF

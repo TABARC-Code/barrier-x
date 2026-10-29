@@ -140,6 +140,8 @@ bool AppConfig::autoConfig() const { return m_AutoConfig; }
 
 void AppConfig::loadSettings()
 {
+    // FUTURE(BX-002, BX-014): migrate trust settings and named workspaces
+    // explicitly. A familiar network name must never grant a new peer access.
     m_ScreenName = settings().value("screenName", QHostInfo::localHostName()).toString();
     m_Port = settings().value("port", 24800).toInt();
     m_Interface = settings().value("interface").toString();

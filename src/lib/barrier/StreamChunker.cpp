@@ -37,6 +37,10 @@ using namespace std;
 
 static const size_t g_chunkSize = 32 * 1024; //32kb
 
+// FUTURE(BX-006, BX-011): bound total transfers and queued bytes, not just each
+// chunk. Add cancellation, read-error handling and progress before exposing
+// this as a general file-copy service. Keep input responsive during transfers.
+
 bool StreamChunker::s_isChunkingFile = false;
 bool StreamChunker::s_interruptFile = false;
 Mutex* StreamChunker::s_interruptMutex = NULL;

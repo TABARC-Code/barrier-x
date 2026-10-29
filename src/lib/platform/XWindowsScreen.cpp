@@ -818,6 +818,8 @@ XWindowsScreen::fakeMouseMove(SInt32 x, SInt32 y)
 void
 XWindowsScreen::fakeMouseRelativeMove(SInt32 dx, SInt32 dy) const
 {
+    // FUTURE(BX-013): relative injection already exists. Reproduce capture
+    // and pointer-grab failures before replacing this path; test 3D apps too.
 	// FIXME -- ignore xinerama for now
 	if (false && m_xinerama && m_xtestIsXineramaUnaware) {
 //		m_impl->XWarpPointer(m_display, None, m_root, 0, 0, 0, 0, x, y);

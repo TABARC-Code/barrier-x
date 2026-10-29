@@ -101,6 +101,8 @@ SecureSocket::close()
 
 void SecureSocket::freeSSLResources()
 {
+    // FUTURE(BX-001): tolerate cleanup before initSsl(). A failed connection
+    // should leave an error message, rather than take the process with it.
     std::lock_guard<std::mutex> ssl_lock{ssl_mutex_};
 
     if (m_ssl->m_ssl != NULL) {
@@ -369,6 +371,8 @@ bool SecureSocket::load_certificates(const barrier::fs::path& path)
 
 static int cert_verify_ignore_callback(X509_STORE_CTX*, void*)
 {
+    // FUTURE(BX-002): review this alongside the later SHA-256 pin check.
+    // Chain validation is bypassed here; that alone does not bypass pinning.
     return 1;
 }
 
@@ -403,6 +407,8 @@ SecureSocket::initContext(bool server)
     SSL_METHOD* m = const_cast<SSL_METHOD*>(method);
     m_ssl->m_context = SSL_CTX_new(m);
 
+    // FUTURE(BX-001, BX-002): handle allocation failure before using the
+    // context, then enforce the agreed TLS floor. See docs/roadmap.md.
     // drop SSLv3 support
     SSL_CTX_set_options(m_ssl->m_context, SSL_OP_NO_SSLv3);
 

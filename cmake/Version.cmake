@@ -2,8 +2,8 @@ cmake_minimum_required (VERSION 3.4)
 
 set (BARRIER_VERSION_MAJOR 2)
 set (BARRIER_VERSION_MINOR 4)
-set (BARRIER_VERSION_PATCH 0)
-set (BARRIER_VERSION_STAGE "release")
+set (BARRIER_VERSION_PATCH 1)
+set (BARRIER_VERSION_STAGE "snapshot")
 
 #
 # Barrier Version

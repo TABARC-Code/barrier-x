@@ -30,6 +30,8 @@
 class ScreenSetupView;
 class ServerConfigDialog;
 
+// FUTURE(BX-014): replace computer tiles with monitor geometry and crossing
+// previews. Preserve old layouts on import, allow undo and support the keyboard.
 class ScreenSetupModel : public QAbstractTableModel
 {
     Q_OBJECT

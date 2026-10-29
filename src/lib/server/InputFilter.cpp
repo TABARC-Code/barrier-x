@@ -27,6 +27,10 @@
 #include <cstdlib>
 #include <cstring>
 
+// FUTURE(BX-009): add destination-specific key rules with matching key-up
+// handling. Screen switches, timeouts and disconnects must release held keys.
+// Tap/hold needs a visible, adjustable delay; mysterious lag is still lag.
+
 // -----------------------------------------------------------------------------
 // Input Filter Condition Classes
 // -----------------------------------------------------------------------------

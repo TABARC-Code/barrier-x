@@ -34,6 +34,8 @@ This interface defines the methods common to all platform dependent
 screen implementations that are used by both primary and secondary
 screens.
 */
+// FUTURE(BX-008): distinguish capture, emulation and clipboard capabilities.
+// Wayland permission loss and session restart need explicit recovery states.
 class IPlatformScreen : public IScreen,
                 public IPrimaryScreen, public ISecondaryScreen,
                 public IKeyState {
