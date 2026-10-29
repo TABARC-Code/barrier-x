@@ -41,10 +41,5 @@ main(int argc, char **argv)
 
     testing::InitGoogleTest(&argc, argv);
 
-  // gtest seems to randomly finish with error codes (e.g. -1, -1073741819)
-  // even when no tests have failed. not sure what causes this, but it
-  // happens on all platforms and  keeps leading to false positives.
-  // according to the documentation, 1 is a failure, so we should be
-  // able to trust that code.
-  return (RUN_ALL_TESTS() == 1) ? 1 : 0;
+    return RUN_ALL_TESTS();
 }

@@ -1,7 +1,8 @@
 # Starting assessment
 
 29 October 2026; source baseline `653e4badeb88f61de901581667d4465d7b1e2d52`.
-This is a source review and planning record, not a completed security audit.
+This records the starting source, not a completed security audit. Follow-up
+changes are recorded below and in `changes.md`; baseline findings are historical.
 The supplied Path A/B/C proposals informed `roadmap.md`; their deadlines,
 severity labels and proposed release numbers are not adopted as verified facts.
 
@@ -52,3 +53,14 @@ No runtime fix is included in 2.4.1-snapshot. The source edits are planning
 comments. Application, multi-machine and platform tests remain outstanding.
 The review also does not certify third-party repositories or their binaries
 as free from malware; inspect relevant code and scripts before using them.
+
+## Follow-up: 2.4.2-snapshot
+
+The two lifecycle failures above were reproduced as segmentation faults using
+new regression tests against the unpatched socket implementation. Cleanup now
+tolerates absent state, context allocation failure throws before use, and the
+factory retains ownership until setup succeeds. Reinitialisation is rejected.
+The listener preserves the original exception type during cleanup.
+
+This does not close the TLS policy, IPC authentication, key-file handling or
+session allocation work. See `build.md` for the checked environment and tests.

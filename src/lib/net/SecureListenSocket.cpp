@@ -63,11 +63,11 @@ SecureListenSocket::accept()
         }
         return NULL;
     }
-    catch (std::exception &ex) {
+    catch (...) {
         if (socket != NULL) {
             delete socket;
             setListeningJob();
         }
-        throw ex;
+        throw;
     }
 }

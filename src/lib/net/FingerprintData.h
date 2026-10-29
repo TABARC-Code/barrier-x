@@ -19,6 +19,7 @@
 #define BARRIER_LIB_NET_FINGERPRINT_DATA_H
 
 #include <string>
+#include <cstdint>
 #include <vector>
 
 namespace barrier {

@@ -90,7 +90,7 @@ ServerApp::parseArgs(int argc, const char* const* argv)
     bool result = argParser.parseServerArgs(args(), argc, argv);
 
     if (!result || args().m_shouldExit) {
-        m_bye(kExitArgs);
+        m_bye(result ? kExitSuccess : kExitArgs);
     }
     else {
         if (!args().m_barrierAddress.empty()) {

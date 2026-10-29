@@ -2,7 +2,7 @@
 
 Updated 29 October 2026. Starting point: upstream-derived commit
 `653e4badeb88f61de901581667d4465d7b1e2d52` on `master`.
-Current development version: **2.4.1-snapshot**.
+Current development version: **2.4.2-snapshot**.
 
 The aim is dependable control across several computers, with a clear account
 of which device receives input and what it may share. Security, recovery and
@@ -13,7 +13,7 @@ usable configuration come before extra transports or a new interface toolkit.
 `FUTURE(BX-007)` links a source comment to an entry below. The comment explains
 the local constraint; this document records scope and completion evidence.
 
-States are **Planned**, **Investigate**, **Deferred** and **Implemented**.
+States are **Planned**, **Investigate**, **In progress**, **Deferred** and **Implemented**.
 An implemented item records its first version, tests and remaining limitations.
 When part of an item lands, record that part without closing the whole item.
 The changelog preserves the history; old promises need not live in comments
@@ -25,11 +25,11 @@ planning update. A snapshot is not a tested release.
 | ID | State | Work | Completion evidence |
 | --- | --- | --- | --- |
 | BX-000 | Implemented, 2.4.1-snapshot | Source planning notes, corrected assessment, backlog and version tracking | Comment-only source comparison, both version declarations matched, whitespace check; no application build claimed |
-| BX-001 | Planned | Harden SSL resource lifecycle: cleanup before initialisation, failed context allocation, repeated close and error propagation | Regression tests exercise these paths without crashing or using an invalid context; sanitiser run where available |
+| BX-001 | In progress, 2.4.2-snapshot | SSL wrapper ownership, cleanup before initialisation, context allocation failure, repeated close and exception propagation implemented | Nine lifecycle tests, including injected context failures; handshake/session allocation and real concurrent shutdown remain to check; see build.md |
 | BX-002 | Planned | Define TLS minimum and peer authentication policy; test both roles and migrate trust settings | Reject unsupported TLS, unknown and changed identities; verify approved peers; failed or missing trust storage never silently grants access |
 | BX-003 | Planned | Authenticate local management commands and authorise the caller | Unauthorised local users cannot change daemon commands or read privileged state; exercise service/session boundaries and endpoint permissions |
 | BX-004 | Planned | Replace deprecated certificate APIs, protect key files and handle generation/write failures | Supported OpenSSL build, restrictive creation permissions, checked return values, no partial certificate accepted after failure |
-| BX-005 | Planned | Reproducible builds, maintained dependencies and a small useful CI matrix | Build and existing tests on available platforms; exact dependency and runner revisions; record missing platform checks before packaging claims |
+| BX-005 | In progress, 2.4.2-snapshot | GCC 13 header fixes, optional test dependencies, CTest registration and pinned Linux CI workflow implemented | Ubuntu CLI and unit build established; Debug/Release CI added; Qt GUI, Windows/macOS, packaging and dependency replacement remain outstanding |
 | BX-006 | Investigate | Bound protocol, clipboard and transfer accumulation; retain input responsiveness | Follow receive paths, fuzz malformed lengths/sequences, test queued-byte limits and cancellation; distinguish measured limits from assumptions |
 | BX-007 | Planned | Connection and pairing UX: discovered, approved, connected, focused, paused, failed | Status comes from engine state; actionable errors; accessible controls; tested local-return path and key release on disconnect |
 

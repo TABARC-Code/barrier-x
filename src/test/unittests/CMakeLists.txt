@@ -66,3 +66,13 @@ endif()
 add_executable(unittests ${sources})
 target_link_libraries(unittests
     arch base client server common io net platform server synlib mt ipc ${GTEST_LIBRARIES} ${GMOCK_LIBRARIES} ${libs} ${OPENSSL_LIBS})
+
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(unittests PRIVATE BARRIER_TEST_WRAP_SSL_CONTEXT)
+    set_property(TARGET unittests APPEND_STRING PROPERTY LINK_FLAGS " -Wl,--wrap=SSL_CTX_new")
+endif()
+
+add_test(NAME unit COMMAND unittests)
+set_tests_properties(unit PROPERTIES TIMEOUT 120)
+add_test(NAME ssl-lifecycle COMMAND unittests --gtest_filter=SecureSocketTests.*)
+set_tests_properties(ssl-lifecycle PROPERTIES TIMEOUT 30)

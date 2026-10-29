@@ -1,10 +1,11 @@
 # barrier-x
 
-Development version: **2.4.1-snapshot**, based on Barrier 2.4.
+Development version: **2.4.2-snapshot**, based on Barrier 2.4.
 See the [development plan](docs/roadmap.md),
 [starting assessment](docs/assessment.md) and [fork changes](docs/changes.md).
-This first update adds planning notes; it does not claim completed hardening
-or new runtime features. The inherited documentation below describes Barrier;
+This snapshot fixes SSL setup/cleanup failures and command-line exit codes,
+and adds a Linux build/test workflow. See [build and test notes](docs/build.md)
+for coverage and remaining checks. The inherited documentation below describes Barrier;
 its badges and download links refer to upstream builds, not verified fork builds.
 
 ## Barrier

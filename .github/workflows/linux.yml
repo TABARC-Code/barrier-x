@@ -1,0 +1,68 @@
+name: Linux build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - build_type: Debug
+            sanitise: true
+          - build_type: Release
+            sanitise: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build g++ pkg-config libssl-dev \
+            libcurl4-openssl-dev libxtst-dev libxrandr-dev libxi-dev \
+            libxinerama-dev libgtest-dev libgmock-dev
+      - name: Initialise filesystem dependency
+        run: git submodule update --init ext/gulrak-filesystem
+      - name: Configure
+        run: >-
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DBARRIER_BUILD_GUI=OFF -DBARRIER_BUILD_INSTALLER=OFF
+          -DBARRIER_BUILD_TESTS=ON -DBARRIER_USE_EXTERNAL_GTEST=ON
+      - name: Build client, server and unit tests
+        run: cmake --build build --target barrierc barriers unittests --parallel 2
+      - name: Run unit tests
+        run: ctest --test-dir build --output-on-failure
+      - name: Check command-line entry points
+        run: |
+          build/bin/barriers --version
+          build/bin/barrierc --version
+      - name: Configure sanitised build
+        if: matrix.sanitise
+        run: >-
+          cmake -S . -B build-sanitised -G Ninja -DCMAKE_BUILD_TYPE=Debug
+          -DBARRIER_BUILD_GUI=OFF -DBARRIER_BUILD_INSTALLER=OFF
+          -DBARRIER_BUILD_TESTS=ON -DBARRIER_USE_EXTERNAL_GTEST=ON
+          -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer'
+          -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=address,undefined'
+      - name: Check SSL lifecycle with sanitisers
+        if: matrix.sanitise
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+          UBSAN_OPTIONS: halt_on_error=1
+        run: |
+          cmake --build build-sanitised --target unittests --parallel 2
+          ctest --test-dir build-sanitised -R '^ssl-lifecycle$' --output-on-failure

@@ -88,22 +88,27 @@ SecureSocket::~SecureSocket()
     // removing sleep() because I have no idea why you would want to do it
     // ... smells of trying to cover up a bug you don't understand
     //ARCH->sleep(1);
-    delete m_ssl;
 }
 
 void
 SecureSocket::close()
 {
     isFatal(true);
+    // Stop servicing callbacks before releasing their SSL state.
+    removeJob();
     freeSSLResources();
     TCPSocket::close();
 }
 
 void SecureSocket::freeSSLResources()
 {
-    // FUTURE(BX-001): tolerate cleanup before initSsl(). A failed connection
-    // should leave an error message, rather than take the process with it.
     std::lock_guard<std::mutex> ssl_lock{ssl_mutex_};
+
+    m_secureReady = false;
+    // Construction can fail before SSL exists. Cleanup still has to work.
+    if (!m_ssl) {
+        return;
+    }
 
     if (m_ssl->m_ssl != NULL) {
         SSL_shutdown(m_ssl->m_ssl);
@@ -325,7 +330,11 @@ SecureSocket::initSsl(bool server)
 {
     std::lock_guard<std::mutex> ssl_lock{ssl_mutex_};
 
-    m_ssl = new Ssl();
+    if (m_ssl || isFatal()) {
+        throw XSocketCreate("SSL socket cannot be reinitialised");
+    }
+
+    m_ssl = std::make_unique<Ssl>();
     m_ssl->m_context = NULL;
     m_ssl->m_ssl = NULL;
 
@@ -335,6 +344,11 @@ SecureSocket::initSsl(bool server)
 bool SecureSocket::load_certificates(const barrier::fs::path& path)
 {
     std::lock_guard<std::mutex> ssl_lock{ssl_mutex_};
+
+    if (!m_ssl || !m_ssl->m_context || isFatal()) {
+        showError("SSL context is unavailable");
+        return false;
+    }
 
     if (path.empty()) {
         showError("ssl certificate is not specified");
@@ -407,14 +421,13 @@ SecureSocket::initContext(bool server)
     SSL_METHOD* m = const_cast<SSL_METHOD*>(method);
     m_ssl->m_context = SSL_CTX_new(m);
 
-    // FUTURE(BX-001, BX-002): handle allocation failure before using the
-    // context, then enforce the agreed TLS floor. See docs/roadmap.md.
-    // drop SSLv3 support
-    SSL_CTX_set_options(m_ssl->m_context, SSL_OP_NO_SSLv3);
-
     if (m_ssl->m_context == NULL) {
-        showError("");
+        isFatal(true);
+        throw XSocketCreate("could not create SSL context: " + getError());
     }
+
+    // FUTURE(BX-002): enforce and test the agreed TLS floor in both roles.
+    SSL_CTX_set_options(m_ssl->m_context, SSL_OP_NO_SSLv3);
 
     if (security_level_ == ConnectionSecurityLevel::ENCRYPTED_AUTHENTICATED) {
         // We want to ask for peer certificate, but not verify it. If we don't ask for peer

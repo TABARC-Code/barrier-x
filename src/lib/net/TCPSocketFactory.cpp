@@ -44,10 +44,12 @@ IDataSocket* TCPSocketFactory::create(IArchNetwork::EAddressFamily family,
                                       ConnectionSecurityLevel security_level) const
 {
     if (security_level != ConnectionSecurityLevel::PLAINTEXT) {
-        SecureSocket* secureSocket = new SecureSocket(m_events, m_socketMultiplexer, family,
-                                                      security_level);
+        // Retain ownership until SSL setup succeeds; allocation failure must
+        // not leave a socket and its operating-system handle behind.
+        auto secureSocket = std::make_unique<SecureSocket>(m_events, m_socketMultiplexer, family,
+                                                          security_level);
         secureSocket->initSsl (false);
-        return secureSocket;
+        return secureSocket.release();
     }
     else {
         return new TCPSocket(m_events, m_socketMultiplexer, family);

@@ -17,6 +17,14 @@
 add_subdirectory(barrierc)
 add_subdirectory(barriers)
 
+if (BARRIER_BUILD_TESTS)
+    foreach(command barrierc barriers)
+        add_test(NAME ${command}-version COMMAND ${command} --version)
+        add_test(NAME ${command}-help COMMAND ${command} --help)
+        set_tests_properties(${command}-version ${command}-help PROPERTIES TIMEOUT 10)
+    endforeach()
+endif()
+
 if (WIN32)
     add_subdirectory(barrierd)
 endif()
