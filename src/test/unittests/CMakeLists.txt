@@ -78,3 +78,6 @@ add_test(NAME ssl-lifecycle COMMAND unittests --gtest_filter=SecureSocketTests.*
 set_tests_properties(ssl-lifecycle PROPERTIES TIMEOUT 30)
 add_test(NAME certificate-storage COMMAND unittests --gtest_filter=CertificateStorageTests.*)
 set_tests_properties(certificate-storage PROPERTIES TIMEOUT 90)
+
+add_test(NAME ipc-framing COMMAND unittests --gtest_filter=IpcMessageReaderTests.*:IpcProxyTests.*:IpcCommandEncodingTests.*)
+set_tests_properties(ipc-framing PROPERTIES TIMEOUT 30)

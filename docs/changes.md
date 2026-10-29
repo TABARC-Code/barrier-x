@@ -1,5 +1,24 @@
 # barrier-x changes
 
+## 2.4.8-snapshot — 29 October 2026
+
+- Buffered partial engine IPC frames without dispatching incomplete messages.
+- Limited commands to 64 KiB; retained the 1 MiB log-message limit.
+- Rejected malformed headers, roles, elevation flags and embedded command NULs.
+- Stopped reading after a protocol error without emitting a null message.
+- Supplied the missing elevation argument when encoding commands.
+- Added thirteen regressions and registered three localhost IPC round trips.
+
+Caller authentication remains unfinished. This changes the C++ engine readers;
+the separate Qt GUI reader is not covered. Limits apply per frame, not to total
+connections, event backlog or queued log output. No handshake identity is proof
+of a local user.
+
+Checks: 188 unit tests, four transfer tests, three localhost IPC round trips
+and all ten CTest entries passed. All 53 targeted lifecycle/storage/IPC tests
+passed ASan/UBSan locally. Local leak inspection remains restricted; hosted
+leak checks stay enabled. Windows/macOS and interactive GUI checks remain open.
+
 ## 2.4.7-snapshot — 29 October 2026
 
 - Gave event queues ownership of their lazily allocated event-type providers.

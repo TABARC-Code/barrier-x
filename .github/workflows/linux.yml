@@ -65,4 +65,4 @@ jobs:
           UBSAN_OPTIONS: halt_on_error=1
         run: |
           cmake --build build-sanitised --target unittests --parallel 2
-          ctest --test-dir build-sanitised -R '^(ssl-lifecycle|certificate-storage)$' --output-on-failure
+          ctest --test-dir build-sanitised -R '^(ssl-lifecycle|certificate-storage|ipc-framing)$' --output-on-failure

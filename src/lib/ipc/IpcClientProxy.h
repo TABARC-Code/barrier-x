@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include "ipc/IpcMessageReader.h"
+
 #include "ipc/Ipc.h"
 #include "arch/IArchMultithread.h"
 #include "base/EventTypes.h"
@@ -43,8 +45,6 @@ private:
     void                handleData(const Event&, void*);
     void                handleDisconnect(const Event&, void*);
     void                handleWriteError(const Event&, void*);
-    IpcHelloMessage*    parseHello();
-    IpcCommandMessage*    parseCommand();
     void                disconnect();
 
 private:
@@ -54,4 +54,5 @@ private:
     std::mutex m_readMutex;
     std::mutex m_writeMutex;
     IEventQueue*        m_events;
+    IpcMessageReader reader_{IpcMessageReader::Direction::FromClient};
 };

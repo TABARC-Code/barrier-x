@@ -84,3 +84,8 @@ if (NOT APPLE)
     add_test(NAME network-transfers COMMAND integtests --gtest_filter=NetworkTests.*)
     set_tests_properties(network-transfers PROPERTIES TIMEOUT 60)
 endif()
+
+if (NOT APPLE)
+    add_test(NAME ipc-roundtrip COMMAND integtests --gtest_filter=IpcTests.*)
+    set_tests_properties(ipc-roundtrip PROPERTIES TIMEOUT 30)
+endif()

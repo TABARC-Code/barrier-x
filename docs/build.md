@@ -124,7 +124,7 @@ cmake -S . -B build-sanitised -G Ninja -DCMAKE_BUILD_TYPE=Debug \
   -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=address,undefined'
 cmake --build build-sanitised --target unittests --parallel 2
 ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1 \
-  ctest --test-dir build-sanitised -R '^(ssl-lifecycle|certificate-storage)$' --output-on-failure
+  ctest --test-dir build-sanitised -R '^(ssl-lifecycle|certificate-storage|ipc-framing)$' --output-on-failure
 ```
 
 The Linux workflow runs Debug and Release builds plus the sanitised lifecycle
@@ -170,3 +170,29 @@ TLS session API references:
 GUI builds and interactive input, two-machine TLS sessions, concurrent shutdown,
 Windows/macOS, session/lock-screen behaviour and installers are not covered by
 the command-line tests above. Sanitiser coverage is not a security certificate.
+
+## Engine IPC framing
+
+Version 2.4.8 introduces an incremental reader shared by the C++ daemon and
+node proxies. It retains partial headers, lengths, bodies and flags between
+input-ready events, reads one frame at a time and validates lengths before
+buffering payloads. Commands accept at most 65,536 bytes and logs at most
+1,048,576 bytes. The latter matches the previous generic protocol limit.
+Valid wire formats are unchanged, including empty commands used to stop a node.
+Only GUI/node hello values and elevation bytes 0/1 are accepted. Commands
+containing NUL are rejected rather than passed to a process-launch boundary.
+
+Thirteen unit regressions cover every split of command/log frames, bytewise
+hello, coalesced messages, exact/excess limits, malformed fields and directions,
+proxy dispatch/disconnection and both command elevation encodings. CTest also
+registers three actual localhost IPC round trips. The IPC unit subset is
+included in hosted ASan/UBSan/leak checks.
+
+This does not authenticate callers, authorise process launch, harden the
+separate Qt reader or bound aggregate queue/connection resources. Partial
+frames remain until completion or disconnection; idle-peer timeouts remain
+future work. Windows service execution and the GUI are not validated here.
+
+[2.4.7 run 40860940285](https://github.com/TABARC-Code/barrier-x/actions/runs/40860940285)
+passed Debug, Release and sanitised lifecycle/storage tests with leak scanning,
+including event-provider teardown.

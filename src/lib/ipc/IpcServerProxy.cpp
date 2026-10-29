@@ -48,36 +48,23 @@ IpcServerProxy::~IpcServerProxy()
 void
 IpcServerProxy::handleData(const Event&, void*)
 {
-    LOG((CLOG_DEBUG "start ipc handle data"));
-
-    UInt8 code[4];
-    UInt32 n = m_stream.read(code, 4);
-    while (n != 0) {
-
-        LOG((CLOG_DEBUG "ipc read: %c%c%c%c",
-            code[0], code[1], code[2], code[3]));
-
-        IpcMessage* m = nullptr;
-        if (memcmp(code, kIpcMsgLogLine, 4) == 0) {
-            m = parseLogLine();
-        }
-        else if (memcmp(code, kIpcMsgShutdown, 4) == 0) {
-            m = new IpcShutdownMessage();
-        }
-        else {
-            LOG((CLOG_ERR "invalid ipc message"));
-            disconnect();
-        }
-
-        // don't delete with this event; the data is passed to a new event.
-        Event e(m_events->forIpcServerProxy().messageReceived(), this, NULL, Event::kDontFreeData);
-        e.setDataObject(m);
-        m_events->addEvent(e);
-
-        n = m_stream.read(code, 4);
+    if (m_disconnecting) {
+        return;
     }
-
-    LOG((CLOG_DEBUG "finished ipc handle data"));
+    try {
+        while (auto message = reader_.read(m_stream)) {
+            Event event(m_events->forIpcServerProxy().messageReceived(), this,
+                        nullptr, Event::kDontFreeData);
+            event.setDataObject(message.get());
+            m_events->addEvent(event);
+            message.release();
+        }
+    }
+    catch (const IpcProtocolError&) {
+        // No payload in diagnostics: commands and log lines can contain secrets.
+        LOG((CLOG_ERR "invalid ipc frame"));
+        disconnect();
+    }
 }
 
 void
@@ -95,7 +82,7 @@ IpcServerProxy::send(const IpcMessage& message)
     case kIpcCommand: {
         const IpcCommandMessage& cm = static_cast<const IpcCommandMessage&>(message);
         std::string command = cm.command();
-        ProtocolUtil::writef(&m_stream, kIpcMsgCommand, &command);
+        ProtocolUtil::writef(&m_stream, kIpcMsgCommand, &command, cm.elevate() ? 1 : 0);
         break;
     }
 
@@ -105,19 +92,13 @@ IpcServerProxy::send(const IpcMessage& message)
     }
 }
 
-IpcLogLineMessage*
-IpcServerProxy::parseLogLine()
-{
-    std::string logLine;
-    ProtocolUtil::readf(&m_stream, kIpcMsgLogLine + 4, &logLine);
-
-    // must be deleted by event handler.
-    return new IpcLogLineMessage(logLine);
-}
-
 void
 IpcServerProxy::disconnect()
 {
+    if (m_disconnecting) {
+        return;
+    }
     LOG((CLOG_DEBUG "ipc disconnect, closing stream"));
+    m_disconnecting = true;
     m_stream.close();
 }

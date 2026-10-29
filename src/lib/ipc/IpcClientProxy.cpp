@@ -96,36 +96,26 @@ IpcClientProxy::handleData(const Event&, void*)
     // don't allow the dtor to destroy the stream while we're using it.
     std::lock_guard<std::mutex> lock(m_readMutex);
 
-    LOG((CLOG_DEBUG "start ipc handle data"));
-
-    UInt8 code[4];
-    UInt32 n = m_stream.read(code, 4);
-    while (n != 0) {
-
-        LOG((CLOG_DEBUG "ipc read: %c%c%c%c",
-            code[0], code[1], code[2], code[3]));
-
-        IpcMessage* m = nullptr;
-        if (memcmp(code, kIpcMsgHello, 4) == 0) {
-            m = parseHello();
-        }
-        else if (memcmp(code, kIpcMsgCommand, 4) == 0) {
-            m = parseCommand();
-        }
-        else {
-            LOG((CLOG_ERR "invalid ipc message"));
-            disconnect();
-        }
-
-        // don't delete with this event; the data is passed to a new event.
-        Event e(m_events->forIpcClientProxy().messageReceived(), this, NULL, Event::kDontFreeData);
-        e.setDataObject(m);
-        m_events->addEvent(e);
-
-        n = m_stream.read(code, 4);
+    if (m_disconnecting) {
+        return;
     }
-
-    LOG((CLOG_DEBUG "finished ipc handle data"));
+    try {
+        while (auto message = reader_.read(m_stream)) {
+            if (message->type() == kIpcHello) {
+                m_clientType = static_cast<IpcHelloMessage&>(*message).clientType();
+            }
+            Event event(m_events->forIpcClientProxy().messageReceived(), this,
+                        nullptr, Event::kDontFreeData);
+            event.setDataObject(message.get());
+            m_events->addEvent(event);
+            message.release();
+        }
+    }
+    catch (const IpcProtocolError&) {
+        // No payload in diagnostics: commands and log lines can contain secrets.
+        LOG((CLOG_ERR "invalid ipc frame"));
+        disconnect();
+    }
 }
 
 void
@@ -156,32 +146,12 @@ IpcClientProxy::send(const IpcMessage& message)
     }
 }
 
-IpcHelloMessage*
-IpcClientProxy::parseHello()
-{
-    UInt8 type;
-    ProtocolUtil::readf(&m_stream, kIpcMsgHello + 4, &type);
-
-    m_clientType = static_cast<EIpcClientType>(type);
-
-    // must be deleted by event handler.
-    return new IpcHelloMessage(m_clientType);
-}
-
-IpcCommandMessage*
-IpcClientProxy::parseCommand()
-{
-    std::string command;
-    UInt8 elevate;
-    ProtocolUtil::readf(&m_stream, kIpcMsgCommand + 4, &command, &elevate);
-
-    // must be deleted by event handler.
-    return new IpcCommandMessage(command, elevate != 0);
-}
-
 void
 IpcClientProxy::disconnect()
 {
+    if (m_disconnecting) {
+        return;
+    }
     LOG((CLOG_DEBUG "ipc disconnect, closing stream"));
     m_disconnecting = true;
     m_stream.close();

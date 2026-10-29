@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include "ipc/IpcMessageReader.h"
+
 #include "base/Event.h"
 #include "base/EventTypes.h"
 
@@ -28,6 +30,7 @@ class IEventQueue;
 
 class IpcServerProxy {
     friend class IpcClient;
+    friend class IpcCommandEncodingTests;
 
 public:
     IpcServerProxy(barrier::IStream& stream, IEventQueue* events);
@@ -37,10 +40,11 @@ private:
     void                send(const IpcMessage& message);
 
     void                handleData(const Event&, void*);
-    IpcLogLineMessage*    parseLogLine();
     void                disconnect();
 
 private:
     barrier::IStream&    m_stream;
     IEventQueue*        m_events;
+    IpcMessageReader reader_{IpcMessageReader::Direction::FromServer};
+    bool m_disconnecting = false;
 };

@@ -106,3 +106,13 @@ Lazy construction is serialised by the existing queue mutex. Tests exercise
 every provider across repeated queue lifetimes and concurrent first access.
 Callbacks must still stop before queue destruction; this change does not
 introduce concurrent teardown or certify all event-queue operations.
+
+## Follow-up: 2.4.8-snapshot
+
+The engine IPC proxies treated any non-zero header read as four bytes and
+ignored failed body reads. Invalid headers could still enqueue a null message.
+The old generic string reader already had a 1 MiB bound; this update adds a
+smaller command-specific bound and incremental framing, not a first-ever
+string length limit. A missing variadic elevation argument in the C++ command
+writer is also corrected and checked against exact wire bytes. Authentication
+and authorisation remain BX-003 work, independent of parser validity.
