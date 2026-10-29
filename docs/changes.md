@@ -1,5 +1,21 @@
 # barrier-x changes
 
+## 2.4.7-snapshot — 29 October 2026
+
+- Gave event queues ownership of their lazily allocated event-type providers.
+- Serialised first access so concurrent callers receive the same provider.
+- Added teardown coverage for all twenty providers and concurrent first access.
+
+The 2.4.6 hosted lifecycle checks exposed 192 bytes leaked across eight provider
+allocations on failure paths. The leak check remains enabled; this fixes the
+ownership rather than suppressing the report.
+
+Checks: 175 unit tests, four localhost transfer tests and all eight CTest
+checks passed. The server command-line checks were retried after restoring a
+local generated binary's executable permission. All forty targeted tests passed
+ASan/UBSan locally; leak inspection remains restricted here and enabled in CI.
+GUI and Windows/macOS execution remain unverified.
+
 ## 2.4.6-snapshot — 29 October 2026
 
 - Checked TLS session allocation and transport attachment in both roles.
@@ -14,8 +30,9 @@ Concurrent shutdown, peer trust migration and platform validation remain open.
 Checks: 173 unit tests, four localhost transfer tests and all eight CTest
 entries passed. The 38 lifecycle/storage tests passed ASan/UBSan locally with
 leak inspection disabled for the previously recorded environment restriction.
-Hosted leak scanning remains enabled. GUI and Windows/macOS execution remain
-unverified.
+Hosted run 40859533634 passed Release and normal Debug checks, but its leak
+check failed on inherited event-type provider ownership. Fixed in 2.4.7. GUI
+and Windows/macOS execution remain unverified.
 
 ## 2.4.5-snapshot — 29 October 2026
 

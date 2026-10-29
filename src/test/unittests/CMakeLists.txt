@@ -74,7 +74,7 @@ endif()
 
 add_test(NAME unit COMMAND unittests)
 set_tests_properties(unit PROPERTIES TIMEOUT 120)
-add_test(NAME ssl-lifecycle COMMAND unittests --gtest_filter=SecureSocketTests.*:ArchWakeupTests.*:NonBlockingStreamTests.*)
+add_test(NAME ssl-lifecycle COMMAND unittests --gtest_filter=SecureSocketTests.*:ArchWakeupTests.*:NonBlockingStreamTests.*:EventQueueTests.*)
 set_tests_properties(ssl-lifecycle PROPERTIES TIMEOUT 30)
 add_test(NAME certificate-storage COMMAND unittests --gtest_filter=CertificateStorageTests.*)
 set_tests_properties(certificate-storage PROPERTIES TIMEOUT 90)

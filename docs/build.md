@@ -106,6 +106,12 @@ is retry coverage, not a completed two-machine authenticated session. A friend
 fixture drives the private handshake entry points synchronously; production
 callbacks use the same entry points under the TCP socket mutex.
 
+Version 2.4.7 adds all-provider teardown and concurrent lazy-creation tests
+(175 Linux unit tests, 28 in the network lifecycle subset). Each event queue
+owns its twenty provider slots, and its mutex serialises first construction.
+The concurrency test checks provider identity and event registration; it is not
+a ThreadSanitizer result or proof that every queue operation is thread-safe.
+
 ## Sanitisers
 
 Use a separate build directory:
@@ -144,6 +150,11 @@ The same checks passed for [2.4.4 run 40815563644](https://github.com/TABARC-Cod
 The certificate-storage subset is included in hosted sanitiser runs from 2.4.5.
 [2.4.5 run 40820964445](https://github.com/TABARC-Code/barrier-x/actions/runs/40820964445)
 passed Debug, Release and the sanitised subsets with hosted leak scanning.
+
+[2.4.6 run 40859533634](https://github.com/TABARC-Code/barrier-x/actions/runs/40859533634)
+passed normal Debug/Release checks but reported 192 bytes in eight leaked event
+providers during the sanitised lifecycle subset. Version 2.4.7 fixes the
+inherited ownership and exercises all providers on teardown.
 
 TLS policy API reference:
 [OpenSSL minimum protocol version](https://docs.openssl.org/3.0/man3/SSL_CTX_set_min_proto_version/).

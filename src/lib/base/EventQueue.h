@@ -29,6 +29,7 @@
 #include "base/NonBlockingStream.h"
 
 #include <mutex>
+#include <memory>
 #include <queue>
 
 //! Event queue
@@ -160,38 +161,39 @@ public:
     FileEvents&                    forFile();
 
 private:
-    ClientEvents*                m_typesForClient;
-    IStreamEvents*                m_typesForIStream;
-    IpcClientEvents*            m_typesForIpcClient;
-    IpcClientProxyEvents*        m_typesForIpcClientProxy;
-    IpcServerEvents*            m_typesForIpcServer;
-    IpcServerProxyEvents*        m_typesForIpcServerProxy;
-    IDataSocketEvents*            m_typesForIDataSocket;
-    IListenSocketEvents*        m_typesForIListenSocket;
-    ISocketEvents*                m_typesForISocket;
-    OSXScreenEvents*            m_typesForOSXScreen;
-    ClientListenerEvents*        m_typesForClientListener;
-    ClientProxyEvents*            m_typesForClientProxy;
-    ClientProxyUnknownEvents*    m_typesForClientProxyUnknown;
-    ServerEvents*                m_typesForServer;
-    ServerAppEvents*            m_typesForServerApp;
-    IKeyStateEvents*            m_typesForIKeyState;
-    IPrimaryScreenEvents*        m_typesForIPrimaryScreen;
-    IScreenEvents*                m_typesForIScreen;
-    ClipboardEvents*            m_typesForClipboard;
-    FileEvents*                    m_typesForFile;
+    std::unique_ptr<ClientEvents>                m_typesForClient;
+    std::unique_ptr<IStreamEvents>                m_typesForIStream;
+    std::unique_ptr<IpcClientEvents>            m_typesForIpcClient;
+    std::unique_ptr<IpcClientProxyEvents>        m_typesForIpcClientProxy;
+    std::unique_ptr<IpcServerEvents>            m_typesForIpcServer;
+    std::unique_ptr<IpcServerProxyEvents>        m_typesForIpcServerProxy;
+    std::unique_ptr<IDataSocketEvents>            m_typesForIDataSocket;
+    std::unique_ptr<IListenSocketEvents>        m_typesForIListenSocket;
+    std::unique_ptr<ISocketEvents>                m_typesForISocket;
+    std::unique_ptr<OSXScreenEvents>            m_typesForOSXScreen;
+    std::unique_ptr<ClientListenerEvents>        m_typesForClientListener;
+    std::unique_ptr<ClientProxyEvents>            m_typesForClientProxy;
+    std::unique_ptr<ClientProxyUnknownEvents>    m_typesForClientProxyUnknown;
+    std::unique_ptr<ServerEvents>                m_typesForServer;
+    std::unique_ptr<ServerAppEvents>            m_typesForServerApp;
+    std::unique_ptr<IKeyStateEvents>            m_typesForIKeyState;
+    std::unique_ptr<IPrimaryScreenEvents>        m_typesForIPrimaryScreen;
+    std::unique_ptr<IScreenEvents>                m_typesForIScreen;
+    std::unique_ptr<ClipboardEvents>            m_typesForClipboard;
+    std::unique_ptr<FileEvents>                    m_typesForFile;
     Mutex*                        m_readyMutex;
     CondVar<bool>*                m_readyCondVar;
     std::queue<Event>            m_pending;
     NonBlockingStream            m_parentStream;
 };
 
-#define EVENT_TYPE_ACCESSOR(type_)                                            \
-type_##Events&                                                                \
-EventQueue::for##type_() {                                                \
-    if (m_typesFor##type_ == NULL) {                                        \
-        m_typesFor##type_ = new type_##Events();                            \
-        m_typesFor##type_->setEvents(dynamic_cast<IEventQueue*>(this));        \
-    }                                                                        \
-    return *m_typesFor##type_;                                                \
+#define EVENT_TYPE_ACCESSOR(type_)                                      \
+type_##Events& EventQueue::for##type_()                                 \
+{                                                                     \
+    std::lock_guard<std::mutex> lock(m_mutex);                          \
+    if (!m_typesFor##type_) {                                          \
+        m_typesFor##type_ = std::make_unique<type_##Events>();          \
+        m_typesFor##type_->setEvents(dynamic_cast<IEventQueue*>(this)); \
+    }                                                                 \
+    return *m_typesFor##type_;                                         \
 }

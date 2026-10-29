@@ -96,3 +96,13 @@ only on success and reused during retries. Missing context, closed sockets and
 failed setup return a fatal result before any handshake call. Both roles have
 failure coverage and real non-blocking socket retry tests. This does not close
 concurrent shutdown, input-state synchronisation or peer trust migration.
+
+## Follow-up: 2.4.7-snapshot
+
+Hosted leak checking of the new setup-failure paths found event-type providers
+allocated by `EventQueue` and never freed. Provider slots now use owning smart
+pointers, with complete types available at out-of-line queue destruction.
+Lazy construction is serialised by the existing queue mutex. Tests exercise
+every provider across repeated queue lifetimes and concurrent first access.
+Callbacks must still stop before queue destruction; this change does not
+introduce concurrent teardown or certify all event-queue operations.

@@ -2,7 +2,7 @@
 
 Updated 29 October 2026. Starting point: upstream-derived commit
 `653e4badeb88f61de901581667d4465d7b1e2d52` on `master`.
-Current development version: **2.4.6-snapshot**.
+Current development version: **2.4.7-snapshot**.
 
 The aim is dependable control across several computers, with a clear account
 of which device receives input and what it may share. Security, recovery and
@@ -73,6 +73,7 @@ is a fairly low bar for a useful status indicator.
 | BX-025 | Implemented, 2.4.3-snapshot | POSIX wake-up pipes now belong to the target thread and close with it; creation/reference changes serialised; full pipes do not block callers | Descriptor ownership/closure regression, 10,000 wake-ups and hosted Debug/Release checks including leak scanning passed in run 40815018907 |
 | BX-026 | Implemented, 2.4.3-snapshot | Detached stdin/EOF handling and saved descriptor flags fixed | Five pipe/EOF/flag regression tests; actual localhost transfer tests now run without the inherited stdin assertion |
 | BX-027 | Implemented, 2.4.4-snapshot | Poll descriptor storage now unwinds safely when cancellation throws | Deterministic interrupted-poll test and hosted Debug/Release checks including leak scanning passed in run 40815563644 |
+| BX-028 | Implemented, 2.4.7-snapshot | Event queues own their lazy event-type providers; first construction is serialised | Two new tests cover all twenty providers, repeated lifetimes and concurrent first access. Normal and ASan/UBSan checks passed locally; follow-up hosted leak checking remains to verify |
 
 ## Next four weeks
 
