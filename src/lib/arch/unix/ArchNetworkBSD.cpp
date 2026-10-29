@@ -34,6 +34,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <string.h>
+#include <vector>
 
 #if HAVE_POLL
 #    include <poll.h>
@@ -300,7 +301,9 @@ ArchNetworkBSD::pollSocket(PollEntry pe[], int num, double timeout)
     }
 
     // allocate space for translated query
-    struct pollfd* pfd = new struct pollfd[1 + num];
+    // Cancellation throws out of testCancelThread(); keep poll storage owned
+    // while unwinding too, rather than relying on the returns below.
+    std::vector<struct pollfd> pfd(1 + num);
 
     // translate query
     for (int i = 0; i < num; ++i) {
@@ -327,7 +330,7 @@ ArchNetworkBSD::pollSocket(PollEntry pe[], int num, double timeout)
     int t = (timeout < 0.0) ? -1 : static_cast<int>(1000.0 * timeout);
 
     // do the poll
-    n = poll(pfd, n, t);
+    n = poll(pfd.data(), n, t);
 
     // reset the unblock pipe
     if (n > 0 && unblockPipe != NULL && (pfd[num].revents & POLLIN) != 0) {
@@ -348,10 +351,8 @@ ArchNetworkBSD::pollSocket(PollEntry pe[], int num, double timeout)
         if (errno == EINTR) {
             // interrupted system call
             ARCH->testCancelThread();
-            delete[] pfd;
             return 0;
         }
-        delete[] pfd;
         throwError(errno);
     }
 
@@ -372,7 +373,6 @@ ArchNetworkBSD::pollSocket(PollEntry pe[], int num, double timeout)
         }
     }
 
-    delete[] pfd;
     return n;
 }
 

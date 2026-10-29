@@ -2,7 +2,7 @@
 
 Updated 29 October 2026. Starting point: upstream-derived commit
 `653e4badeb88f61de901581667d4465d7b1e2d52` on `master`.
-Current development version: **2.4.3-snapshot**.
+Current development version: **2.4.4-snapshot**.
 
 The aim is dependable control across several computers, with a clear account
 of which device receives input and what it may share. Security, recovery and
@@ -68,8 +68,9 @@ is a fairly low bar for a useful status indicator.
 | BX-022 | Deferred | Hardware security-key forwarding research | Validate the OS device model, origin/user-presence expectations and threat model; generic HID packets are not a complete FIDO forwarding design |
 | BX-023 | Deferred | Operational history and diagnostics | Start with connection/focus/failure metadata and redacted exports; content logging or keystroke replay needs a separate explicit design and user decision |
 | BX-024 | Planned | Release provenance, dependency inventory and private security-reporting route | Document actual reporting route, hashes, build inputs and platform checks; set up signing only when the identity and verification process exist |
-| BX-025 | In progress, 2.4.3-snapshot | POSIX wake-up pipes now belong to the target thread and close with it; creation/reference changes serialised; full pipes do not block callers | Descriptor ownership/closure regression and 10,000 wake-ups; hosted leak scanning is the completion check because local inspection is restricted |
+| BX-025 | Implemented, 2.4.3-snapshot | POSIX wake-up pipes now belong to the target thread and close with it; creation/reference changes serialised; full pipes do not block callers | Descriptor ownership/closure regression, 10,000 wake-ups and hosted Debug/Release checks including leak scanning passed in run 40815018907 |
 | BX-026 | Implemented, 2.4.3-snapshot | Detached stdin/EOF handling and saved descriptor flags fixed | Five pipe/EOF/flag regression tests; actual localhost transfer tests now run without the inherited stdin assertion |
+| BX-027 | In progress, 2.4.4-snapshot | Poll descriptor storage now unwinds safely when cancellation throws | Deterministic interrupted-poll test; hosted sanitiser run must verify cleanup |
 
 ## Next four weeks
 

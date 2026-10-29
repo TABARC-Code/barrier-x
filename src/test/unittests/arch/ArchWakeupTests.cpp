@@ -9,11 +9,57 @@
 
 #if SYSAPI_UNIX
 #include "arch/Arch.h"
+#include "arch/XArch.h"
 #include "test/global/gtest.h"
 
 #include <atomic>
 #include <cerrno>
 #include <fcntl.h>
+
+#if defined(BARRIER_TEST_WRAP_POLL) && HAVE_POLL
+#include <poll.h>
+namespace {
+thread_local bool cancel_next_poll = false;
+}
+
+extern "C" int __real_poll(struct pollfd*, nfds_t, int);
+extern "C" int __wrap_poll(struct pollfd* descriptors, nfds_t count, int timeout)
+{
+    if (cancel_next_poll) {
+        cancel_next_poll = false;
+        ArchThread current = ARCH->newCurrentThread();
+        ARCH->cancelThread(current);
+        ARCH->closeThread(current);
+        errno = EINTR;
+        return -1;
+    }
+    return __real_poll(descriptors, count, timeout);
+}
+
+TEST(ArchWakeupTests, InterruptedPollPropagatesCancellation)
+{
+    std::atomic<bool> cancelled{false};
+    ArchSocket socket = ARCH->newSocket(IArchNetwork::kINET, IArchNetwork::kSTREAM);
+    ArchThread worker = ARCH->newThread([socket, &cancelled]() {
+        IArchNetwork::PollEntry entry{};
+        entry.m_socket = socket;
+        entry.m_events = IArchNetwork::kPOLLIN;
+        cancel_next_poll = true;
+        try {
+            ARCH->pollSocket(&entry, 1, -1);
+        }
+        catch (XThreadCancel&) {
+            cancelled.store(true);
+            throw;
+        }
+    });
+    ASSERT_NE(nullptr, worker);
+    EXPECT_TRUE(ARCH->wait(worker, 5));
+    ARCH->closeThread(worker);
+    ARCH->closeSocket(socket);
+    EXPECT_TRUE(cancelled.load());
+}
+#endif
 
 TEST(ArchWakeupTests, PipeBelongsToTargetAndClosesWithThread)
 {

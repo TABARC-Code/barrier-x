@@ -1,5 +1,18 @@
 # barrier-x changes
 
+## 2.4.4-snapshot — 29 October 2026
+
+- Kept POSIX poll storage owned when thread cancellation throws.
+- Added a deterministic interrupted-poll regression to the sanitiser subset.
+
+The previous raw allocation could be skipped by an exception before its manual
+delete. This update covers that path without suppressing leak reports.
+
+Checks: 155 unit tests, four localhost transfer tests and command-line checks
+passed. The 20-test network lifecycle subset passed ASan/UBSan locally with
+the previously documented local leak-inspection limitation. The 2.4.3 hosted
+Debug/Release run passed, including leak scanning; this follow-up has its own run.
+
 ## 2.4.3-snapshot — 29 October 2026
 
 - Required TLS 1.2 or newer; retained TLS 1.3 negotiation.

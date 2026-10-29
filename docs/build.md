@@ -73,6 +73,12 @@ on non-terminal descriptors and a shadowed saved-flags member; these are fixed.
 The four existing network tests passed actual localhost transfers in both
 directions. The 2.4.3 network lifecycle subset contains 19 unit tests.
 
+Version 2.4.4 adds deterministic interruption of `poll()` followed by thread
+cancellation. Its descriptor array now has automatic lifetime, including when
+cancellation throws before normal cleanup. Linux builds contain 155 unit tests
+and 20 tests in the network lifecycle subset. The additional linker wrapper
+is confined to the test executable.
+
 ## Sanitisers
 
 Use a separate build directory:
@@ -102,6 +108,10 @@ local run used `detect_leaks=0` after recording the failure. Hosted CI retains
 The 2.4.2 hosted Debug run found 376 bytes of inherited thread/wake-up storage
 leaks. Version 2.4.3 fixes the ownership and reference-counting paths; consult
 the new hosted run before treating leak verification as complete.
+
+Verified follow-up: [2.4.3 hosted run 40815018907](https://github.com/TABARC-Code/barrier-x/actions/runs/40815018907)
+passed both Debug and Release, including the Debug ASan/UBSan/LeakSanitizer step.
+This verifies the tested paths, not all possible thread or network behaviour.
 
 TLS policy API reference:
 [OpenSSL minimum protocol version](https://docs.openssl.org/3.0/man3/SSL_CTX_set_min_proto_version/).
