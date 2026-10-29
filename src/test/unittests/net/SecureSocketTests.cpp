@@ -18,9 +18,18 @@
 #ifdef BARRIER_TEST_WRAP_SSL_CONTEXT
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include <sys/socket.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 namespace {
 thread_local bool fail_next_context = false;
+thread_local bool fail_next_session = false;
+thread_local bool fake_transport = false;
+thread_local bool fail_attachment = false;
+thread_local int attachment_calls = 0;
+thread_local int handshake_calls = 0;
+thread_local SSL* last_session = nullptr;
 thread_local SSL_CTX* last_created_context = nullptr;
 }
 
@@ -35,6 +44,53 @@ extern "C" SSL_CTX* __wrap_SSL_CTX_new(const SSL_METHOD* method)
     last_created_context = __real_SSL_CTX_new(method);
     return last_created_context;
 }
+extern "C" SSL* __real_SSL_new(SSL_CTX* context);
+extern "C" SSL* __wrap_SSL_new(SSL_CTX* context)
+{
+    if (fail_next_session) {
+        fail_next_session = false;
+        return nullptr;
+    }
+    last_session = __real_SSL_new(context);
+    return last_session;
+}
+
+extern "C" int __real_SSL_set_fd(SSL* ssl, int fd);
+extern "C" int __wrap_SSL_set_fd(SSL* ssl, int fd)
+{
+    ++attachment_calls;
+    if (fake_transport) {
+        if (fail_attachment) {
+            return 0;
+        }
+        BIO* transport = BIO_new(BIO_s_mem());
+        if (!transport) {
+            return 0;
+        }
+        SSL_set_bio(ssl, transport, transport);
+        return 1;
+    }
+    return __real_SSL_set_fd(ssl, fd);
+}
+
+extern "C" int __real_SSL_connect(SSL* ssl);
+extern "C" int __real_SSL_accept(SSL* ssl);
+extern "C" int __wrap_SSL_connect(SSL* ssl)
+{
+    ++handshake_calls;
+    return fake_transport ? -1 : __real_SSL_connect(ssl);
+}
+extern "C" int __wrap_SSL_accept(SSL* ssl)
+{
+    ++handshake_calls;
+    return fake_transport ? -1 : __real_SSL_accept(ssl);
+}
+extern "C" int __real_SSL_get_error(const SSL* ssl, int result);
+extern "C" int __wrap_SSL_get_error(const SSL* ssl, int result)
+{
+    return fake_transport ? SSL_ERROR_WANT_READ : __real_SSL_get_error(ssl, result);
+}
+
 #endif
 
 class SecureSocketTests : public ::testing::Test {
@@ -50,6 +106,23 @@ protected:
 
 #ifdef BARRIER_TEST_WRAP_SSL_CONTEXT
     void checkHandshake(int version, bool expected);
+    int handshake(SecureSocket& connection, bool server, int descriptor = -1)
+    {
+        return server ? connection.secureAccept(descriptor) : connection.secureConnect(descriptor);
+    }
+    void SetUp() override
+    {
+        fail_next_session = false;
+        fake_transport = false;
+        fail_attachment = false;
+        attachment_calls = handshake_calls = 0;
+        last_session = nullptr;
+    }
+    void TearDown() override
+    {
+        fail_next_session = fake_transport = fail_attachment = false;
+        ERR_clear_error();
+    }
 #endif
 };
 
@@ -234,5 +307,131 @@ TEST_F(SecureSocketTests, FactoryReleasesSocketOnContextFailure)
                     IArchNetwork::kINET, ConnectionSecurityLevel::ENCRYPTED));
     }, XSocketCreate);
     EXPECT_FALSE(fail_next_context);
+}
+#endif
+
+#ifdef BARRIER_TEST_WRAP_SSL_CONTEXT
+TEST_F(SecureSocketTests, SessionAllocationFailureStopsBothRoles)
+{
+    for (bool server : {false, true}) {
+        auto connection = socket();
+        connection->initSsl(server);
+        fake_transport = true;
+        fail_next_session = true;
+        attachment_calls = handshake_calls = 0;
+        EXPECT_EQ(-1, handshake(*connection, server));
+        EXPECT_FALSE(fail_next_session);
+        EXPECT_TRUE(connection->isFatal());
+        EXPECT_FALSE(connection->isSecureReady());
+        EXPECT_EQ(-1, handshake(*connection, server));
+        EXPECT_EQ(0, attachment_calls);
+        EXPECT_EQ(0, handshake_calls);
+        connection->close();
+        connection->close();
+    }
+}
+
+TEST_F(SecureSocketTests, TransportAttachmentFailureStopsBothRoles)
+{
+    for (bool server : {false, true}) {
+        auto connection = socket();
+        connection->initSsl(server);
+        fake_transport = fail_attachment = true;
+        attachment_calls = handshake_calls = 0;
+        EXPECT_EQ(-1, handshake(*connection, server));
+        EXPECT_TRUE(connection->isFatal());
+        EXPECT_FALSE(connection->isSecureReady());
+        EXPECT_EQ(-1, handshake(*connection, server));
+        EXPECT_EQ(1, attachment_calls);
+        EXPECT_EQ(0, handshake_calls);
+        connection->close();
+        connection->close();
+    }
+}
+
+TEST_F(SecureSocketTests, HandshakeWithoutContextStopsBothRoles)
+{
+    for (bool server : {false, true}) {
+        auto connection = socket();
+        EXPECT_EQ(-1, handshake(*connection, server));
+        EXPECT_TRUE(connection->isFatal());
+        EXPECT_FALSE(connection->isSecureReady());
+        EXPECT_EQ(0, attachment_calls);
+        EXPECT_EQ(0, handshake_calls);
+    }
+}
+
+TEST_F(SecureSocketTests, HandshakeAfterCloseStopsBothRoles)
+{
+    for (bool server : {false, true}) {
+        auto connection = socket();
+        connection->initSsl(server);
+        connection->close();
+        EXPECT_EQ(-1, handshake(*connection, server));
+        EXPECT_FALSE(connection->isSecureReady());
+        EXPECT_EQ(0, attachment_calls);
+        EXPECT_EQ(0, handshake_calls);
+    }
+}
+
+TEST_F(SecureSocketTests, HandshakeRetryRetainsTransportInBothRoles)
+{
+    for (bool server : {false, true}) {
+        auto connection = socket();
+        connection->initSsl(server);
+        fake_transport = true;
+        attachment_calls = handshake_calls = 0;
+        ASSERT_EQ(0, handshake(*connection, server));
+        SSL* session = last_session;
+        ASSERT_NE(nullptr, session);
+        BIO* transport = SSL_get_rbio(session);
+        ASSERT_NE(nullptr, transport);
+        // Queued transport data must survive a WANT_READ retry.
+        ASSERT_EQ(7, BIO_write(transport, "pending", 7));
+        EXPECT_EQ(0, handshake(*connection, server));
+        EXPECT_EQ(session, last_session);
+        EXPECT_EQ(transport, SSL_get_rbio(session));
+        EXPECT_EQ(7u, BIO_ctrl_pending(SSL_get_rbio(session)));
+        EXPECT_EQ(1, attachment_calls);
+        EXPECT_EQ(2, handshake_calls);
+        EXPECT_FALSE(connection->isFatal());
+        EXPECT_FALSE(connection->isSecureReady());
+    }
+}
+
+TEST_F(SecureSocketTests, RealNonblockingHandshakeRetryKeepsTransportInBothRoles)
+{
+    for (bool server : {false, true}) {
+        struct SocketPair {
+            int descriptors[2] = {-1, -1};
+            ~SocketPair()
+            {
+                for (int fd : descriptors) {
+                    if (fd >= 0) {
+                        ::close(fd);
+                    }
+                }
+            }
+        } pair;
+        ASSERT_EQ(0, ::socketpair(AF_UNIX, SOCK_STREAM, 0, pair.descriptors));
+        int flags = ::fcntl(pair.descriptors[0], F_GETFL);
+        ASSERT_GE(flags, 0);
+        ASSERT_EQ(0, ::fcntl(pair.descriptors[0], F_SETFL, flags | O_NONBLOCK));
+        auto connection = socket();
+        connection->initSsl(server);
+        attachment_calls = handshake_calls = 0;
+        ASSERT_EQ(0, handshake(*connection, server, pair.descriptors[0]));
+        SSL* session = last_session;
+        ASSERT_NE(nullptr, session);
+        BIO* transport = SSL_get_rbio(session);
+        ASSERT_NE(nullptr, transport);
+        EXPECT_EQ(pair.descriptors[0], SSL_get_fd(session));
+        EXPECT_EQ(0, handshake(*connection, server, pair.descriptors[0]));
+        EXPECT_EQ(transport, SSL_get_rbio(session));
+        EXPECT_EQ(1, attachment_calls);
+        EXPECT_EQ(2, handshake_calls);
+        EXPECT_FALSE(connection->isFatal());
+        EXPECT_FALSE(connection->isSecureReady());
+    }
 }
 #endif

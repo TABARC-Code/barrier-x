@@ -1,6 +1,6 @@
 # barrier-x
 
-Development version: **2.4.5-snapshot**, based on Barrier 2.4.
+Development version: **2.4.6-snapshot**, based on Barrier 2.4.
 See the [development plan](docs/roadmap.md),
 [starting assessment](docs/assessment.md) and [fork changes](docs/changes.md).
 This snapshot sets a TLS 1.2 minimum, fixes POSIX wake-up resource ownership,

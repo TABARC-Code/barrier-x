@@ -44,9 +44,10 @@ repeated close after initialisation, rejected reinitialisation, certificate
 loading without a context, normal factory creation, failed client/server context
 allocation and cleanup after factory failure.
 
-Linux GCC/Clang builds use linker wrapping for deterministic `SSL_CTX_new`
-failures. This changes only the test executable. Other platforms run the common
-lifecycle checks but do not claim these injected-allocation tests.
+Linux GCC/Clang builds use linker wrapping for deterministic `SSL_CTX_new`,
+`SSL_new` and `SSL_set_fd` failures. This changes only the test executable.
+Other platforms run the common lifecycle checks but do not claim these
+injected-allocation tests.
 
 Before the fix, both `DestroyBeforeInitialisation` and
 `ClientContextAllocationFailureThrows` crashed with exit status 139.
@@ -95,6 +96,16 @@ Their permission migration remains open. Windows uses exclusive CRT creation
 with non-inheritable descriptors and retains inherited directory ACLs; Windows
 owner-only ACL enforcement and Windows/macOS execution are not yet verified.
 
+Version 2.4.6 adds six session-setup and handshake-retry tests (173 Linux unit
+tests, 26 in the network lifecycle subset). Injected allocation and attachment
+failures must stop before the handshake, including a repeated attempt. Tests
+also reject missing/closed state and preserve a queued memory BIO across retries.
+A separate test uses real OpenSSL calls over non-blocking POSIX socket pairs in
+both roles, checking WANT_READ retries keep the same attached transport. This
+is retry coverage, not a completed two-machine authenticated session. A friend
+fixture drives the private handshake entry points synchronously; production
+callbacks use the same entry points under the TCP socket mutex.
+
 ## Sanitisers
 
 Use a separate build directory:
@@ -131,11 +142,17 @@ This verifies the tested paths, not all possible thread or network behaviour.
 
 The same checks passed for [2.4.4 run 40815563644](https://github.com/TABARC-Code/barrier-x/actions/runs/40815563644).
 The certificate-storage subset is included in hosted sanitiser runs from 2.4.5.
+[2.4.5 run 40820964445](https://github.com/TABARC-Code/barrier-x/actions/runs/40820964445)
+passed Debug, Release and the sanitised subsets with hosted leak scanning.
 
 TLS policy API reference:
 [OpenSSL minimum protocol version](https://docs.openssl.org/3.0/man3/SSL_CTX_set_min_proto_version/).
 Certificate generation reference:
 [OpenSSL EVP key generation](https://docs.openssl.org/3.0/man3/EVP_PKEY_keygen/).
+
+TLS session API references:
+[OpenSSL session allocation](https://docs.openssl.org/3.0/man3/SSL_new/) and
+[descriptor attachment](https://docs.openssl.org/3.0/man3/SSL_set_fd/).
 
 ## Outstanding platform checks
 

@@ -69,7 +69,7 @@ target_link_libraries(unittests
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_definitions(unittests PRIVATE BARRIER_TEST_WRAP_SSL_CONTEXT BARRIER_TEST_WRAP_POLL BARRIER_TEST_WRAP_CERTIFICATE_IO)
-    set_property(TARGET unittests APPEND_STRING PROPERTY LINK_FLAGS " -Wl,--wrap=SSL_CTX_new -Wl,--wrap=poll -Wl,--wrap=EVP_PKEY_keygen -Wl,--wrap=PEM_write_X509 -Wl,--wrap=fflush -Wl,--wrap=fsync -Wl,--wrap=rename")
+    set_property(TARGET unittests APPEND_STRING PROPERTY LINK_FLAGS " -Wl,--wrap=SSL_CTX_new -Wl,--wrap=SSL_new -Wl,--wrap=SSL_set_fd -Wl,--wrap=SSL_connect -Wl,--wrap=SSL_accept -Wl,--wrap=SSL_get_error -Wl,--wrap=poll -Wl,--wrap=EVP_PKEY_keygen -Wl,--wrap=PEM_write_X509 -Wl,--wrap=fflush -Wl,--wrap=fsync -Wl,--wrap=rename")
 endif()
 
 add_test(NAME unit COMMAND unittests)

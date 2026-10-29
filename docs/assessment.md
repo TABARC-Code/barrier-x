@@ -86,3 +86,13 @@ the replacement operation itself and require the old contents to survive.
 This is generation hardening. Existing valid files may still have legacy
 permissions, and Windows files still inherit their directory ACL. Both remain
 explicit BX-004 follow-up work. No change to peer trust policy is claimed.
+
+## Follow-up: 2.4.6-snapshot
+
+Session allocation failure was reproduced as a crash, and a deterministic
+retry test showed queued BIO data being discarded by repeated descriptor
+attachment. Session creation and attachment are now checked together, retained
+only on success and reused during retries. Missing context, closed sockets and
+failed setup return a fatal result before any handshake call. Both roles have
+failure coverage and real non-blocking socket retry tests. This does not close
+concurrent shutdown, input-state synchronisation or peer trust migration.

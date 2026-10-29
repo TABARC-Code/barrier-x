@@ -1,5 +1,22 @@
 # barrier-x changes
 
+## 2.4.6-snapshot — 29 October 2026
+
+- Checked TLS session allocation and transport attachment in both roles.
+- Stopped failed setup jobs without entering a handshake or retrying allocation.
+- Retained the transport BIOs across non-blocking handshake retries.
+- Added six regressions covering failure, missing/closed state and retry preservation.
+
+The previous code passed a null session onward after allocation failure and
+replaced transport BIOs on every retry. Both were reproduced before the fix.
+Concurrent shutdown, peer trust migration and platform validation remain open.
+
+Checks: 173 unit tests, four localhost transfer tests and all eight CTest
+entries passed. The 38 lifecycle/storage tests passed ASan/UBSan locally with
+leak inspection disabled for the previously recorded environment restriction.
+Hosted leak scanning remains enabled. GUI and Windows/macOS execution remain
+unverified.
+
 ## 2.4.5-snapshot — 29 October 2026
 
 - Replaced deprecated RSA generation with EVP and 3072-bit keys.

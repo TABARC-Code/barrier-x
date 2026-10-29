@@ -62,9 +62,11 @@ public:
     bool load_certificates(const barrier::fs::path& path);
 
 private:
+    friend class SecureSocketTests;
+
     // SSL
     void initContext(bool server); // may only be called with ssl_mutex_ acquired
-    void createSSL(); // may only be called with ssl_mutex_ acquired.
+    bool prepareSSL(int socket); // may only be called with ssl_mutex_ acquired.
     int                    secureAccept(int s);
     int                    secureConnect(int s);
     bool ensure_peer_certificate(); // may only be called with ssl_mutex_ acquired

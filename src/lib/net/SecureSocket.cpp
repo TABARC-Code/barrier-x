@@ -455,17 +455,34 @@ SecureSocket::initContext(bool server)
     }
 }
 
-void
-SecureSocket::createSSL()
+bool
+SecureSocket::prepareSSL(int socket)
 {
-    // ssl_mutex_ is assumed to be acquired
-
-    // I assume just one instance is needed
-    // get new SSL state with context
-    if (m_ssl->m_ssl == NULL) {
-        assert(m_ssl->m_context != NULL);
-        m_ssl->m_ssl = SSL_new(m_ssl->m_context);
+    // ssl_mutex_ is assumed to be acquired. Failed setup stops this job;
+    // throwing here would take the multiplexer thread down with the socket.
+    if (isFatal() || !m_ssl || !m_ssl->m_context) {
+        m_secureReady = false;
+        isFatal(true);
+        disconnect();
+        return false;
     }
+
+    if (m_ssl->m_ssl) {
+        return true;
+    }
+
+    std::unique_ptr<SSL, decltype(&SSL_free)> session(SSL_new(m_ssl->m_context), SSL_free);
+    if (!session || SSL_set_fd(session.get(), socket) != 1) {
+        showError("could not prepare SSL transport");
+        m_secureReady = false;
+        isFatal(true);
+        disconnect();
+        return false;
+    }
+
+    // Attach once. Replacing the BIOs on a retry discards queued transport data.
+    m_ssl->m_ssl = session.release();
+    return true;
 }
 
 int
@@ -473,10 +490,10 @@ SecureSocket::secureAccept(int socket)
 {
     std::lock_guard<std::mutex> ssl_lock{ssl_mutex_};
 
-    createSSL();
-
-    // set connection socket to SSL state
-    SSL_set_fd(m_ssl->m_ssl, socket);
+    if (!prepareSSL(socket)) {
+        secure_accept_retry_ = 0;
+        return -1;
+    }
 
     LOG((CLOG_DEBUG2 "accepting secure socket"));
     int r = SSL_accept(m_ssl->m_ssl);
@@ -547,10 +564,10 @@ SecureSocket::secureConnect(int socket)
 
     std::lock_guard<std::mutex> ssl_lock{ssl_mutex_};
 
-    createSSL();
-
-    // attach the socket descriptor
-    SSL_set_fd(m_ssl->m_ssl, socket);
+    if (!prepareSSL(socket)) {
+        secure_connect_retry_ = 0;
+        return -1;
+    }
 
     LOG((CLOG_DEBUG2 "connecting secure socket"));
     int r = SSL_connect(m_ssl->m_ssl);
