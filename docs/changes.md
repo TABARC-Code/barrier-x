@@ -2,21 +2,12 @@
 
 ## 2.4.10-snapshot - 1 November 2026
 
-- Read GUI service messages incrementally without blocking the event loop.
-- Rejected malformed headers and log payloads above 1 MiB before allocation.
-- Limited pending socket input and yielded after batches of 64 messages.
-- Cleared partial frames on disconnect and reported protocol errors in the GUI.
-- Restored log reading after stop/reconnect and cancelled manual-disconnect retries.
-- Tied the reader lifetime to its socket and handled signal-driven deletion safely.
-- Added real Qt socket regressions and GUI build coverage.
+Sec update
 
-Checks: all twelve CTest entries passed, including 193 engine unit tests,
-58 existing GUI unit tests and the real Qt socket suite (39 QtTest passes,
-including suite setup/cleanup). The Qt socket suite also passed ASan/UBSan
-locally. Hosted leak checking remains enabled; local leak inspection is restricted.
-
-Caller authentication and total log-history retention remain separate work.
-Windows/macOS and interactive desktop validation remain outstanding.
+Fragmented messages no longer block the GUI.
+Oversized and malformed messages are rejected.
+Reconnects reset partial data and restore log reading.
+Protocol errors reach the GUI’s error display.
 
 ## 2.4.9-snapshot - 1 November 2026
 
