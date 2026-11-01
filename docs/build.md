@@ -196,3 +196,28 @@ future work. Windows service execution and the GUI are not validated here.
 [2.4.7 run 40860940285](https://github.com/TABARC-Code/barrier-x/actions/runs/40860940285)
 passed Debug, Release and sanitised lifecycle/storage tests with leak scanning,
 including event-provider teardown.
+
+## Peer approval and certificate ownership
+
+Version 2.4.9 adds five peer-trust regressions (193 Linux unit tests, 33 in the
+network lifecycle subset). Controlled handshake completion and reference-counted
+certificate retrieval drive the actual socket trust path. Tests use real
+self-signed certificates, SHA-256/SHA-1 digests and isolated trust files.
+They require matching SHA-256 pins in both authenticated roles, reject missing
+or untrusted peers and SHA-1-only trust entries, and inject failure of the
+second digest operation. Reference-release counts are checked on success and
+rejection, including exception unwinding.
+
+All five tests failed against the previous implementation. Matching-pin tests
+also observe readiness during the certificate checks, so merely clearing the
+flag after rejection cannot satisfy them. These controls do not exercise real
+network authentication, concurrent shutdown or migration of GUI trust settings.
+The lifecycle timeout allows for the additional isolated certificate generation.
+
+Ownership reference: [OpenSSL peer certificates](https://docs.openssl.org/3.4/man3/SSL_get_peer_certificate/).
+The reference returned by the existing getter must be released; obtaining a
+certificate alone does not establish peer approval.
+
+[2.4.8 hosted run 40865885582](https://github.com/TABARC-Code/barrier-x/actions/runs/40865885582)
+passed Debug, Release and sanitised lifecycle, certificate-storage and IPC checks
+with leak scanning.

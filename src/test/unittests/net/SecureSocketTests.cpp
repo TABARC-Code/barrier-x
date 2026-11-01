@@ -9,20 +9,33 @@
 
 #include "net/SecureSocket.h"
 #include "net/TCPSocketFactory.h"
+#include "net/SecureUtils.h"
+#include "net/FingerprintDatabase.h"
+#include "common/DataDirectories.h"
 #include "net/SocketMultiplexer.h"
 #include "base/EventQueue.h"
 #include "test/global/gtest.h"
 
 #include <memory>
+#include <cstdlib>
 
 #ifdef BARRIER_TEST_WRAP_SSL_CONTEXT
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include <openssl/pem.h>
 #include <sys/socket.h>
 #include <fcntl.h>
 #include <unistd.h>
 
 namespace {
+thread_local bool complete_handshake = false;
+thread_local bool override_peer = false;
+thread_local X509* peer_certificate = nullptr;
+thread_local SecureSocket* observed_socket = nullptr;
+thread_local bool ready_during_verification = false;
+thread_local int peer_releases = 0;
+thread_local int digest_calls = 0;
+thread_local int fail_digest_call = 0;
 thread_local bool fail_next_context = false;
 thread_local bool fail_next_session = false;
 thread_local bool fake_transport = false;
@@ -78,27 +91,70 @@ extern "C" int __real_SSL_accept(SSL* ssl);
 extern "C" int __wrap_SSL_connect(SSL* ssl)
 {
     ++handshake_calls;
-    return fake_transport ? -1 : __real_SSL_connect(ssl);
+    return fake_transport ? (complete_handshake ? 1 : -1) : __real_SSL_connect(ssl);
 }
 extern "C" int __wrap_SSL_accept(SSL* ssl)
 {
     ++handshake_calls;
-    return fake_transport ? -1 : __real_SSL_accept(ssl);
+    return fake_transport ? (complete_handshake ? 1 : -1) : __real_SSL_accept(ssl);
 }
 extern "C" int __real_SSL_get_error(const SSL* ssl, int result);
 extern "C" int __wrap_SSL_get_error(const SSL* ssl, int result)
 {
-    return fake_transport ? SSL_ERROR_WANT_READ : __real_SSL_get_error(ssl, result);
+    return fake_transport ? (complete_handshake ? SSL_ERROR_NONE : SSL_ERROR_WANT_READ) :
+                            __real_SSL_get_error(ssl, result);
+}
+
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+extern "C" X509* __real_SSL_get1_peer_certificate(const SSL*);
+extern "C" X509* __wrap_SSL_get1_peer_certificate(const SSL* ssl)
+#else
+extern "C" X509* __real_SSL_get_peer_certificate(const SSL*);
+extern "C" X509* __wrap_SSL_get_peer_certificate(const SSL* ssl)
+#endif
+{
+    if (override_peer) {
+        if (observed_socket && observed_socket->isSecureReady()) {
+            ready_during_verification = true;
+        }
+        if (peer_certificate) {
+            X509_up_ref(peer_certificate);
+        }
+        return peer_certificate;
+    }
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    return __real_SSL_get1_peer_certificate(ssl);
+#else
+    return __real_SSL_get_peer_certificate(ssl);
+#endif
+}
+extern "C" void __real_X509_free(X509*);
+extern "C" void __wrap_X509_free(X509* certificate)
+{
+    if (certificate && certificate == peer_certificate) {
+        ++peer_releases;
+    }
+    __real_X509_free(certificate);
+}
+extern "C" int __real_X509_digest(const X509*, const EVP_MD*, unsigned char*, unsigned int*);
+extern "C" int __wrap_X509_digest(const X509* certificate, const EVP_MD* algorithm,
+                                  unsigned char* digest, unsigned int* length)
+{
+    if (certificate && certificate == peer_certificate && ++digest_calls == fail_digest_call) {
+        return 0;
+    }
+    return __real_X509_digest(certificate, algorithm, digest, length);
 }
 
 #endif
 
 class SecureSocketTests : public ::testing::Test {
 protected:
-    std::unique_ptr<SecureSocket> socket()
+    std::unique_ptr<SecureSocket> socket(
+            ConnectionSecurityLevel security = ConnectionSecurityLevel::ENCRYPTED)
     {
         return std::make_unique<SecureSocket>(&events, &multiplexer, IArchNetwork::kINET,
-                                              ConnectionSecurityLevel::ENCRYPTED);
+                                              security);
     }
 
     EventQueue events;
@@ -110,8 +166,40 @@ protected:
     {
         return server ? connection.secureAccept(descriptor) : connection.secureConnect(descriptor);
     }
+    barrier::fs::path peer_directory;
+    barrier::fs::path saved_profile;
+    std::unique_ptr<X509, decltype(&X509_free)> owned_peer{nullptr, X509_free};
+    void preparePeer(bool server, bool trusted, barrier::FingerprintType type = barrier::FingerprintType::SHA256)
+    {
+        saved_profile = barrier::DataDirectories::profile();
+        char directory[] = "/tmp/barrier-peer-XXXXXX";
+        auto* created = ::mkdtemp(directory);
+        ASSERT_NE(nullptr, created);
+        peer_directory = created;
+        barrier::DataDirectories::profile(peer_directory);
+        barrier::fs::create_directories(barrier::DataDirectories::ssl_fingerprints_path());
+        auto pem = barrier::DataDirectories::ssl_certificate_path();
+        barrier::generate_pem_self_signed_cert(pem);
+        auto close_file = [](FILE* file) { fclose(file); };
+        std::unique_ptr<FILE, decltype(close_file)> file(fopen(pem.c_str(), "rb"), close_file);
+        ASSERT_NE(nullptr, file);
+        owned_peer.reset(PEM_read_X509(file.get(), nullptr, nullptr, nullptr));
+        ASSERT_NE(nullptr, owned_peer);
+        if (trusted) {
+            barrier::FingerprintDatabase database;
+            database.add_trusted(barrier::get_ssl_cert_fingerprint(owned_peer.get(), type));
+            database.write(server ? barrier::DataDirectories::trusted_clients_ssl_fingerprints_path() :
+                                    barrier::DataDirectories::trusted_servers_ssl_fingerprints_path());
+        }
+        peer_certificate = owned_peer.get();
+        override_peer = fake_transport = complete_handshake = true;
+    }
     void SetUp() override
     {
+        complete_handshake = override_peer = ready_during_verification = false;
+        peer_certificate = nullptr;
+        observed_socket = nullptr;
+        peer_releases = digest_calls = fail_digest_call = 0;
         fail_next_session = false;
         fake_transport = false;
         fail_attachment = false;
@@ -121,6 +209,15 @@ protected:
     void TearDown() override
     {
         fail_next_session = fake_transport = fail_attachment = false;
+        override_peer = complete_handshake = false;
+        peer_certificate = nullptr;
+        observed_socket = nullptr;
+        owned_peer.reset();
+        if (!peer_directory.empty()) {
+            barrier::DataDirectories::profile(saved_profile);
+            std::error_code ignored;
+            barrier::fs::remove_all(peer_directory, ignored);
+        }
         ERR_clear_error();
     }
 #endif
@@ -433,5 +530,84 @@ TEST_F(SecureSocketTests, RealNonblockingHandshakeRetryKeepsTransportInBothRoles
         EXPECT_FALSE(connection->isFatal());
         EXPECT_FALSE(connection->isSecureReady());
     }
+}
+#endif
+
+#ifdef BARRIER_TEST_WRAP_SSL_CONTEXT
+TEST_F(SecureSocketTests, UntrustedPeerFailsClosedInBothRoles)
+{
+    for (bool server : {false, true}) {
+        // One profile is enough; both trust databases remain empty.
+        if (peer_directory.empty()) { ASSERT_NO_FATAL_FAILURE(preparePeer(server, false)); }
+        auto connection = socket(ConnectionSecurityLevel::ENCRYPTED_AUTHENTICATED);
+        connection->initSsl(server);
+        observed_socket = connection.get();
+        peer_releases = 0;
+        EXPECT_EQ(-1, handshake(*connection, server));
+        EXPECT_FALSE(ready_during_verification);
+        EXPECT_FALSE(connection->isSecureReady());
+        EXPECT_TRUE(connection->isFatal());
+        EXPECT_EQ(1, peer_releases);
+        EXPECT_EQ(-1, handshake(*connection, server));
+        observed_socket = nullptr;
+    }
+}
+
+TEST_F(SecureSocketTests, MatchingSha256PinSetsReadyOnlyAfterVerification)
+{
+    ASSERT_NO_FATAL_FAILURE(preparePeer(false, true));
+    // Share the same explicit pin with the authenticated server role.
+    barrier::fs::copy_file(barrier::DataDirectories::trusted_servers_ssl_fingerprints_path(),
+                          barrier::DataDirectories::trusted_clients_ssl_fingerprints_path());
+    for (bool server : {false, true}) {
+        auto connection = socket(ConnectionSecurityLevel::ENCRYPTED_AUTHENTICATED);
+        connection->initSsl(server);
+        observed_socket = connection.get();
+        peer_releases = 0;
+        EXPECT_EQ(1, handshake(*connection, server));
+        EXPECT_FALSE(ready_during_verification);
+        EXPECT_TRUE(connection->isSecureReady());
+        EXPECT_FALSE(connection->isFatal());
+        EXPECT_EQ(2, peer_releases);
+        connection->close();
+        EXPECT_FALSE(connection->isSecureReady());
+        observed_socket = nullptr;
+    }
+}
+
+TEST_F(SecureSocketTests, Sha1OnlyPinDoesNotAuthorisePeer)
+{
+    ASSERT_NO_FATAL_FAILURE(preparePeer(false, true, barrier::FingerprintType::SHA1));
+    auto connection = socket();
+    connection->initSsl(false);
+    observed_socket = connection.get();
+    EXPECT_EQ(-1, handshake(*connection, false));
+    EXPECT_FALSE(connection->isSecureReady());
+    EXPECT_TRUE(connection->isFatal());
+    EXPECT_EQ(1, peer_releases);
+}
+
+TEST_F(SecureSocketTests, MissingPeerCertificateFailsClosed)
+{
+    ASSERT_NO_FATAL_FAILURE(preparePeer(false, false));
+    peer_certificate = nullptr;
+    auto connection = socket();
+    connection->initSsl(false);
+    EXPECT_EQ(-1, handshake(*connection, false));
+    EXPECT_FALSE(connection->isSecureReady());
+    EXPECT_TRUE(connection->isFatal());
+}
+
+TEST_F(SecureSocketTests, DigestFailureReleasesPeerAndFailsClosed)
+{
+    ASSERT_NO_FATAL_FAILURE(preparePeer(false, true));
+    digest_calls = 0;
+    fail_digest_call = 2;
+    auto connection = socket();
+    connection->initSsl(false);
+    EXPECT_EQ(-1, handshake(*connection, false));
+    EXPECT_FALSE(connection->isSecureReady());
+    EXPECT_TRUE(connection->isFatal());
+    EXPECT_EQ(1, peer_releases);
 }
 #endif

@@ -1,5 +1,22 @@
 # barrier-x changes
 
+## 2.4.9-snapshot - 1 November 2026
+
+- Kept client sockets unready until SHA-256 pin verification succeeds.
+- Marked rejected peer connections fatal and cleared their readiness.
+- Released peer-certificate references on successful and failed fingerprint checks.
+- Corrected the accepting-side certificate error to identify the client.
+- Added five peer-trust and certificate-ownership regressions.
+
+Checks: 193 unit tests and seven localhost tests passed, along with 58 targeted
+ASan/UBSan tests. A later normal retry lost its generated executable and produced
+no test output; that retry is not counted. Fresh hosted verification is pending.
+Local leak inspection and platform/GUI checks remain outstanding.
+
+Trust defaults, local command authorisation and concurrent shutdown remain open.
+These tests control TLS completion and certificate retrieval while exercising
+real certificate digests and trust files; they are not two-machine TLS tests.
+
 ## 2.4.8-snapshot — 29 October 2026
 
 - Buffered partial engine IPC frames without dispatching incomplete messages.

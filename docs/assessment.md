@@ -116,3 +116,17 @@ smaller command-specific bound and incremental framing, not a first-ever
 string length limit. A missing variadic elevation argument in the C++ command
 writer is also corrected and checked against exact wire bytes. Authentication
 and authorisation remain BX-003 work, independent of parser validity.
+
+## Follow-up: 2.4.9-snapshot
+
+Five regressions failed against 2.4.8: client readiness was visible before
+fingerprint approval and remained set after rejection, rejection did not mark
+the socket fatal, and fingerprint checking did not release its peer-certificate
+reference. Readiness now follows successful SHA-256 pin and certificate checks.
+Disconnection clears readiness and marks failure; automatic ownership releases
+the certificate reference even if a digest operation throws.
+
+Matching pins succeed in both authenticated roles; untrusted peers, SHA-1-only
+trust entries, absent certificates and injected digest failure remain rejected.
+This is state and ownership hardening, not evidence of an exploitable trust
+bypass in the previous event loop, nor completion of trust-default migration.
