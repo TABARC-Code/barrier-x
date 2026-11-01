@@ -16,125 +16,123 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// uncomment to debug this end of IPC chatter
-//#define BARRIER_IPC_VERBOSE
-
 #include "IpcReader.h"
-#include <QTcpSocket>
 #include "Ipc.h"
-#include <QMutex>
-#include <QByteArray>
 
-#ifdef BARRIER_IPC_VERBOSE
-#include <iostream>
-#define IPC_LOG(x) (x)
-#else // not defined BARRIER_IPC_VERBOSE
-#define IPC_LOG(x)
-#endif
+#include <QTcpSocket>
+#include <QPointer>
+#include <QTimer>
+#include <QtEndian>
+#include <cstring>
+
+constexpr int IpcReader::maximumLogBytes;
 
 IpcReader::IpcReader(QTcpSocket* socket) :
-m_Socket(socket)
+    QObject(socket), m_Socket(socket)
 {
-}
-
-IpcReader::~IpcReader()
-{
+    // Bound Qt's pending input as well as our frame. Backpressure beats an
+    // enthusiastic allocation on behalf of an untrusted length field.
+    m_Socket->setReadBufferSize(maximumLogBytes + 8);
+    connect(m_Socket, &QTcpSocket::connected, this, &IpcReader::connectionOpened);
+    connect(m_Socket, &QTcpSocket::disconnected, this, &IpcReader::connectionClosed);
 }
 
 void IpcReader::start()
 {
-    connect(m_Socket, SIGNAL(readyRead()), this, SLOT(read()));
+    if (m_Started) { return; }
+    m_Started = true;
+    connect(m_Socket, &QTcpSocket::readyRead, this, &IpcReader::read, Qt::UniqueConnection);
+    read();
 }
 
 void IpcReader::stop()
 {
-    disconnect(m_Socket, SIGNAL(readyRead()), this, SLOT(read()));
+    m_Started = false;
+    disconnect(m_Socket, &QTcpSocket::readyRead, this, &IpcReader::read);
+    resetFrame();
+}
+
+void IpcReader::resetFrame()
+{
+    m_Buffer.clear();
+    m_ExpectedBytes = 4;
+}
+
+void IpcReader::connectionOpened()
+{
+    resetFrame();
+    m_Failed = false;
+}
+
+void IpcReader::connectionClosed()
+{
+    const bool incomplete = m_Started && !m_Failed && !m_Buffer.isEmpty();
+    resetFrame();
+    if (incomplete) {
+        m_Failed = true;
+        emit protocolError(tr("Incomplete service message."));
+    }
+}
+
+void IpcReader::rejectFrame()
+{
+    m_Failed = true;
+    resetFrame();
+    QPointer<IpcReader> alive(this);
+    m_Socket->abort();
+    if (alive) {
+        // Report the category, never the received command or log contents.
+        emit protocolError(tr("Invalid service message."));
+    }
 }
 
 void IpcReader::read()
 {
-    QMutexLocker locker(&m_Mutex);
-    IPC_LOG(std::cout << "ready read" << std::endl);
+    if (!m_Started || m_Failed || m_Reading) { return; }
+    m_Reading = true;
+    QPointer<IpcReader> alive(this);
+    readAvailable();
+    if (alive) { m_Reading = false; }
+}
 
-    while (m_Socket->bytesAvailable()) {
-        IPC_LOG(std::cout << "bytes available" << std::endl);
-
-        char codeBuf[5];
-        readStream(codeBuf, 4);
-        codeBuf[4] = 0;
-        IPC_LOG(std::cout << "ipc read: " << codeBuf << std::endl);
-
-        if (memcmp(codeBuf, kIpcMsgLogLine, 4) == 0) {
-            IPC_LOG(std::cout << "reading log line" << std::endl);
-
-            char lenBuf[4];
-            readStream(lenBuf, 4);
-            int len = bytesToInt(lenBuf, 4);
-
-            char* data = new char[len];
-            readStream(data, len);
-            QString line = QString::fromUtf8(data, len);
-            delete[] data;
-
-            readLogLine(line);
+void IpcReader::readAvailable()
+{
+    int delivered = 0;
+    while (m_Started && !m_Failed && m_Socket->bytesAvailable() > 0) {
+        if (m_Buffer.size() < m_ExpectedBytes) {
+            const auto chunk = m_Socket->read(qMin(m_ExpectedBytes - m_Buffer.size(), 4096));
+            if (chunk.isEmpty()) { return; }
+            m_Buffer.append(chunk);
+            if (m_Buffer.size() < m_ExpectedBytes) { continue; }
         }
-        else {
-            IPC_LOG(std::cerr << "aborting, message invalid" << std::endl);
+        if (m_ExpectedBytes == 4) {
+            if (std::memcmp(m_Buffer.constData(), kIpcMsgLogLine, 4) != 0) {
+                rejectFrame();
+                return;
+            }
+            m_ExpectedBytes = 8;
+            continue;
+        }
+        if (m_ExpectedBytes == 8) {
+            const quint32 length = qFromBigEndian<quint32>(
+                        reinterpret_cast<const uchar*>(m_Buffer.constData() + 4));
+            if (length > quint32(maximumLogBytes)) {
+                rejectFrame();
+                return;
+            }
+            m_ExpectedBytes = 8 + int(length);
+            if (m_Buffer.size() < m_ExpectedBytes) { continue; }
+        }
+        const QString line = QString::fromUtf8(m_Buffer.constData() + 8, m_ExpectedBytes - 8);
+        resetFrame();
+        QPointer<IpcReader> alive(this);
+        emit readLogLine(line);
+        if (!alive || !m_Started || m_Failed) { return; }
+        // A burst of valid logs must still leave time to use the interface.
+        // FUTURE(BX-006): bound retained log-window history separately.
+        if (++delivered == 64 && m_Socket->bytesAvailable() > 0) {
+            QTimer::singleShot(0, this, SLOT(read()));
             return;
         }
-    }
-
-    IPC_LOG(std::cout << "read done" << std::endl);
-}
-
-bool IpcReader::readStream(char* buffer, int length)
-{
-    IPC_LOG(std::cout << "reading stream" << std::endl);
-
-    int read = 0;
-    while (read < length) {
-        int ask = length - read;
-        if (m_Socket->bytesAvailable() < ask) {
-            IPC_LOG(std::cout << "buffer too short, waiting" << std::endl);
-            m_Socket->waitForReadyRead(-1);
-        }
-
-        int got = m_Socket->read(buffer, ask);
-        read += got;
-
-        IPC_LOG(std::cout << "> ask=" << ask << " got=" << got
-            << " read=" << read << std::endl);
-
-        if (got == -1) {
-            IPC_LOG(std::cout << "socket ended, aborting" << std::endl);
-            return false;
-        }
-        else if (length - read > 0) {
-            IPC_LOG(std::cout << "more remains, seek to " << got << std::endl);
-            buffer += got;
-        }
-    }
-    return true;
-}
-
-int IpcReader::bytesToInt(const char *buffer, int size)
-{
-    if (size == 1) {
-        return (unsigned char)buffer[0];
-    }
-    else if (size == 2) {
-        return
-            (((unsigned char)buffer[0]) << 8) +
-              (unsigned char)buffer[1];
-    }
-    else if (size == 4) {
-        return
-            (((unsigned char)buffer[0]) << 24) +
-            (((unsigned char)buffer[1]) << 16) +
-            (((unsigned char)buffer[2]) << 8) +
-              (unsigned char)buffer[3];
-    }
-    else {
-        return 0;
     }
 }

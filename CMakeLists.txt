@@ -459,3 +459,8 @@ endif()
 enable_testing()
 
 add_subdirectory (src)
+
+option(BARRIER_BUILD_GUI_IPC_TESTS "Build Qt service-reader tests" OFF)
+if (BARRIER_BUILD_TESTS AND BARRIER_BUILD_GUI_IPC_TESTS)
+    add_subdirectory(src/gui/test/ipc)
+endif()

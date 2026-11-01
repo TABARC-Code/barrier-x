@@ -167,7 +167,7 @@ TLS session API references:
 
 ## Outstanding platform checks
 
-GUI builds and interactive input, two-machine TLS sessions, concurrent shutdown,
+Interactive GUI input, two-machine TLS sessions, concurrent shutdown,
 Windows/macOS, session/lock-screen behaviour and installers are not covered by
 the command-line tests above. Sanitiser coverage is not a security certificate.
 
@@ -221,3 +221,40 @@ certificate alone does not establish peer approval.
 [2.4.8 hosted run 40865885582](https://github.com/TABARC-Code/barrier-x/actions/runs/40865885582)
 passed Debug, Release and sanitised lifecycle, certificate-storage and IPC checks
 with leak scanning.
+
+## Qt service reader
+
+Version 2.4.10 adds the `gui-ipc` QtTest suite. Enable it with
+`-DBARRIER_BUILD_GUI_IPC_TESTS=ON`; it can build independently of the desktop
+with Qt Core, Network and Test. Its real localhost sockets run under
+QCoreApplication, without a display server. Tests cover every message split,
+UTF-8 byte boundaries, empty/coalesced logs, the exact 1 MiB limit, oversized
+and high-bit lengths, invalid headers, truncated disconnects, clean reconnects,
+start/stop, 64-frame batching and signal handlers that stop or destroy the reader.
+The actual GUI client is included in the recovery/error-forwarding tests.
+
+The Linux workflow builds the desktop and GUI unit targets with Qt 5, runs
+widget tests using the offscreen platform, and includes `gui-ipc` in the
+sanitisers/leak subset. These are build and protocol checks, not an interactive
+desktop or Windows service test. The optional service-port constructor parameter
+lets tests use an isolated ephemeral port; the normal service port is unchanged.
+
+The old blocking helper has been removed. Framing buffers are reset on connection
+changes, socket input uses backpressure, and invalid frames abort without
+logging their payload. Retained log-window history is a separate outstanding
+resource limit. Caller/service authentication is still BX-003 work.
+
+Qt reference: [socket readiness and blocking calls](https://doc.qt.io/qt-6/qabstractsocket.html).
+The implementation is compiled and exercised against Qt 5.15; it does not
+require a Qt 6 migration.
+
+The peer-trust follow-up passed hosted Debug/Release and leak checks in
+[run 41348051339](https://github.com/TABARC-Code/barrier-x/actions/runs/41348051339).
+
+Local 2.4.10 result: the Linux desktop and engine targets built, all twelve
+CTest entries passed, and the Qt socket suite passed ASan/UBSan with local
+leak inspection disabled for the documented environment restriction. QtTest
+reported 39 passes including suite hooks; the existing GUI suite ran 58 tests
+and the engine suite ran 193. Four transfer tests and three IPC round trips
+also passed. The existing GUI test registration now resolves its built target
+rather than searching for a relative executable.

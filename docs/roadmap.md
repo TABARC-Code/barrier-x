@@ -1,8 +1,8 @@
 # barrier-x development plan
 
-Updated 30 October 2026. Starting point: upstream-derived commit
+Updated 1 November 2026. Starting point: upstream-derived commit
 `653e4badeb88f61de901581667d4465d7b1e2d52` on `master`.
-Current development version: **2.4.9-snapshot**.
+Current development version: **2.4.10-snapshot**.
 
 The aim is dependable control across several computers, with a clear account
 of which device receives input and what it may share. Security, recovery and
@@ -29,7 +29,7 @@ planning update. A snapshot is not a tested release.
 | BX-002 | In progress, 2.4.3-snapshot | TLS 1.2 minimum implemented; TLS 1.3 remains available. Readiness now follows pin approval (2.4.9); trust-setting migration remains planned | Real memory-BIO handshakes reject TLS 1.0/1.1 and accept 1.2/1.3 in both roles; five controlled peer-trust regressions added in 2.4.9; pairing migration and real network tests still required |
 | BX-003 | Planned | Authenticate local management commands and authorise the caller | Unauthorised local users cannot change daemon commands or read privileged state; exercise service/session boundaries and endpoint permissions |
 | BX-004 | In progress, 2.4.5-snapshot | EVP RSA-3072 generation, checked certificate construction and sibling-file publication implemented; new POSIX files use mode 0600 | Twelve storage tests cover key matching/signature, permissions, links, Unicode and injected generation/write/flush/sync/replacement failures. Existing-key permission migration, Windows ACL hardening and Windows/macOS validation remain open |
-| BX-005 | In progress, 2.4.2-snapshot | GCC 13 header fixes, optional test dependencies, CTest registration and pinned Linux CI workflow implemented | Ubuntu CLI and unit build established; Debug/Release CI added; Qt GUI, Windows/macOS, packaging and dependency replacement remain outstanding |
+| BX-005 | In progress, 2.4.2-snapshot | GCC 13 header fixes, optional test dependencies, CTest registration and pinned Linux CI workflow implemented | Ubuntu CLI and unit build established; Debug/Release CI added; Qt GUI and Qt IPC checks added in 2.4.10; Windows/macOS, packaging and dependency replacement remain outstanding |
 | BX-006 | Investigate | Bound protocol, clipboard and transfer accumulation; retain input responsiveness | Follow receive paths, fuzz malformed lengths/sequences, test queued-byte limits and cancellation; distinguish measured limits from assumptions |
 | BX-007 | Planned | Connection and pairing UX: discovered, approved, connected, focused, paused, failed | Status comes from engine state; distinct trust-rejection and network-loss errors; accessible controls; tested local-return path and key release on disconnect |
 
@@ -74,7 +74,8 @@ is a fairly low bar for a useful status indicator.
 | BX-026 | Implemented, 2.4.3-snapshot | Detached stdin/EOF handling and saved descriptor flags fixed | Five pipe/EOF/flag regression tests; actual localhost transfer tests now run without the inherited stdin assertion |
 | BX-027 | Implemented, 2.4.4-snapshot | Poll descriptor storage now unwinds safely when cancellation throws | Deterministic interrupted-poll test and hosted Debug/Release checks including leak scanning passed in run 40815563644 |
 | BX-028 | Implemented, 2.4.7-snapshot | Event queues own their lazy event-type providers; first construction is serialised | Two new tests cover all twenty providers, repeated lifetimes and concurrent first access. Normal and ASan/UBSan checks passed locally; hosted Debug/Release and leak checks passed in run 40860940285 |
-| BX-029 | Implemented, 2.4.8-snapshot | Incremental, bounded engine IPC frames, strict validation and correct command elevation encoding | Thirteen regressions and three localhost round trips passed; local ASan/UBSan passed. Split/coalesced frames, both limits, invalid fields/directions and proxy dispatch covered; caller authentication, the separate Qt reader and aggregate queue limits remain open |
+| BX-029 | Implemented, 2.4.8-snapshot | Incremental, bounded engine IPC frames, strict validation and correct command elevation encoding | Thirteen regressions and three localhost round trips passed; local ASan/UBSan passed. Split/coalesced frames, both limits, invalid fields/directions and proxy dispatch covered; Qt reader hardening follows in 2.4.10; caller authentication and aggregate queue limits remain open |
+| BX-030 | Implemented, 2.4.10-snapshot | Non-blocking bounded Qt service reader, reconnect recovery and explicit protocol errors | Full Linux GUI build, 58 existing GUI tests and the Qt socket suite passed; QtTest reported 39 passes including suite hooks, also under local ASan/UBSan. Windows/macOS and interactive desktop validation remain open |
 
 ## Next four weeks
 

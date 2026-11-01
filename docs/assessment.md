@@ -130,3 +130,17 @@ Matching pins succeed in both authenticated roles; untrusted peers, SHA-1-only
 trust entries, absent certificates and injected digest failure remain rejected.
 This is state and ownership hardening, not evidence of an exploitable trust
 bypass in the previous event loop, nor completion of trust-default migration.
+
+## Follow-up: 2.4.10-snapshot
+
+The Qt reader waited indefinitely inside the GUI event callback, ignored failed
+reads and allocated from a signed, unchecked wire length. Incremental reads now
+return to the event loop while waiting, preserve partial frames, validate an
+unsigned length against the existing 1 MiB log limit and stop after malformed
+input. Complete UTF-8 messages are decoded once, after the body arrives.
+
+The socket input buffer is bounded and message bursts yield after 64 frames.
+Disconnection discards partial state, reconnect starts afresh and protocol
+errors reach the existing GUI error signal. Socket ownership now includes the
+reader. Stop/restart and callback-driven destruction have regression coverage.
+Caller authentication and total retained log history remain unresolved.

@@ -19,31 +19,38 @@
 #pragma once
 
 #include <QObject>
-#include <QMutex>
+#include <QByteArray>
 
 class QTcpSocket;
 
 class IpcReader : public QObject
 {
-    Q_OBJECT;
+    Q_OBJECT
 
 public:
-    IpcReader(QTcpSocket* socket);
-    virtual ~IpcReader();
+    explicit IpcReader(QTcpSocket* socket);
     void start();
     void stop();
+    static constexpr int maximumLogBytes = 1024 * 1024;
 
 signals:
     void readLogLine(const QString& text);
-
-private:
-    bool readStream(char* buffer, int length);
-    int bytesToInt(const char* buffer, int size);
+    void protocolError(const QString& text);
 
 private slots:
     void read();
+    void connectionOpened();
+    void connectionClosed();
 
 private:
+    void readAvailable();
+    void resetFrame();
+    void rejectFrame();
+
     QTcpSocket* m_Socket;
-    QMutex m_Mutex;
+    QByteArray m_Buffer;
+    int m_ExpectedBytes = 4;
+    bool m_Started = false;
+    bool m_Failed = false;
+    bool m_Reading = false;
 };

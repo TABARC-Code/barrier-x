@@ -1,5 +1,23 @@
 # barrier-x changes
 
+## 2.4.10-snapshot - 1 November 2026
+
+- Read GUI service messages incrementally without blocking the event loop.
+- Rejected malformed headers and log payloads above 1 MiB before allocation.
+- Limited pending socket input and yielded after batches of 64 messages.
+- Cleared partial frames on disconnect and reported protocol errors in the GUI.
+- Restored log reading after stop/reconnect and cancelled manual-disconnect retries.
+- Tied the reader lifetime to its socket and handled signal-driven deletion safely.
+- Added real Qt socket regressions and GUI build coverage.
+
+Checks: all twelve CTest entries passed, including 193 engine unit tests,
+58 existing GUI unit tests and the real Qt socket suite (39 QtTest passes,
+including suite setup/cleanup). The Qt socket suite also passed ASan/UBSan
+locally. Hosted leak checking remains enabled; local leak inspection is restricted.
+
+Caller authentication and total log-history retention remain separate work.
+Windows/macOS and interactive desktop validation remain outstanding.
+
 ## 2.4.9-snapshot - 1 November 2026
 
 - Kept client sockets unready until SHA-256 pin verification succeeds.
@@ -10,7 +28,7 @@
 
 Checks: 193 unit tests and seven localhost tests passed, along with 58 targeted
 ASan/UBSan tests. A later normal retry lost its generated executable and produced
-no test output; that retry is not counted. Fresh hosted verification is pending.
+no test output; that retry is not counted. Hosted Debug/Release and leak checks passed in run 41348051339.
 Local leak inspection and platform/GUI checks remain outstanding.
 
 Trust defaults, local command authorisation and concurrent shutdown remain open.

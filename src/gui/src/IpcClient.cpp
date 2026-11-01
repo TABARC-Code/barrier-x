@@ -25,8 +25,8 @@
 #include "Ipc.h"
 #include <QDataStream>
 
-IpcClient::IpcClient() :
-m_ReaderStarted(false),
+IpcClient::IpcClient(quint16 port) :
+m_Port(port),
 m_Enabled(false)
 {
     m_Socket = new QTcpSocket(this);
@@ -34,6 +34,7 @@ m_Enabled(false)
     connect(m_Socket, SIGNAL(error(QAbstractSocket::SocketError)), this, SLOT(error(QAbstractSocket::SocketError)));
 
     m_Reader = new IpcReader(m_Socket);
+    connect(m_Reader, &IpcReader::protocolError, this, &IpcClient::errorMessage);
     connect(m_Reader, SIGNAL(readLogLine(const QString&)), this, SLOT(handleReadLogLine(const QString&)));
 }
 
@@ -52,16 +53,13 @@ void IpcClient::connectToHost()
     m_Enabled = true;
 
     infoMessage("connecting to service...");
-    m_Socket->connectToHost(QHostAddress(QHostAddress::LocalHost), IPC_PORT);
-
-    if (!m_ReaderStarted) {
-        m_Reader->start();
-        m_ReaderStarted = true;
-    }
+    m_Reader->start();
+    m_Socket->connectToHost(QHostAddress(QHostAddress::LocalHost), m_Port);
 }
 
 void IpcClient::disconnectFromHost()
 {
+    m_Enabled = false;
     infoMessage("service disconnect");
     m_Reader->stop();
     m_Socket->close();

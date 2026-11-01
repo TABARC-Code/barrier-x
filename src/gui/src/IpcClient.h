@@ -22,6 +22,7 @@
 #include <QAbstractSocket>
 
 #include "ElevateMode.h"
+#include "Ipc.h"
 
 class QTcpSocket;
 class IpcReader;
@@ -31,7 +32,7 @@ class IpcClient : public QObject
     Q_OBJECT
 
 public:
-    IpcClient();
+    explicit IpcClient(quint16 port = IPC_PORT);
     virtual ~IpcClient();
 
     void sendHello();
@@ -56,8 +57,8 @@ signals:
     void errorMessage(const QString& text);
 
 private:
+    const quint16 m_Port;
     QTcpSocket* m_Socket;
     IpcReader* m_Reader;
-    bool m_ReaderStarted;
     bool m_Enabled;
 };
