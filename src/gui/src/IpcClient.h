@@ -20,6 +20,7 @@
 
 #include <QObject>
 #include <QAbstractSocket>
+#include <QLocalSocket>
 
 #include "ElevateMode.h"
 #include "Ipc.h"
@@ -49,6 +50,7 @@ private:
 private slots:
     void connected();
     void error(QAbstractSocket::SocketError error);
+    void localError(QLocalSocket::LocalSocketError error);
     void handleReadLogLine(const QString& text);
 
 signals:
@@ -58,7 +60,10 @@ signals:
 
 private:
     const quint16 m_Port;
-    QTcpSocket* m_Socket;
+    QIODevice* m_Socket;
+    QTcpSocket* m_Tcp = nullptr;
+    QLocalSocket* m_Local = nullptr;
+    bool m_Verified = false;
     IpcReader* m_Reader;
     bool m_Enabled;
 };

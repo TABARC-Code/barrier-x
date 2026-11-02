@@ -27,6 +27,7 @@
 
 #include <mutex>
 #include <atomic>
+#include <functional>
 
 namespace barrier { class IStream; }
 class IpcMessage;
@@ -38,7 +39,8 @@ class IpcClientProxy {
     friend class IpcServer;
 
 public:
-    IpcClientProxy(barrier::IStream& stream, IEventQueue* events);
+    IpcClientProxy(barrier::IStream& stream, IEventQueue* events,
+                   std::function<std::function<bool()>(unsigned char)> authoriser = {});
     virtual ~IpcClientProxy();
 
 private:
@@ -55,5 +57,6 @@ private:
     std::mutex m_readMutex;
     std::mutex m_writeMutex;
     IEventQueue*        m_events;
+    std::function<std::function<bool()>(unsigned char)> authoriser_;
     IpcMessageReader reader_{IpcMessageReader::Direction::FromClient};
 };

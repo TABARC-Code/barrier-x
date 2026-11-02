@@ -177,3 +177,35 @@ receive logs and request a command, including its elevation flag. The daemon
 also restores the saved command on startup. I have recorded the actual launch
 and storage boundaries in local-management.md so the transport change includes
 both live commands and persisted settings. Windows execution remains unverified.
+
+## Follow-up: 2.4.13-snapshot
+
+I replaced the installed Windows service's TCP endpoint with a named pipe.
+The descriptor permits data exchange for interactive callers, without granting
+them pipe-instance creation rights; remote clients are rejected. After a bounded
+greeting I obtain the client token using checked identification-level pipe
+impersonation, restore the thread identity, and compare the current console
+logon. Commands require an unrestricted administrator token as well. Both
+clients compare the pipe server PID with the running Barrier service in SCM.
+
+Engine callers must match the service's retained child-process handle. I create
+the child suspended, register that handle and then resume it, avoiding the
+registration race. Authenticated peer state survives queued requests through
+shared ownership; disconnection, session/logon changes and replaced children
+invalidate later checks. DaemonApp repeats the command check before side effects.
+Previously saved commands need fresh administrator approval; I publish a saved
+approval marker only after both command and elevation values are written.
+I also reject failed/empty command parsing and avoid constructing a string from
+a missing log-filter argument. Whole command strings are removed from service diagnostics.
+
+The portable explicit-port test constructors retain TCP, but the installed
+service does not fall back to it and refuses commands without a credential
+check. Native GUI command changes now require the active console user to start
+the interface with administrator approval. Mixed old/new clients are unsupported.
+Foreground service debugging is not an alternative authenticated service identity.
+
+The native module and six integration units cross-compile with MinGW. The SDK
+job exercises real Windows pipes and tokens; results are recorded in build.md.
+Full Windows desktop linking still depends on replacing inherited desktop/TLS
+build dependencies. I have not validated installed registry ACLs, interactive
+lock/unlock, UAC, session switching or packaging on a Windows desktop.

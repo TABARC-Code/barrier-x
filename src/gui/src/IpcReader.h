@@ -20,8 +20,11 @@
 
 #include <QObject>
 #include <QByteArray>
+#include <QIODevice>
+#include <functional>
 
 class QTcpSocket;
+class QLocalSocket;
 
 class IpcReader : public QObject
 {
@@ -29,6 +32,7 @@ class IpcReader : public QObject
 
 public:
     explicit IpcReader(QTcpSocket* socket);
+    explicit IpcReader(QLocalSocket* socket);
     void start();
     void stop();
     static constexpr int maximumLogBytes = 1024 * 1024;
@@ -47,7 +51,9 @@ private:
     void resetFrame();
     void rejectFrame();
 
-    QTcpSocket* m_Socket;
+    void initialise();
+    QIODevice* m_Socket;
+    std::function<void()> m_Abort;
     QByteArray m_Buffer;
     int m_ExpectedBytes = 4;
     bool m_Started = false;

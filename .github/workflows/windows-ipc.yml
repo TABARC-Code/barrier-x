@@ -1,0 +1,23 @@
+name: Windows management IPC
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-ipc:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Initialise filesystem headers
+        run: git submodule update --init ext/gulrak-filesystem
+      - name: Configure SDK checks
+        run: cmake -S src/test/nativeipc -B native-build -A x64
+      - name: Compile native channel and service adapters
+        run: cmake --build native-build --config Debug --parallel 2
+      - name: Check pipe credentials and rejection paths
+        run: ctest --test-dir native-build -C Debug --output-on-failure -V

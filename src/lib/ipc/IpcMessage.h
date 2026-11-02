@@ -22,10 +22,15 @@
 #include "base/EventTypes.h"
 #include "base/Event.h"
 #include <string>
+#include <functional>
+#include <utility>
 
 class IpcMessage : public EventData {
 public:
     virtual ~IpcMessage();
+
+    void authorisation(std::function<bool()> check) { authorisation_ = std::move(check); }
+    bool authorised() const { return authorisation_ && authorisation_(); }
 
     //! Gets the message type ID.
     UInt8                type() const { return m_type; }
@@ -35,6 +40,7 @@ protected:
 
 private:
     UInt8                m_type;
+    std::function<bool()> authorisation_;
 };
 
 class IpcHelloMessage : public IpcMessage {

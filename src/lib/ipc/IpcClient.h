@@ -21,6 +21,10 @@
 #include "net/NetworkAddress.h"
 #include "net/TCPSocket.h"
 #include "base/EventTypes.h"
+#include <memory>
+#ifdef _WIN32
+class WinPipeStream;
+#endif
 
 class IpcServerProxy;
 class IpcMessage;
@@ -61,4 +65,8 @@ private:
     TCPSocket            m_socket;
     IpcServerProxy*    m_server;
     IEventQueue*        m_events;
+#ifdef _WIN32
+    bool native_ = false;
+    std::unique_ptr<WinPipeStream> pipe_;
+#endif
 };

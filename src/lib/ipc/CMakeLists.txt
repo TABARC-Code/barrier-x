@@ -26,3 +26,7 @@ add_library(ipc STATIC ${sources})
 if (UNIX)
     target_link_libraries(ipc arch base common mt io net synlib)
 endif()
+
+if(WIN32)
+    target_link_libraries(ipc advapi32 wtsapi32)
+endif()

@@ -1,69 +1,77 @@
 # Local management access
 
-I traced this boundary for 2.4.12-snapshot on 2 November 2026. Caller
-authentication is unfinished. The role checks below cannot identify a user.
+In 2.4.13 I use a Windows named pipe for the installed service, GUI and engine.
+The service never opens a TCP management listener. The explicit-port TCP
+constructors remain for the portable test harness; they do not supply command
+credentials to DaemonApp.
 
-## Current paths
+## Current policy
 
-| Component | Observed behaviour | Remaining boundary |
-| --- | --- | --- |
-| Qt IpcClient | Connects to 127.0.0.1:24801, sends a GUI greeting and command/elevation frames | I have no credential exchange or proof of service identity |
-| Engine IpcClient | Sends a node greeting and receives service messages, including shutdown | I have no proof that a node is the child launched by the service |
-| IpcClientProxy | Requires one greeting; only a declared GUI can dispatch commands; duplicate greetings close the connection | Any local process can declare either role |
-| IpcServer/IpcLogOutputter | Select log recipients by declared role | Log access still has no authenticated principal |
-| Windows DaemonApp | Parses commands, changes logging, saves Command/Elevate in system settings and calls setCommand | I must authorise every effect before changing settings or launching |
-| MSWindowsWatchdog | Launches in the active session; explicit elevation or a non-default desktop selects a privileged token path | I must constrain executable selection and review the desktop/elevation policy |
-| ArchSystemWindows | Stores settings beneath HKEY_LOCAL_MACHINE\SOFTWARE\Barrier | I still need to verify installed registry ACLs and saved-command handling |
+| Request | Required identity |
+| --- | --- |
+| GUI greeting and log subscription | The active console user's SID, logon SID and session; restricted tokens are rejected |
+| Command, logging configuration or elevation change | The same current logon with an enabled administrator token |
+| Engine greeting and shutdown participation | The retained, live service child process in the active console session |
+| Client connection to the service | Pipe server PID must match the running Barrier service reported by SCM |
 
-The common proxy is exercised on Linux. The service/watchdog path is Windows
-code; Linux protocol tests cannot establish its token or ACL behaviour.
+I check Windows tokens after reading a fixed, bounded greeting. Anonymous or
+failed identity queries are refused. Identification-level impersonation lets me
+inspect credentials without giving the service permission to act as the caller.
+A failed restoration of the service thread identity terminates the process.
 
-## Proposed native channel
+The pipe DACL grants interactive callers specific data/attribute rights, without
+the extra instance-creation right included in generic write access. SYSTEM and
+administrators retain full control. I require the first server instance and
+reject remote clients. A competing endpoint can deny startup, but clients refuse
+to trust its process identity.
 
-I favour a Windows named pipe for this service boundary, with an explicit DACL,
-remote-client rejection and caller token/session checks before dispatch. This
-is a proposal, not an implemented transport. The default pipe descriptor allows
-Everyone and anonymous read access, which is unsuitable for service logs.
+I compare UAC-linked logon identities where available, while retaining the actual
+elevated token for command permission checks. A queued command keeps a shared
+credential check, not a pointer to its former stream. The daemon checks it again
+before touching logging, saved settings or the watchdog. Log writes recheck the
+peer too. Disconnects and a changed console logon revoke later access.
 
-I need separate permissions for log subscription, engine shutdown participation,
-command changes and elevation. A GUI role alone grants none of these in the
-proposed design. The token's logon/session identity must match the authorised
-interactive session. Engine access needs a binding to the service's retained
-child-process identity. Service identity must also be checked by clients;
-knowing a pipe name proves very little.
+I register the retained child handle before resuming a newly created engine.
+PID reuse alone cannot identify a new trusted node, and replacing the registered
+child revokes the previous node's permission. The stream has bounded input and
+output queues, at most 24 retained authenticated peers and a three-second initial
+greeting deadline. Pending overlapped I/O is cancelled and drained on stop.
 
-If impersonation is used to inspect a caller, I must check its result, refuse
-requests when identity lookup fails and restore the original thread context on
-every exit. The verified principal must remain attached to the queued request,
-so the daemon can apply policy before registry, log-file or process side effects.
-An endpoint migration must not leave an unauthenticated TCP fallback accepting
-the same operations. The GUI and engine clients must migrate together.
+## Upgrade and operation
 
-Before implementation I need a working Windows build/test job and a precise
-policy for active-session users, administrators, service children and elevation.
-I will also check which existing command options can load code or redirect
-privileged file writes before defining an executable/argument allowlist.
+I require the service, GUI and engine to be upgraded together. Older TCP clients
+cannot configure the new service. The current console user can read service
+logs without elevation, but must restart the interface as administrator to change
+commands. Running the GUI as a different administrator account is not the same
+console logon and is refused. Remote Desktop support is limited by the existing
+console-session watchdog policy; I have not expanded that policy here.
 
-## Required checks
+The clients trust the installed service entry, not a foreground debugging
+process. Registry Command/Elevate values remain machine settings. I restore them only
+with the current approval marker, which the authenticated command path writes. Older
+saved commands require administrator approval again, because their original
+caller cannot be established. I invalidate the marker before updating either
+value and publish approval after both saves succeed. Installation ACLs and
+executable/argument allowlisting still need a separate deployment review. I have not claimed that
+arbitrary administrator-supplied commands are sandboxed.
 
-I need live tests with an approved caller and a second local user: commands and
-logs must be denied to the latter. Repeat across session switches, reconnects,
-service restart, impersonation failure and a competing pipe server. Include
-wrong-role requests from an otherwise valid caller. Saved commands need the
-same executable policy when restored at service startup.
+The native SDK tests cover an approved caller, a restricted token, another local
+user, a forged node, changed child registration, a competing listener, wrong
+server identity, malformed greeting and cancellation. Interactive UAC, service
+installation, lock/unlock and session transitions still require a Windows desktop.
 
-For the interface, I want permission rejection distinguished from a stopped
-service (BX-007). A reconnect must not replay a stale command or request for
-elevation without a current decision (BX-019). These behaviours remain proposals.
+## References and build inputs
 
-## Official references checked
+I checked Microsoft's [pipe access rights](https://learn.microsoft.com/en-us/windows/win32/ipc/named-pipe-security-and-access-rights),
+[pipe impersonation](https://learn.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-impersonatenamedpipeclient)
+and [local-only pipe mode](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createnamedpipea).
+The GUI adopts a verified native handle through QLocalSocket. I inspected Qt
+5.15's official qlocalsocket_win.cpp for handle ownership and descriptor adoption;
+I have not imported that source or changed the Qt dependency.
 
-I used Microsoft's [pipe security and access rights](https://learn.microsoft.com/en-us/windows/win32/ipc/named-pipe-security-and-access-rights)
-to check default access, logon SID restrictions and the extra instance-creation
-right included in generic write access. I will choose specific rights for each
-endpoint rather than inherit a broad default.
-
-[CreateNamedPipe](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createnamedpipea)
-documents PIPE_REJECT_REMOTE_CLIENTS. [ImpersonateNamedPipeClient](https://learn.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-impersonatenamedpipeclient)
-requires checking failure before executing client requests. I have not imported
-sample code, changed dependencies or executed third-party scripts for this work.
+The SDK harness uses Windows runner tools without new third-party libraries.
+For local compile checks I extracted Ubuntu's signed-index MinGW packages
+(GCC 13.2.0, mingw-w64 11.0.1, binutils 2.41 snapshot). I inspected the package
+control scripts and licence notices; no installation hooks were executed and
+none of those toolchain files is distributed with the project. These checks
+cannot certify a compiler or its entire source as free of vulnerabilities.

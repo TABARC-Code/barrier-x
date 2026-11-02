@@ -8,8 +8,11 @@
 #include <QtTest>
 #include <QTcpServer>
 #include <QTcpSocket>
+#include <QLocalServer>
+#include <QLocalSocket>
 #include <QtEndian>
 #include <QSignalSpy>
+#include <memory>
 
 class IpcReaderTests : public QObject {
     Q_OBJECT
@@ -53,6 +56,37 @@ private slots:
         delete peer;
         peer = nullptr;
         server.close();
+    }
+    void localTransportUsesTheSameBounds()
+    {
+#ifndef Q_OS_WIN
+        if (qEnvironmentVariableIsSet("BARRIER_TEST_SKIP_UNIX_SOCKETS")) {
+            QSKIP("Unix-domain sockets are denied by this test environment");
+        }
+#endif
+        QLocalServer service;
+        const QString name = QString("barrier-test-%1").arg(QUuid::createUuid().toString(QUuid::Id128));
+        QVERIFY2(service.listen(name), qPrintable(service.errorString()));
+        QLocalSocket local;
+        IpcReader localReader(&local);
+        QSignalSpy logs(&localReader, &IpcReader::readLogLine);
+        QSignalSpy errors(&localReader, &IpcReader::protocolError);
+        localReader.start();
+        local.connectToServer(name);
+        QTRY_VERIFY(service.hasPendingConnections());
+        std::unique_ptr<QLocalSocket> sender(service.nextPendingConnection());
+        sender->write("IL", 2);
+        sender->flush();
+        QTest::qWait(1);
+        QCOMPARE(logs.count(), 0);
+        sender->write(frame("local").mid(2));
+        sender->flush();
+        QTRY_COMPARE(logs.count(), 1);
+        QCOMPARE(logs[0][0].toString(), QString("local"));
+        sender->write(header(quint32(IpcReader::maximumLogBytes) + 1));
+        sender->flush();
+        QTRY_COMPARE(errors.count(), 1);
+        QTRY_COMPARE(local.state(), QLocalSocket::UnconnectedState);
     }
     void fragmentedMessageDoesNotBlockEvents()
     {

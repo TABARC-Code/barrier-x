@@ -26,6 +26,10 @@
 
 #include <list>
 #include <mutex>
+#include <memory>
+#ifdef _WIN32
+class WinPipeListener;
+#endif
 
 class Event;
 class IpcClientProxy;
@@ -44,6 +48,10 @@ class IpcServer {
 public:
     IpcServer(IEventQueue* events, SocketMultiplexer* socketMultiplexer);
     IpcServer(IEventQueue* events, SocketMultiplexer* socketMultiplexer, int port);
+#ifdef _WIN32
+    IpcServer(IEventQueue* events, SocketMultiplexer* multiplexer, bool service);
+    void childProcess(void* handle);
+#endif
     virtual ~IpcServer();
 
     //! @name manipulators
@@ -81,6 +89,9 @@ private:
     NetworkAddress        m_address;
     ClientList            m_clients;
     mutable std::mutex m_clientsMutex;
+#ifdef _WIN32
+    std::shared_ptr<WinPipeListener> pipe_;
+#endif
 
 #ifdef BARRIER_TEST_ENV
 public:
