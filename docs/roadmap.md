@@ -1,8 +1,8 @@
 # barrier-x development plan
 
-Updated 1 November 2026. Starting point: upstream-derived commit
+Updated 2 November 2026. Starting point: upstream-derived commit
 `653e4badeb88f61de901581667d4465d7b1e2d52` on `master`.
-Current development version: **2.4.10-snapshot**.
+Current development version: **2.4.11-snapshot**.
 
 The aim is dependable control across several computers, with a clear account
 of which device receives input and what it may share. Security, recovery and
@@ -25,7 +25,7 @@ planning update. A snapshot is not a tested release.
 | ID | State | Work | Completion evidence |
 | --- | --- | --- | --- |
 | BX-000 | Implemented, 2.4.1-snapshot | Source planning notes, corrected assessment, backlog and version tracking | Comment-only source comparison, both version declarations matched, whitespace check; no application build claimed |
-| BX-001 | In progress, 2.4.2-snapshot | SSL wrapper ownership, cleanup before initialisation, context allocation failure, repeated close and exception propagation implemented | Twenty-four SSL tests, including injected context/session/transport failures; session allocation, transport attachment and retry preservation added in 2.4.6; real concurrent shutdown remains to check; see build.md |
+| BX-001 | In progress, 2.4.2-snapshot | SSL wrapper ownership, cleanup before initialisation, context allocation failure, repeated close and exception propagation implemented | Thirty-one SSL tests, including injected context/session/transport failures; session allocation, transport attachment and retry preservation added in 2.4.6; application I/O state/count guards added in 2.4.11 with seven regressions; real concurrent shutdown remains to check; see build.md |
 | BX-002 | In progress, 2.4.3-snapshot | TLS 1.2 minimum implemented; TLS 1.3 remains available. Readiness now follows pin approval (2.4.9); trust-setting migration remains planned | Real memory-BIO handshakes reject TLS 1.0/1.1 and accept 1.2/1.3 in both roles; five controlled peer-trust regressions added in 2.4.9; pairing migration and real network tests still required |
 | BX-003 | Planned | Authenticate local management commands and authorise the caller | Unauthorised local users cannot change daemon commands or read privileged state; exercise service/session boundaries and endpoint permissions |
 | BX-004 | In progress, 2.4.5-snapshot | EVP RSA-3072 generation, checked certificate construction and sibling-file publication implemented; new POSIX files use mode 0600 | Twelve storage tests cover key matching/signature, permissions, links, Unicode and injected generation/write/flush/sync/replacement failures. Existing-key permission migration, Windows ACL hardening and Windows/macOS validation remain open |
@@ -54,6 +54,12 @@ as well. See `assessment.md` for the starting evidence and corrections.
 | BX-015 | Deferred | Multiple controllers with explicit ownership and a local override | Specify lease/revocation and handover; release all held input; test competing requests, failure and reconnection before extending the protocol |
 | BX-016 | Investigate | Unicode text entry separate from physical-key forwarding | Specify composition and input-method behaviour; test grapheme sequences, CJK and non-BMP text; retain shortcut/raw-key behaviour where text injection is unsuitable |
 | BX-017 | Deferred | Optional relay transport for peers on different networks | Threat model, authenticated peer identity, replay/reconnect tests, bounded relay resources; no custom cryptography or relay-visible plaintext claims without verification |
+
+I am also keeping three recovery details on the list: show held modifiers and
+local-return controls beside the focused device (BX-007/BX-009), show sharing
+limits before accepting an offer (BX-010/BX-011), and discard pending offers
+rather than silently replay them after reconnect (BX-011/BX-019). These are
+proposals; backend behaviour and accessibility checks still need evidence.
 
 The desktop interface will remain Qt initially. Improve engine status and the
 management boundary before replacing the presentation layer. A running process

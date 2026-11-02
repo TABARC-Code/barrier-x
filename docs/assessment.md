@@ -144,3 +144,17 @@ Disconnection discards partial state, reconnect starts afresh and protocol
 errors reach the existing GUI error signal. Socket ownership now includes the
 reader. Stop/restart and callback-driven destruction have regression coverage.
 Caller authentication and total retained log history remain unresolved.
+
+## Follow-up: 2.4.11-snapshot
+
+I reproduced a null-state read crash before initialisation and stale byte counts
+without a session. Controlled session tests also showed application I/O entering
+OpenSSL before approval and after a fatal flag. Both methods now reject those
+states under the existing SSL mutex and report zero bytes unless I/O succeeds.
+I reject invalid arguments and bypass empty operations, keeping retry buffers
+with the caller. I clear the thread error queue before each application I/O call,
+as required for reliable SSL_get_error classification.
+
+This adds a low-level guard; it does not establish an exploit in the existing
+job loop. Cross-thread readiness/fatal flags and concurrent shutdown still need
+review. Local management caller authentication remains unfinished (BX-003).

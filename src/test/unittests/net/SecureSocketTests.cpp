@@ -29,6 +29,11 @@
 
 namespace {
 thread_local bool complete_handshake = false;
+thread_local bool fake_io = false;
+thread_local int io_calls = 0;
+thread_local int io_result = 2;
+thread_local int io_error = -1;
+thread_local bool dirty_io_error_queue = false;
 thread_local bool override_peer = false;
 thread_local X509* peer_certificate = nullptr;
 thread_local SecureSocket* observed_socket = nullptr;
@@ -98,9 +103,31 @@ extern "C" int __wrap_SSL_accept(SSL* ssl)
     ++handshake_calls;
     return fake_transport ? (complete_handshake ? 1 : -1) : __real_SSL_accept(ssl);
 }
+extern "C" int __real_SSL_read(SSL*, void*, int);
+extern "C" int __real_SSL_write(SSL*, const void*, int);
+extern "C" int __wrap_SSL_read(SSL* ssl, void* buffer, int size)
+{
+    ++io_calls;
+    if (fake_io && ERR_peek_error() != 0) {
+        dirty_io_error_queue = true;
+    }
+    return fake_io ? io_result : __real_SSL_read(ssl, buffer, size);
+}
+extern "C" int __wrap_SSL_write(SSL* ssl, const void* buffer, int size)
+{
+    ++io_calls;
+    if (fake_io && ERR_peek_error() != 0) {
+        dirty_io_error_queue = true;
+    }
+    return fake_io ? io_result : __real_SSL_write(ssl, buffer, size);
+}
+
 extern "C" int __real_SSL_get_error(const SSL* ssl, int result);
 extern "C" int __wrap_SSL_get_error(const SSL* ssl, int result)
 {
+    if (fake_io && io_error >= 0) {
+        return io_error;
+    }
     return fake_transport ? (complete_handshake ? SSL_ERROR_NONE : SSL_ERROR_WANT_READ) :
                             __real_SSL_get_error(ssl, result);
 }
@@ -157,6 +184,17 @@ protected:
                                               security);
     }
 
+    void rejectedIo(SecureSocket& connection)
+    {
+        char buffer[4] = {};
+        int count = 99;
+        EXPECT_EQ(-1, connection.secureRead(buffer, sizeof(buffer), count));
+        EXPECT_EQ(0, count);
+        count = 99;
+        EXPECT_EQ(-1, connection.secureWrite(buffer, sizeof(buffer), count));
+        EXPECT_EQ(0, count);
+    }
+
     EventQueue events;
     SocketMultiplexer multiplexer;
 
@@ -196,6 +234,11 @@ protected:
     }
     void SetUp() override
     {
+        fake_io = false;
+        io_calls = 0;
+        io_result = 2;
+        io_error = -1;
+        dirty_io_error_queue = false;
         complete_handshake = override_peer = ready_during_verification = false;
         peer_certificate = nullptr;
         observed_socket = nullptr;
@@ -208,6 +251,7 @@ protected:
     }
     void TearDown() override
     {
+        fake_io = false;
         fail_next_session = fake_transport = fail_attachment = false;
         override_peer = complete_handshake = false;
         peer_certificate = nullptr;
@@ -222,6 +266,127 @@ protected:
     }
 #endif
 };
+
+TEST_F(SecureSocketTests, IoBeforeInitialisationFailsWithZeroCount)
+{
+    auto connection = socket();
+    rejectedIo(*connection);
+}
+
+TEST_F(SecureSocketTests, IoWithoutSessionFailsWithZeroCount)
+{
+    auto connection = socket();
+    connection->initSsl(false);
+    rejectedIo(*connection);
+}
+
+TEST_F(SecureSocketTests, IoAfterCloseFailsWithZeroCount)
+{
+    auto connection = socket();
+    connection->initSsl(false);
+    connection->close();
+    rejectedIo(*connection);
+}
+
+#ifdef BARRIER_TEST_WRAP_SSL_CONTEXT
+TEST_F(SecureSocketTests, UnapprovedSessionNeverEntersApplicationIo)
+{
+    fake_transport = fake_io = true;
+    auto connection = socket();
+    connection->initSsl(false);
+    EXPECT_EQ(0, handshake(*connection, false));
+    rejectedIo(*connection);
+    EXPECT_EQ(0, io_calls);
+}
+
+TEST_F(SecureSocketTests, ApprovedSessionReportsOnlyTransferredBytes)
+{
+    preparePeer(false, true);
+    auto connection = socket();
+    connection->initSsl(false);
+    ASSERT_EQ(1, handshake(*connection, false));
+    fake_io = true;
+    char buffer[4] = {};
+    int count = 99;
+    ERR_put_error(ERR_LIB_SSL, 0, 1, __FILE__, __LINE__);
+    EXPECT_EQ(2, connection->secureRead(buffer, sizeof(buffer), count));
+    EXPECT_EQ(2, count);
+    ERR_put_error(ERR_LIB_SSL, 0, 1, __FILE__, __LINE__);
+    EXPECT_EQ(2, connection->secureWrite(buffer, sizeof(buffer), count));
+    EXPECT_EQ(2, count);
+    EXPECT_EQ(2, io_calls);
+    EXPECT_FALSE(dirty_io_error_queue);
+
+    // A retry transfers no application bytes; the caller retains the buffer.
+    io_result = -1;
+    for (int error : {SSL_ERROR_WANT_READ, SSL_ERROR_WANT_WRITE}) {
+        io_error = error;
+        count = 99;
+        EXPECT_EQ(0, connection->secureRead(buffer, sizeof(buffer), count));
+        EXPECT_EQ(0, count);
+        count = 99;
+        EXPECT_EQ(0, connection->secureWrite(buffer, sizeof(buffer), count));
+        EXPECT_EQ(0, count);
+    }
+    io_error = SSL_ERROR_NONE;
+    io_result = 2;
+    EXPECT_EQ(2, connection->secureRead(buffer, sizeof(buffer), count));
+    EXPECT_EQ(2, count);
+    EXPECT_EQ(2, connection->secureWrite(buffer, sizeof(buffer), count));
+    EXPECT_EQ(2, count);
+    connection->isFatal(true);
+    int before = io_calls;
+    rejectedIo(*connection);
+    EXPECT_EQ(before, io_calls);
+}
+
+TEST_F(SecureSocketTests, FatalIoClearsReadinessAndReportsZeroBytes)
+{
+    preparePeer(false, true);
+    for (bool writing : {false, true}) {
+        fake_io = false;
+        auto connection = socket();
+        connection->initSsl(false);
+        ASSERT_EQ(1, handshake(*connection, false));
+        fake_io = true;
+        io_result = -1;
+        io_error = SSL_ERROR_SSL;
+        char buffer[4] = {};
+        int count = 99;
+        EXPECT_EQ(-1, writing ? connection->secureWrite(buffer, sizeof(buffer), count) :
+                                connection->secureRead(buffer, sizeof(buffer), count));
+        EXPECT_EQ(0, count);
+        EXPECT_TRUE(connection->isFatal());
+        EXPECT_FALSE(connection->isSecureReady());
+        int before = io_calls;
+        rejectedIo(*connection);
+        EXPECT_EQ(before, io_calls);
+    }
+}
+
+TEST_F(SecureSocketTests, InvalidIoArgumentsDoNotEnterOpenSsl)
+{
+    preparePeer(false, true);
+    auto connection = socket();
+    connection->initSsl(false);
+    ASSERT_EQ(1, handshake(*connection, false));
+    fake_io = true;
+    char buffer[4] = {};
+    for (bool writing : {false, true}) {
+        for (int size : {-1, 1}) {
+            int count = 99;
+            EXPECT_EQ(-1, writing ? connection->secureWrite(nullptr, size, count) :
+                                    connection->secureRead(nullptr, size, count));
+            EXPECT_EQ(0, count);
+        }
+        int count = 99;
+        EXPECT_EQ(0, writing ? connection->secureWrite(buffer, 0, count) :
+                               connection->secureRead(buffer, 0, count));
+        EXPECT_EQ(0, count);
+    }
+    EXPECT_EQ(0, io_calls);
+}
+#endif
 
 TEST_F(SecureSocketTests, DestroyBeforeInitialisation)
 {

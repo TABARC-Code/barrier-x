@@ -269,59 +269,66 @@ SecureSocket::doWrite()
 int
 SecureSocket::secureRead(void* buffer, int size, int& read)
 {
+    read = 0;
     std::lock_guard<std::mutex> ssl_lock{ssl_mutex_};
 
-    if (m_ssl->m_ssl != NULL) {
-        LOG((CLOG_DEBUG2 "reading secure socket"));
-        read = SSL_read(m_ssl->m_ssl, buffer, size);
-
-        // Check result will cleanup the connection in the case of a fatal
-        checkResult(read, secure_read_retry_);
-
-        if (secure_read_retry_) {
-            return 0;
-        }
-
-        if (isFatal()) {
-            return -1;
-        }
+    // I check readiness here too; allocating a session is not peer approval.
+    if (!m_ssl || !m_ssl->m_ssl || isFatal() || !m_secureReady ||
+        size < 0 || (!buffer && size > 0)) {
+        return -1;
     }
-    // According to SSL spec, the number of bytes read must not be negative and
-    // not have an error code from SSL_get_error(). If this happens, it is
-    // itself an error. Let the parent handle the case
-    return read;
+    if (size == 0) {
+        return 0;
+    }
+
+    LOG((CLOG_DEBUG2 "reading secure socket"));
+    ERR_clear_error();
+    const int result = SSL_read(m_ssl->m_ssl, buffer, size);
+    checkResult(result, secure_read_retry_);
+    if (isFatal()) {
+        return -1;
+    }
+    if (secure_read_retry_) {
+        return 0;
+    }
+    read = result > 0 ? result : 0;
+    return result;
 }
 
 int
 SecureSocket::secureWrite(const void* buffer, int size, int& wrote)
 {
+    wrote = 0;
     std::lock_guard<std::mutex> ssl_lock{ssl_mutex_};
 
-    if (m_ssl->m_ssl != NULL) {
-        LOG((CLOG_DEBUG2 "writing secure socket:%p", this));
-
-        wrote = SSL_write(m_ssl->m_ssl, buffer, size);
-
-        // Check result will cleanup the connection in the case of a fatal
-        checkResult(wrote, secure_write_retry_);
-
-        if (secure_write_retry_) {
-            return 0;
-        }
-
-        if (isFatal()) {
-            return -1;
-        }
+    if (!m_ssl || !m_ssl->m_ssl || isFatal() || !m_secureReady ||
+        size < 0 || (!buffer && size > 0)) {
+        return -1;
     }
-    // According to SSL spec, r must not be negative and not have an error code
-    // from SSL_get_error(). If this happens, it is itself an error. Let the
-    // parent handle the case
-    return wrote;
+    // I skip empty writes: OpenSSL objects, and there is nothing to send.
+    if (size == 0) {
+        return 0;
+    }
+
+    LOG((CLOG_DEBUG2 "writing secure socket:%p", this));
+    ERR_clear_error();
+    const int result = SSL_write(m_ssl->m_ssl, buffer, size);
+    checkResult(result, secure_write_retry_);
+    if (isFatal()) {
+        return -1;
+    }
+    if (secure_write_retry_) {
+        return 0;
+    }
+    wrote = result > 0 ? result : 0;
+    return result;
 }
 
 bool
 SecureSocket::isSecureReady()
 {
+    // FUTURE(BX-001): I still need to synchronise state observers with shutdown;
+    // the application I/O guards do not settle cross-thread flag access.
     return m_secureReady;
 }
 

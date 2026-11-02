@@ -258,3 +258,33 @@ reported 39 passes including suite hooks; the existing GUI suite ran 58 tests
 and the engine suite ran 193. Four transfer tests and three IPC round trips
 also passed. The existing GUI test registration now resolves its built target
 rather than searching for a relative executable.
+
+## Application TLS I/O state
+
+In 2.4.11 I added seven regressions for absent state/session, closure, unapproved
+sessions, successful byte counts, retries, fatal errors and invalid arguments.
+The Linux linker wrappers count entry to SSL_read/SSL_write; controlled sessions
+exercise the production guards and result handling, not real encrypted payloads.
+I also seed the thread error queue before successful calls and check it is empty
+at OpenSSL entry. The pre-initialisation read crashed against 2.4.10; all four
+other selected state/count/argument regressions failed before the fix.
+
+I retained the existing write-buffer retry ownership. OpenSSL requires retries
+with the same arguments and does not accept zero-length SSL_write calls:
+[write contract](https://docs.openssl.org/3.4/man3/SSL_write/),
+[error classification](https://docs.openssl.org/3.4/man3/SSL_get_error/).
+Concurrent shutdown and real network payload tests remain separate work.
+
+I built the Linux desktop and engine and passed all twelve CTest entries:
+200 engine tests, 58 GUI tests, 39 Qt socket passes including suite hooks,
+four transfer tests and three IPC round trips. The 65 lifecycle/storage/IPC
+tests passed ASan/UBSan in one process; the Qt socket suite also passed with
+sanitisers. Local leak inspection remains disabled because of the previously
+recorded process-inspection restriction; hosted CI keeps it enabled.
+
+The workspace produced empty generated objects during linking and later
+corrupted executables or removed their execute bits. I removed only malformed
+build artefacts, rebuilt them and checked the test output counts. One sanitised
+CTest attempt could not launch two subsets; I reran all 65 engine checks in a
+single process successfully. I have not checked Windows, macOS or an interactive
+desktop in this increment.

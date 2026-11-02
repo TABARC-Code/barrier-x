@@ -1,5 +1,12 @@
 # barrier-x changes
 
+## 2.4.11-snapshot - 2 November 2026
+
+- I reject secure reads and writes without a ready, approved session.
+- I return zero transferred bytes on rejected, retrying or failed operations.
+- I reject invalid buffers and lengths before calling OpenSSL.
+- I clear stale thread errors before application I/O so retry decisions use the current result.
+
 ## 2.4.10-snapshot - 1 November 2026
 
 Sec update
