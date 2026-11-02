@@ -288,3 +288,34 @@ build artefacts, rebuilt them and checked the test output counts. One sanitised
 CTest attempt could not launch two subsets; I reran all 65 engine checks in a
 single process successfully. I have not checked Windows, macOS or an interactive
 desktop in this increment.
+
+## Local management role sequencing
+
+In 2.4.12 I require a single greeting and accept command frames only from the
+connection's declared GUI role. Repeated greetings close the stream, including
+a second greeting with the same role. Node greetings and valid GUI command
+sequences remain supported. These are protocol checks, not caller credentials.
+
+I added five proxy regressions for commands before greetings, node commands,
+repeated/changed roles, fragmented greetings and fresh connections. Four
+rejection cases failed against the previous proxy; the fragmented valid path
+also passed before the change. Four new localhost tests require an actual close
+and zero command dispatch. I corrected the existing command round trip to use
+a GUI greeting: the engine client advertises a node role and is not a valid
+command sender under the documented protocol.
+
+The Linux GUI/engine build and all twelve CTest entries passed: 205 engine
+unit tests, 58 GUI tests, 39 Qt socket passes including suite hooks, four
+transfer tests and seven IPC socket tests. The 70 targeted engine tests and
+39 Qt socket passes also passed ASan/UBSan. I kept local leak inspection disabled
+for the recorded process-inspection restriction; hosted leak checks stay enabled.
+
+I reviewed the final diff for rejected-message dispatch, partial state, role
+publication, duplicate disconnects and stream ownership. The atomic flags do
+not make object teardown safe against arbitrary concurrent callers. No Windows
+or macOS execution was available, and I have not checked service tokens, endpoint
+ACLs or interactive session changes. See local-management.md for the remaining
+credential and saved-command work.
+
+The previous increment passed hosted Debug/Release and leak checks in
+[run 41472140694](https://github.com/TABARC-Code/barrier-x/actions/runs/41472140694).

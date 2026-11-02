@@ -1,5 +1,13 @@
 # barrier-x changes
 
+## 2.4.12-snapshot - 2 November 2026
+
+- I require one greeting before dispatching management commands.
+- I reject commands from engine connections and close repeated or changed greetings.
+- I publish connection flags atomically and skip output once disconnection is observed.
+
+Caller credentials are still unchecked; a claimed GUI role remains forgeable.
+
 ## 2.4.11-snapshot - 2 November 2026
 
 - I reject secure reads and writes without a ready, approved session.

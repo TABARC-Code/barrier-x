@@ -186,8 +186,12 @@ TEST(IpcProxyTests, ClientProxyWaitsForCompleteCommand)
     CapturedEvents events;
     auto* stream = new BufferStream;
     IpcClientProxy proxy(*stream, &events);
+    stream->input = std::string("IHEL\x01", 5);
+    events.dispatchEvent(Event(events.forIStream().inputReady(), stream));
+    ASSERT_EQ(1u, events.messages.size());
+    events.messages.clear();
     auto bytes = frame("ICMD", "test", 0);
-    stream->input = bytes.substr(0, 10);
+    stream->input += bytes.substr(0, 10);
     events.dispatchEvent(Event(events.forIStream().inputReady(), stream));
     EXPECT_TRUE(events.messages.empty());
     stream->input += bytes.substr(10);
@@ -208,6 +212,101 @@ TEST(IpcProxyTests, ClientProxyStopsOnInvalidFrameWithoutNullMessage)
     EXPECT_EQ(1, events.disconnects);
     EXPECT_TRUE(events.messages.empty());
     events.dispatchEvent(Event(events.forIStream().inputReady(), stream));
+    EXPECT_EQ(1, events.disconnects);
+}
+
+TEST(IpcProxyTests, RejectsCommandsBeforeHello)
+{
+    for (bool elevate : {false, true}) {
+        CapturedEvents events;
+        auto* stream = new BufferStream;
+        IpcClientProxy proxy(*stream, &events);
+        auto command = frame("ICMD", "", elevate ? 1 : 0);
+        stream->input = command + std::string("IHEL\x01", 5);
+        events.dispatchEvent(Event(events.forIStream().inputReady(), stream));
+        EXPECT_TRUE(stream->closed);
+        EXPECT_EQ(command.size(), stream->offset);
+        EXPECT_TRUE(events.messages.empty());
+        EXPECT_EQ(1, events.disconnects);
+        events.dispatchEvent(Event(events.forIStream().inputReady(), stream));
+        EXPECT_EQ(1, events.disconnects);
+    }
+}
+
+TEST(IpcProxyTests, NodeCannotDispatchCommands)
+{
+    for (bool elevate : {false, true}) {
+        CapturedEvents events;
+        auto* stream = new BufferStream;
+        IpcClientProxy proxy(*stream, &events);
+        stream->input = std::string("IHEL\x02", 5) + frame("ICMD", "test", elevate ? 1 : 0);
+        events.dispatchEvent(Event(events.forIStream().inputReady(), stream));
+        ASSERT_EQ(1u, events.messages.size());
+        EXPECT_EQ(kIpcHello, events.messages[0]->type());
+        EXPECT_TRUE(stream->closed);
+        EXPECT_EQ(1, events.disconnects);
+    }
+}
+
+TEST(IpcProxyTests, RejectsRepeatedAndChangedRoles)
+{
+    for (char initial : {char(kIpcClientGui), char(kIpcClientNode)}) {
+        for (char repeated : {char(kIpcClientGui), char(kIpcClientNode)}) {
+            CapturedEvents events;
+            auto* stream = new BufferStream;
+            IpcClientProxy proxy(*stream, &events);
+            stream->input = "IHEL" + std::string(1, initial) +
+                            "IHEL" + std::string(1, repeated) + frame("ICMD", "ignored", 0);
+            events.dispatchEvent(Event(events.forIStream().inputReady(), stream));
+            ASSERT_EQ(1u, events.messages.size());
+            EXPECT_EQ(initial, static_cast<IpcHelloMessage&>(*events.messages[0]).clientType());
+            EXPECT_TRUE(stream->closed);
+            EXPECT_EQ(10u, stream->offset);
+            EXPECT_EQ(1, events.disconnects);
+        }
+    }
+}
+
+TEST(IpcProxyTests, FragmentedHelloThenGuiCommandsRemainUsable)
+{
+    const auto hello = std::string("IHEL\x01", 5);
+    for (std::size_t split = 0; split < hello.size(); ++split) {
+        CapturedEvents events;
+        auto* stream = new BufferStream;
+        IpcClientProxy proxy(*stream, &events);
+        stream->input = hello.substr(0, split);
+        events.dispatchEvent(Event(events.forIStream().inputReady(), stream));
+        EXPECT_TRUE(events.messages.empty());
+        stream->input += hello.substr(split) + frame("ICMD", "first", 0) + frame("ICMD", "second", 1);
+        events.dispatchEvent(Event(events.forIStream().inputReady(), stream));
+        ASSERT_EQ(3u, events.messages.size());
+        EXPECT_EQ(kIpcHello, events.messages[0]->type());
+        EXPECT_EQ("first", static_cast<IpcCommandMessage&>(*events.messages[1]).command());
+        EXPECT_FALSE(static_cast<IpcCommandMessage&>(*events.messages[1]).elevate());
+        EXPECT_EQ("second", static_cast<IpcCommandMessage&>(*events.messages[2]).command());
+        EXPECT_TRUE(static_cast<IpcCommandMessage&>(*events.messages[2]).elevate());
+        EXPECT_FALSE(stream->closed);
+        EXPECT_EQ(0, events.disconnects);
+    }
+}
+
+TEST(IpcProxyTests, FreshConnectionRequiresItsOwnHello)
+{
+    CapturedEvents events;
+    {
+        auto* stream = new BufferStream;
+        IpcClientProxy proxy(*stream, &events);
+        stream->input = std::string("IHEL\x01", 5) + frame("ICMD", "accepted", 0);
+        events.dispatchEvent(Event(events.forIStream().inputReady(), stream));
+        ASSERT_EQ(2u, events.messages.size());
+    }
+    events.messages.clear();
+    auto* stream = new BufferStream;
+    IpcClientProxy proxy(*stream, &events);
+    stream->input = frame("ICMD", "rejected", 0);
+    events.dispatchEvent(Event(events.forIStream().inputReady(), stream));
+    EXPECT_TRUE(events.messages.empty());
+    EXPECT_TRUE(stream->closed);
     EXPECT_EQ(1, events.disconnects);
 }
 

@@ -166,7 +166,7 @@ IpcServer::hasClients(EIpcClientType clientType) const
     for (it = m_clients.begin(); it != m_clients.end(); it++) {
         // at least one client is alive and type matches, there are clients.
         IpcClientProxy* p = *it;
-        if (!p->m_disconnecting && p->m_clientType == clientType) {
+        if (!p->m_disconnecting.load() && p->m_clientType.load() == clientType) {
             return true;
         }
     }
@@ -183,7 +183,7 @@ IpcServer::send(const IpcMessage& message, EIpcClientType filterType)
     ClientList::iterator it;
     for (it = m_clients.begin(); it != m_clients.end(); it++) {
         IpcClientProxy* proxy = *it;
-        if (proxy->m_clientType == filterType) {
+        if (proxy->m_clientType.load() == filterType) {
             proxy->send(message);
         }
     }

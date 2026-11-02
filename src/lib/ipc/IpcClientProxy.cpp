@@ -96,13 +96,21 @@ IpcClientProxy::handleData(const Event&, void*)
     // don't allow the dtor to destroy the stream while we're using it.
     std::lock_guard<std::mutex> lock(m_readMutex);
 
-    if (m_disconnecting) {
+    if (m_disconnecting.load()) {
         return;
     }
     try {
         while (auto message = reader_.read(m_stream)) {
             if (message->type() == kIpcHello) {
-                m_clientType = static_cast<IpcHelloMessage&>(*message).clientType();
+                if (m_clientType.load() != kIpcClientUnknown) {
+                    throw IpcProtocolError();
+                }
+                m_clientType.store(static_cast<IpcHelloMessage&>(*message).clientType());
+            }
+            else if (m_clientType.load() != kIpcClientGui) {
+                // I keep engine connections out of command dispatch. A badge
+                // saying "gui" is still not identity proof: FUTURE(BX-003).
+                throw IpcProtocolError();
             }
             Event event(m_events->forIpcClientProxy().messageReceived(), this,
                         nullptr, Event::kDontFreeData);
@@ -125,6 +133,10 @@ IpcClientProxy::send(const IpcMessage& message)
     // message. stream write is locked, but only for that single write.
     // also, don't allow the dtor to destroy the stream while we're using it.
     std::lock_guard<std::mutex> lock(m_writeMutex);
+
+    if (m_disconnecting.load()) {
+        return;
+    }
 
     LOG((CLOG_DEBUG4 "ipc write: %d", message.type()));
 
@@ -149,11 +161,10 @@ IpcClientProxy::send(const IpcMessage& message)
 void
 IpcClientProxy::disconnect()
 {
-    if (m_disconnecting) {
+    if (m_disconnecting.exchange(true)) {
         return;
     }
     LOG((CLOG_DEBUG "ipc disconnect, closing stream"));
-    m_disconnecting = true;
     m_stream.close();
     m_events->addEvent(Event(m_events->forIpcClientProxy().disconnected(), this));
 }

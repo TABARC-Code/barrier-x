@@ -158,3 +158,22 @@ as required for reliable SSL_get_error classification.
 This adds a low-level guard; it does not establish an exploit in the existing
 job loop. Cross-thread readiness/fatal flags and concurrent shutdown still need
 review. Local management caller authentication remains unfinished (BX-003).
+
+## Follow-up: 2.4.12-snapshot
+
+I traced GUI commands through IpcClientProxy and IpcServer to the Windows
+DaemonApp, registry settings and MSWindowsWatchdog launch path. The proxy
+accepted commands before a greeting, let engine connections send them, and
+allowed repeated greetings to change the connection role. I now close those
+sequences before command dispatch. Each new connection starts with no role.
+
+The shared role/disconnection flags are atomic, and new writes stop once the
+disconnection flag is observed. This does not solve concurrent object teardown.
+Five proxy regressions cover the role policy; four live socket cases verify
+closure without dispatch, alongside the valid GUI command round trip.
+
+I have not authenticated callers. A local process can still claim to be a GUI,
+receive logs and request a command, including its elevation flag. The daemon
+also restores the saved command on startup. I have recorded the actual launch
+and storage boundaries in local-management.md so the transport change includes
+both live commands and persisted settings. Windows execution remains unverified.

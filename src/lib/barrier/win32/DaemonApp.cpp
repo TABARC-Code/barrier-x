@@ -255,6 +255,9 @@ DaemonApp::handleIpcMessage(const Event& e, void*)
     IpcMessage* m = static_cast<IpcMessage*>(e.getDataObject());
     switch (m->type()) {
         case kIpcCommand: {
+            // FUTURE(BX-003): I need verified caller credentials here; the proxy's
+            // GUI role is self-declared. Command persistence and elevation need
+            // the same policy. See docs/local-management.md.
             IpcCommandMessage* cm = static_cast<IpcCommandMessage*>(m);
             String command = cm->command();
 
