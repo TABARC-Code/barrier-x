@@ -18,22 +18,39 @@
 
 #include "IpcClient.h"
 #include <QTcpSocket>
+#ifdef Q_OS_WIN
+#include "../../lib/ipc/WinLocalPipe.h"
+#endif
 #include <QHostAddress>
 #include <iostream>
 #include <QTimer>
 #include "IpcReader.h"
 #include "Ipc.h"
 #include <QDataStream>
+#include <stdexcept>
 
 IpcClient::IpcClient(quint16 port) :
 m_Port(port),
 m_Enabled(false)
 {
-    m_Socket = new QTcpSocket(this);
-    connect(m_Socket, SIGNAL(connected()), this, SLOT(connected()));
-    connect(m_Socket, SIGNAL(error(QAbstractSocket::SocketError)), this, SLOT(error(QAbstractSocket::SocketError)));
-
-    m_Reader = new IpcReader(m_Socket);
+#ifdef Q_OS_WIN
+    if (port == IPC_PORT) {
+        m_Local = new QLocalSocket(this);
+        m_Socket = m_Local;
+        connect(m_Local, SIGNAL(error(QLocalSocket::LocalSocketError)), this, SLOT(localError(QLocalSocket::LocalSocketError)));
+        connect(m_Local, &QLocalSocket::disconnected, this, [this] { m_Verified = false; });
+        m_Reader = new IpcReader(m_Local);
+    }
+    else
+#endif
+    {
+        // I retain explicit TCP ports for the portable socket harness.
+        m_Tcp = new QTcpSocket(this);
+        m_Socket = m_Tcp;
+        connect(m_Tcp, SIGNAL(connected()), this, SLOT(connected()));
+        connect(m_Tcp, SIGNAL(error(QAbstractSocket::SocketError)), this, SLOT(error(QAbstractSocket::SocketError)));
+        m_Reader = new IpcReader(m_Tcp);
+    }
     connect(m_Reader, &IpcReader::protocolError, this, &IpcClient::errorMessage);
     connect(m_Reader, SIGNAL(readLogLine(const QString&)), this, SLOT(handleReadLogLine(const QString&)));
 }
@@ -53,8 +70,30 @@ void IpcClient::connectToHost()
     m_Enabled = true;
 
     infoMessage("connecting to service...");
+#ifdef Q_OS_WIN
+    if (m_Local) {
+        m_Verified = false;
+        m_Reader->stop();
+        m_Local->abort();
+        try {
+            auto pipe = barrier::localipc::connectService();
+            if (!m_Local->setSocketDescriptor(reinterpret_cast<qintptr>(pipe.get()))) {
+                throw std::runtime_error("local service descriptor rejected");
+            }
+            pipe.release();
+            m_Verified = true;
+            m_Reader->start();
+            connected();
+        }
+        catch (...) {
+            emit errorMessage(tr("Service unavailable or service identity check failed."));
+            QTimer::singleShot(1000, this, SLOT(retryConnect()));
+        }
+        return;
+    }
+#endif
     m_Reader->start();
-    m_Socket->connectToHost(QHostAddress(QHostAddress::LocalHost), m_Port);
+    m_Tcp->connectToHost(QHostAddress(QHostAddress::LocalHost), m_Port);
 }
 
 void IpcClient::disconnectFromHost()
@@ -62,6 +101,7 @@ void IpcClient::disconnectFromHost()
     m_Enabled = false;
     infoMessage("service disconnect");
     m_Reader->stop();
+    m_Verified = false;
     m_Socket->close();
 }
 
@@ -79,9 +119,16 @@ void IpcClient::error(QAbstractSocket::SocketError error)
     QTimer::singleShot(1000, this, SLOT(retryConnect()));
 }
 
+void IpcClient::localError(QLocalSocket::LocalSocketError)
+{
+    m_Verified = false;
+    emit errorMessage(tr("Local service connection lost or access refused."));
+    QTimer::singleShot(1000, this, SLOT(retryConnect()));
+}
+
 void IpcClient::retryConnect()
 {
-    if (m_Enabled) {
+    if (m_Enabled && !m_Socket->isOpen()) {
         connectToHost();
     }
 }
@@ -98,6 +145,12 @@ void IpcClient::sendHello()
 
 void IpcClient::sendCommand(const QString& command, ElevateMode const elevate)
 {
+#ifdef Q_OS_WIN
+    if (m_Local && (!m_Verified || !barrier::localipc::elevatedAdministrator())) {
+        emit errorMessage(tr("Administrator approval is required to change the service command. Restart the interface as administrator."));
+        return;
+    }
+#endif
     QDataStream stream(m_Socket);
 
     stream.writeRawData(kIpcMsgCommand, 4);

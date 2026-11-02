@@ -136,6 +136,8 @@ target_compile_definitions (barrier PRIVATE -DBARRIER_VERSION_STAGE="${BARRIER_V
 target_compile_definitions (barrier PRIVATE -DBARRIER_REVISION="${BARRIER_REVISION}")
 
 if (WIN32)
+    target_sources(barrier PRIVATE ../lib/ipc/WinLocalPipe.cpp)
+    target_link_libraries(barrier advapi32 wtsapi32)
     include_directories ($ENV{BONJOUR_SDK_HOME}/Include)
     find_library (DNSSD_LIB dnssd.lib
                   HINTS ENV BONJOUR_SDK_HOME

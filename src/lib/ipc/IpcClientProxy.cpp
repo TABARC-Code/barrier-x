@@ -30,11 +30,13 @@
 // IpcClientProxy
 //
 
-IpcClientProxy::IpcClientProxy(barrier::IStream& stream, IEventQueue* events) :
+IpcClientProxy::IpcClientProxy(barrier::IStream& stream, IEventQueue* events,
+    std::function<std::function<bool()>(unsigned char)> authoriser) :
     m_stream(stream),
     m_clientType(kIpcClientUnknown),
     m_disconnecting(false),
-    m_events(events)
+    m_events(events),
+    authoriser_(std::move(authoriser))
 {
     m_events->adoptHandler(
         m_events->forIStream().inputReady(), stream.getEventTarget(),
@@ -101,6 +103,12 @@ IpcClientProxy::handleData(const Event&, void*)
     }
     try {
         while (auto message = reader_.read(m_stream)) {
+            if (authoriser_) {
+                auto check = authoriser_(message->type());
+                if (!check || !check()) { throw IpcProtocolError(); }
+                // I retain the credential check with the queued request, not the stream.
+                message->authorisation(std::move(check));
+            }
             if (message->type() == kIpcHello) {
                 if (m_clientType.load() != kIpcClientUnknown) {
                     throw IpcProtocolError();
@@ -108,8 +116,8 @@ IpcClientProxy::handleData(const Event&, void*)
                 m_clientType.store(static_cast<IpcHelloMessage&>(*message).clientType());
             }
             else if (m_clientType.load() != kIpcClientGui) {
-                // I keep engine connections out of command dispatch. A badge
-                // saying "gui" is still not identity proof: FUTURE(BX-003).
+                // I keep engine connections out of command dispatch even when
+                // the transport has authenticated their Windows identity.
                 throw IpcProtocolError();
             }
             Event event(m_events->forIpcClientProxy().messageReceived(), this,
@@ -138,6 +146,10 @@ IpcClientProxy::send(const IpcMessage& message)
         return;
     }
 
+    if (authoriser_) {
+        auto check = authoriser_(message.type());
+        if (!check || !check()) { disconnect(); return; }
+    }
     LOG((CLOG_DEBUG4 "ipc write: %d", message.type()));
 
     switch (message.type()) {

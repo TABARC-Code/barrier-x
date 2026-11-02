@@ -2,7 +2,7 @@
 
 Updated 2 November 2026. Starting point: upstream-derived commit
 `653e4badeb88f61de901581667d4465d7b1e2d52` on `master`.
-Current development version: **2.4.12-snapshot**.
+Current development version: **2.4.13-snapshot**.
 
 The aim is dependable control across several computers, with a clear account
 of which device receives input and what it may share. Security, recovery and
@@ -27,16 +27,16 @@ planning update. A snapshot is not a tested release.
 | BX-000 | Implemented, 2.4.1-snapshot | Source planning notes, corrected assessment, backlog and version tracking | Comment-only source comparison, both version declarations matched, whitespace check; no application build claimed |
 | BX-001 | In progress, 2.4.2-snapshot | SSL wrapper ownership, cleanup before initialisation, context allocation failure, repeated close and exception propagation implemented | Thirty-one SSL tests, including injected context/session/transport failures; session allocation, transport attachment and retry preservation added in 2.4.6; application I/O state/count guards added in 2.4.11 with seven regressions; real concurrent shutdown remains to check; see build.md |
 | BX-002 | In progress, 2.4.3-snapshot | TLS 1.2 minimum implemented; TLS 1.3 remains available. Readiness now follows pin approval (2.4.9); trust-setting migration remains planned | Real memory-BIO handshakes reject TLS 1.0/1.1 and accept 1.2/1.3 in both roles; five controlled peer-trust regressions added in 2.4.9; pairing migration and real network tests still required |
-| BX-003 | In progress, 2.4.12-snapshot | Single greeting and GUI-only command dispatch implemented; caller credentials and service policy remain unfinished | Five proxy regressions and four localhost rejection cases added; roles remain self-declared. Native Windows endpoint, caller identity and session tests are still required; see local-management.md |
+| BX-003 | In progress, 2.4.13-snapshot | Native Windows pipe, token/logon checks, administrator command policy, retained child identity and queued-request checks implemented | Native channel and six adapters cross-compile; nine real Windows pipe/token tests added, including a second local user. Hosted execution and interactive service/session checks are pending; see local-management.md |
 | BX-004 | In progress, 2.4.5-snapshot | EVP RSA-3072 generation, checked certificate construction and sibling-file publication implemented; new POSIX files use mode 0600 | Twelve storage tests cover key matching/signature, permissions, links, Unicode and injected generation/write/flush/sync/replacement failures. Existing-key permission migration, Windows ACL hardening and Windows/macOS validation remain open |
 | BX-005 | In progress, 2.4.2-snapshot | GCC 13 header fixes, optional test dependencies, CTest registration and pinned Linux CI workflow implemented | Ubuntu CLI and unit build established; Debug/Release CI added; Qt GUI and Qt IPC checks added in 2.4.10; Windows/macOS, packaging and dependency replacement remain outstanding |
 | BX-006 | Investigate | Bound protocol, clipboard and transfer accumulation; retain input responsiveness | Follow receive paths, fuzz malformed lengths/sequences, test queued-byte limits and cancellation; distinguish measured limits from assumptions |
 | BX-007 | Planned | Connection and pairing UX: discovered, approved, connected, focused, paused, failed | Status comes from engine state; distinct trust-rejection and network-loss errors; accessible controls; tested local-return path and key release on disconnect |
 
-The Linux build and regression harness are established. Next, establish a
-Windows build/test harness for native management caller credentials and session
-authorisation; the role checks in 2.4.12 do not authenticate a local user. The
-remaining concurrent SSL shutdown paths also need review.
+The Linux harness and a Windows SDK management-channel job are established.
+The Windows transport now checks caller credentials; native hosted results and
+interactive service/session checks must still be recorded. Existing-key
+permission migration and the remaining concurrent SSL shutdown paths follow.
 Existing-key permission migration and platform builds remain prerequisites to
 claiming complete certificate hardening. Review relevant patches
 from other forks individually; importing a whole fork would import its mistakes

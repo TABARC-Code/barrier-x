@@ -326,6 +326,44 @@ TEST(IpcProxyTests, ServerProxyWaitsAndStopsAfterInvalidFrame)
     EXPECT_EQ(stream.input.size() - 4, stream.offset);
 }
 
+TEST(IpcProxyTests, UnverifiedCommandsHaveNoAuthority)
+{
+    IpcCommandMessage command("test", true);
+    EXPECT_FALSE(command.authorised());
+}
+
+TEST(IpcProxyTests, TransportDenialPreventsCommandDispatch)
+{
+    CapturedEvents events;
+    auto* stream = new BufferStream;
+    IpcClientProxy proxy(*stream, &events, [](unsigned char type) {
+        return [type] { return type == kIpcHello; };
+    });
+    stream->input = std::string("IHEL\x01", 5) + frame("ICMD", "test", 1);
+    events.dispatchEvent(Event(events.forIStream().inputReady(), stream));
+    ASSERT_EQ(1u, events.messages.size());
+    EXPECT_EQ(kIpcHello, events.messages[0]->type());
+    EXPECT_TRUE(stream->closed);
+}
+
+TEST(IpcProxyTests, QueuedAuthorityCanBeRevokedWithoutTheProxy)
+{
+    CapturedEvents events;
+    auto permitted = std::make_shared<bool>(true);
+    {
+        auto* stream = new BufferStream;
+        IpcClientProxy proxy(*stream, &events, [permitted](unsigned char) {
+            return [permitted] { return *permitted; };
+        });
+        stream->input = std::string("IHEL\x01", 5) + frame("ICMD", "test", 0);
+        events.dispatchEvent(Event(events.forIStream().inputReady(), stream));
+        ASSERT_EQ(2u, events.messages.size());
+        EXPECT_TRUE(events.messages[1]->authorised());
+    }
+    *permitted = false;
+    EXPECT_FALSE(events.messages[1]->authorised());
+}
+
 class IpcCommandEncodingTests : public ::testing::Test {
 protected:
     void send(IpcServerProxy& proxy, bool elevate)

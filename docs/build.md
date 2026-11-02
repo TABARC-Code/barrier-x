@@ -319,3 +319,28 @@ credential and saved-command work.
 
 The previous increment passed hosted Debug/Release and leak checks in
 [run 41472140694](https://github.com/TABARC-Code/barrier-x/actions/runs/41472140694).
+
+## Windows management credentials
+
+In 2.4.13 I added a standalone Windows SDK harness at src/test/nativeipc.
+It compiles the native pipe implementation and six production adapters without
+linking the inherited OpenSSL/Bonjour desktop dependencies. The native tests
+use real pipe handles and tokens, including a temporary second local user which
+is removed afterwards. They also exercise endpoint identity, child registration,
+restricted credentials, malformed greetings and cancelled acceptance.
+
+I cross-compiled the native executable and all six integration units with GCC
+13.2.0/MinGW. The Linux GUI/engine build passed its unit, socket and GUI checks;
+two command-line checks initially could not launch because the workspace removed
+the server binary's execute bit. After restoring that bit on the intact ELF,
+all four command-line entries passed. The unit suite contains 208 tests, with
+73 targeted lifecycle/storage/IPC tests passing ASan/UBSan. The Qt suite reported
+39 passes and one explicit skip, also under sanitisers.
+
+Local Unix-domain sockets fail with EPERM (Qt reports unknown error 1). I set
+BARRIER_TEST_SKIP_UNIX_SOCKETS=1 only for this environment, so the new local-socket
+parser check is not counted as a pass here. Hosted Linux runs do not set that
+variable and must execute it. Local leak inspection retains the recorded
+process-inspection restriction. The Windows SDK job runs the credential tests;
+interactive UAC, installed-service, session-switch and full desktop checks remain
+unverified. No complete Windows desktop build is claimed.

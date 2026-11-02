@@ -17,6 +17,9 @@
  */
 
 #include "ipc/IpcServer.h"
+#ifdef _WIN32
+#include "ipc/WinPipeStream.h"
+#endif
 
 #include "ipc/Ipc.h"
 #include "ipc/IpcClientProxy.h"
@@ -39,13 +42,28 @@ IpcServer::IpcServer(IEventQueue* events, SocketMultiplexer* socketMultiplexer) 
     m_socket(nullptr),
     m_address(NetworkAddress(IPC_HOST, IPC_PORT))
 {
+#ifdef _WIN32
+    pipe_ = std::make_shared<WinPipeListener>(m_events, true);
+#endif
     init();
 }
+
+#ifdef _WIN32
+IpcServer::IpcServer(IEventQueue* events, SocketMultiplexer* multiplexer, bool service) :
+    m_mock(false), m_events(events), m_socketMultiplexer(multiplexer), m_socket(nullptr),
+    m_address(NetworkAddress(IPC_HOST, IPC_PORT)),
+    pipe_(std::make_shared<WinPipeListener>(events, service))
+{
+    init();
+}
+void IpcServer::childProcess(void* handle) { if (pipe_) { pipe_->child(handle); } }
+#endif
 
 IpcServer::IpcServer(IEventQueue* events, SocketMultiplexer* socketMultiplexer, int port) :
     m_mock(false),
     m_events(events),
     m_socketMultiplexer(socketMultiplexer),
+    m_socket(nullptr),
     m_address(NetworkAddress(IPC_HOST, port))
 {
     init();
@@ -54,8 +72,14 @@ IpcServer::IpcServer(IEventQueue* events, SocketMultiplexer* socketMultiplexer, 
 void
 IpcServer::init()
 {
-    // FUTURE(BX-003): authenticate the caller before accepting commands.
-    // Loopback keeps traffic local; it does not establish which user sent it.
+#ifdef _WIN32
+    if (pipe_) {
+        m_events->adoptHandler(m_events->forIListenSocket().connecting(), pipe_.get(),
+            new TMethodEventJob<IpcServer>(this, &IpcServer::handleClientConnecting));
+        return;
+    }
+#endif
+    // I retain TCP for the explicit-port harness; the Windows service uses a pipe.
     m_socket = new TCPListenSocket(m_events, m_socketMultiplexer, IArchNetwork::kINET);
 
     m_address.resolve();
@@ -72,9 +96,13 @@ IpcServer::~IpcServer()
         return;
     }
 
-    if (m_socket != nullptr) {
-        delete m_socket;
+#ifdef _WIN32
+    if (pipe_) {
+        m_events->removeHandler(m_events->forIListenSocket().connecting(), pipe_.get());
+        pipe_.reset();
     }
+#endif
+    if (m_socket != nullptr) { delete m_socket; }
 
     {
         std::lock_guard<std::mutex> lock(m_clientsMutex);
@@ -91,13 +119,21 @@ IpcServer::~IpcServer()
 void
 IpcServer::listen()
 {
+#ifdef _WIN32
+    if (pipe_) { pipe_->listen(); return; }
+#endif
     m_socket->bind(m_address);
 }
 
 void
 IpcServer::handleClientConnecting(const Event&, void*)
 {
-    barrier::IStream* stream = m_socket->accept();
+    barrier::IStream* stream = nullptr;
+#ifdef _WIN32
+    if (pipe_) { stream = pipe_->accept().release(); }
+    else
+#endif
+    { stream = m_socket->accept(); }
     if (stream == NULL) {
         return;
     }
@@ -107,7 +143,15 @@ IpcServer::handleClientConnecting(const Event&, void*)
     IpcClientProxy* proxy = nullptr;
     {
         std::lock_guard<std::mutex> lock(m_clientsMutex);
-        proxy = new IpcClientProxy(*stream, m_events);
+#ifdef _WIN32
+        if (pipe_) {
+            auto* native = static_cast<WinPipeStream*>(stream);
+            proxy = new IpcClientProxy(*stream, m_events,
+                [native](unsigned char type) { return native->authorisation(type); });
+        }
+        else
+#endif
+        { proxy = new IpcClientProxy(*stream, m_events); }
         m_clients.push_back(proxy);
     }
 
@@ -121,6 +165,9 @@ IpcServer::handleClientConnecting(const Event&, void*)
         new TMethodEventJob<IpcServer>(
         this, &IpcServer::handleMessageReceived));
 
+#ifdef _WIN32
+    if (pipe_) { static_cast<WinPipeStream*>(stream)->start(); }
+#endif
     m_events->addEvent(Event(
         m_events->forIpcServer().clientConnected(), this, proxy, Event::kDontFreeData));
 }

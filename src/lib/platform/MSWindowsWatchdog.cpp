@@ -315,10 +315,8 @@ MSWindowsWatchdog::startProcess()
         m_processRunning = true;
         m_processFailures = 0;
 
-        LOG((CLOG_DEBUG "started process, session=%i, elevated: %s, command=%s",
-            m_session.getActiveSessionId(),
-            m_elevateProcess ? "yes" : "no",
-            m_command.c_str()));
+        LOG((CLOG_DEBUG "started process, session=%i, elevated: %s",
+            m_session.getActiveSessionId(), m_elevateProcess ? "yes" : "no"));
     }
 }
 
@@ -326,7 +324,7 @@ BOOL MSWindowsWatchdog::doStartProcessAsSelf(std::string& command)
 {
     DWORD creationFlags =
         NORMAL_PRIORITY_CLASS |
-        CREATE_NO_WINDOW |
+        CREATE_NO_WINDOW | CREATE_SUSPENDED |
         CREATE_UNICODE_ENVIRONMENT;
 
     STARTUPINFO si;
@@ -338,7 +336,16 @@ BOOL MSWindowsWatchdog::doStartProcessAsSelf(std::string& command)
     si.dwFlags |= STARTF_USESTDHANDLES;
 
     LOG((CLOG_INFO "starting new process as self"));
-    return CreateProcess(NULL, LPSTR(command.c_str()), NULL, NULL, FALSE, creationFlags, NULL, NULL, &si, &m_processInfo);
+    BOOL created = CreateProcess(NULL, LPSTR(command.c_str()), NULL, NULL, FALSE, creationFlags, NULL, NULL, &si, &m_processInfo);
+    if (created) {
+        try { m_ipcServer.childProcess(m_processInfo.hProcess); }
+        catch (...) { TerminateProcess(m_processInfo.hProcess, kExitFailed); throw; }
+        if (ResumeThread(m_processInfo.hThread) == DWORD(-1)) {
+            TerminateProcess(m_processInfo.hProcess, kExitFailed);
+            return FALSE;
+        }
+    }
+    return created;
 }
 
 BOOL MSWindowsWatchdog::doStartProcessAsUser(std::string& command, HANDLE userToken,
@@ -364,7 +371,7 @@ BOOL MSWindowsWatchdog::doStartProcessAsUser(std::string& command, HANDLE userTo
 
     DWORD creationFlags =
         NORMAL_PRIORITY_CLASS |
-        CREATE_NO_WINDOW |
+        CREATE_NO_WINDOW | CREATE_SUSPENDED |
         CREATE_UNICODE_ENVIRONMENT;
 
     // re-launch in current active user session
@@ -376,7 +383,15 @@ BOOL MSWindowsWatchdog::doStartProcessAsUser(std::string& command, HANDLE userTo
 
     DestroyEnvironmentBlock(environment);
     CloseHandle(userToken);
-
+    if (createRet) {
+        // I register the retained process before its IPC code can run.
+        try { m_ipcServer.childProcess(m_processInfo.hProcess); }
+        catch (...) { TerminateProcess(m_processInfo.hProcess, kExitFailed); throw; }
+        if (ResumeThread(m_processInfo.hThread) == DWORD(-1)) {
+            TerminateProcess(m_processInfo.hProcess, kExitFailed);
+            return FALSE;
+        }
+    }
     return createRet;
 }
 

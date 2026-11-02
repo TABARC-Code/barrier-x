@@ -184,7 +184,7 @@ DaemonApp::mainLoop(bool daemonized)
         SocketMultiplexer multiplexer;
 
         // uses event queue, must be created here.
-        m_ipcServer = new IpcServer(m_events, &multiplexer);
+        m_ipcServer = new IpcServer(m_events, &multiplexer, daemonized);
 
         // send logging to gui via ipc, log system adopts outputter.
         m_ipcLogOutputter = new IpcLogOutputter(*m_ipcServer, kIpcClientGui, true);
@@ -204,9 +204,15 @@ DaemonApp::mainLoop(bool daemonized)
 
         String command = ARCH->setting("Command");
         bool elevate = ARCH->setting("Elevate") == "1";
-        if (command != "") {
-            LOG((CLOG_INFO "using last known command: %s", command.c_str()));
-            m_watchdog->setCommand(command, elevate);
+        if (!command.empty()) {
+            if (ARCH->setting("CommandPolicyVersion") == "1") {
+                LOG((CLOG_INFO "using approved saved service command"));
+                m_watchdog->setCommand(command, elevate);
+            }
+            else {
+                // I cannot vouch for commands saved through the old open endpoint.
+                LOG((CLOG_WARN "saved service command needs administrator approval after upgrade"));
+            }
         }
 
         m_watchdog->startAsync();
@@ -255,10 +261,12 @@ DaemonApp::handleIpcMessage(const Event& e, void*)
     IpcMessage* m = static_cast<IpcMessage*>(e.getDataObject());
     switch (m->type()) {
         case kIpcCommand: {
-            // FUTURE(BX-003): I need verified caller credentials here; the proxy's
-            // GUI role is self-declared. Command persistence and elevation need
-            // the same policy. See docs/local-management.md.
             IpcCommandMessage* cm = static_cast<IpcCommandMessage*>(m);
+            // I recheck credentials at the effect, after the event queue delay.
+            if (!cm->authorised()) {
+                LOG((CLOG_WARN "service command access refused"));
+                return;
+            }
             String command = cm->command();
 
             // if empty quotes, clear.
@@ -267,10 +275,14 @@ DaemonApp::handleIpcMessage(const Event& e, void*)
             }
 
             if (!command.empty()) {
-                LOG((CLOG_DEBUG "new command, elevate=%d command=%s", cm->elevate(), command.c_str()));
+                LOG((CLOG_DEBUG "new service command, elevate=%d", cm->elevate()));
 
                 std::vector<String> argsArray;
                 ArgParser::splitCommandString(command, argsArray);
+                if (argsArray.empty()) {
+                    LOG((CLOG_WARN "empty service command arguments"));
+                    return;
+                }
                 ArgParser argParser(NULL);
                 const char** argv = argParser.getArgv(argsArray);
                 ServerArgs serverArgs;
@@ -279,18 +291,23 @@ DaemonApp::handleIpcMessage(const Event& e, void*)
                 bool server = argsArray[0].find("barriers") != String::npos ? true : false;
                 ArgsBase* argBase = NULL;
 
+                bool parsed = false;
                 if (server) {
-                    argParser.parseServerArgs(serverArgs, argc, argv);
+                    parsed = argParser.parseServerArgs(serverArgs, argc, argv);
                     argBase = &serverArgs;
                 }
                 else {
-                    argParser.parseClientArgs(clientArgs, argc, argv);
+                    parsed = argParser.parseClientArgs(clientArgs, argc, argv);
                     argBase = &clientArgs;
                 }
 
                 delete[] argv;
 
-                String logLevel(argBase->m_logFilter);
+                if (!parsed) {
+                    LOG((CLOG_WARN "invalid service command arguments"));
+                    return;
+                }
+                String logLevel(argBase->m_logFilter ? argBase->m_logFilter : "");
                 if (!logLevel.empty()) {
                     try {
                         // change log level based on that in the command string
@@ -312,7 +329,7 @@ DaemonApp::handleIpcMessage(const Event& e, void*)
                         m_watchdog->setFileLogOutputter(m_fileLogOutputter);
                         command = ArgParser::assembleCommand(argsArray, "--log", 1);
                         LOG((CLOG_DEBUG "removed log file argument and filename %s from command ", logFilename.c_str()));
-                        LOG((CLOG_DEBUG "new command, elevate=%d command=%s", cm->elevate(), command.c_str()));
+                        LOG((CLOG_DEBUG "new service command, elevate=%d", cm->elevate()));
                     } else {
                         m_watchdog->setFileLogOutputter(NULL);
                     }
@@ -326,10 +343,11 @@ DaemonApp::handleIpcMessage(const Event& e, void*)
             try {
                 // store command in system settings. this is used when the daemon
                 // next starts.
+                ARCH->setting("CommandPolicyVersion", "0");
                 ARCH->setting("Command", command);
-
-                // TODO: it would be nice to store bools/ints...
                 ARCH->setting("Elevate", String(cm->elevate() ? "1" : "0"));
+                // I publish approval only after both values were saved successfully.
+                ARCH->setting("CommandPolicyVersion", "1");
             }
             catch (XArch& e) {
                 LOG((CLOG_ERR "failed to save settings, %s", e.what()));

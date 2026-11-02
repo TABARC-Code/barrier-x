@@ -17,6 +17,9 @@
  */
 
 #include "ipc/IpcClient.h"
+#ifdef _WIN32
+#include "ipc/WinPipeStream.h"
+#endif
 #include "ipc/Ipc.h"
 #include "ipc/IpcServerProxy.h"
 #include "ipc/IpcMessage.h"
@@ -32,6 +35,9 @@ IpcClient::IpcClient(IEventQueue* events, SocketMultiplexer* socketMultiplexer) 
     m_server(nullptr),
     m_events(events)
 {
+#ifdef _WIN32
+    native_ = true;
+#endif
     init();
 }
 
@@ -52,11 +58,24 @@ IpcClient::init()
 
 IpcClient::~IpcClient()
 {
+    if (m_server) { disconnect(); }
 }
 
 void
 IpcClient::connect()
 {
+#ifdef _WIN32
+    if (native_) {
+        pipe_ = std::make_unique<WinPipeStream>(barrier::localipc::connectService(true), m_events);
+        m_server = new IpcServerProxy(*pipe_, m_events);
+        m_events->adoptHandler(m_events->forIpcServerProxy().messageReceived(), m_server,
+            new TMethodEventJob<IpcClient>(this, &IpcClient::handleMessageReceived));
+        pipe_->start();
+        m_events->addEvent(Event(m_events->forIpcClient().connected(), this, m_server, Event::kDontFreeData));
+        send(IpcHelloMessage(kIpcClientNode));
+        return;
+    }
+#endif
     m_events->adoptHandler(
         m_events->forIDataSocket().connected(), m_socket.getEventTarget(),
         new TMethodEventJob<IpcClient>(
@@ -74,12 +93,16 @@ IpcClient::connect()
 void
 IpcClient::disconnect()
 {
+    if (!m_server) { return; }
     m_events->removeHandler(m_events->forIDataSocket().connected(), m_socket.getEventTarget());
     m_events->removeHandler(m_events->forIpcServerProxy().messageReceived(), m_server);
 
     m_server->disconnect();
     delete m_server;
     m_server = nullptr;
+#ifdef _WIN32
+    pipe_.reset();
+#endif
 }
 
 void

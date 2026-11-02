@@ -1,5 +1,14 @@
 # barrier-x changes
 
+## 2.4.13-snapshot - 2 November 2026
+
+- I replace Windows service TCP management with a local named pipe and checked caller tokens.
+- I require the active console logon for logs and administrator approval for command changes.
+- I bind engine access to the retained child process and verify the service identity in both clients.
+- I recheck queued command permissions and require approval again for legacy saved commands.
+- I cancel pending pipe I/O during shutdown and bound its input, output and connection counts.
+- I report administrator requirements in the interface and remove whole command strings from service diagnostics.
+
 ## 2.4.12-snapshot - 2 November 2026
 
 - I require one greeting before dispatching management commands.

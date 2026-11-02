@@ -20,6 +20,7 @@
 #include "Ipc.h"
 
 #include <QTcpSocket>
+#include <QLocalSocket>
 #include <QPointer>
 #include <QTimer>
 #include <QtEndian>
@@ -28,27 +29,40 @@
 constexpr int IpcReader::maximumLogBytes;
 
 IpcReader::IpcReader(QTcpSocket* socket) :
-    QObject(socket), m_Socket(socket)
+    QObject(socket), m_Socket(socket), m_Abort([socket] { socket->abort(); })
 {
-    // Bound Qt's pending input as well as our frame. Backpressure beats an
-    // enthusiastic allocation on behalf of an untrusted length field.
-    m_Socket->setReadBufferSize(maximumLogBytes + 8);
-    connect(m_Socket, &QTcpSocket::connected, this, &IpcReader::connectionOpened);
-    connect(m_Socket, &QTcpSocket::disconnected, this, &IpcReader::connectionClosed);
+    socket->setReadBufferSize(maximumLogBytes + 8);
+    initialise();
+}
+
+IpcReader::IpcReader(QLocalSocket* socket) :
+    QObject(socket), m_Socket(socket), m_Abort([socket] { socket->abort(); })
+{
+    socket->setReadBufferSize(maximumLogBytes + 8);
+    initialise();
+}
+
+void IpcReader::initialise()
+{
+    // Both transports publish these signals; the parser only needs a QIODevice.
+    connect(m_Socket, SIGNAL(connected()), this, SLOT(connectionOpened()));
+    connect(m_Socket, SIGNAL(disconnected()), this, SLOT(connectionClosed()));
 }
 
 void IpcReader::start()
 {
     if (m_Started) { return; }
+    resetFrame();
+    m_Failed = false;
     m_Started = true;
-    connect(m_Socket, &QTcpSocket::readyRead, this, &IpcReader::read, Qt::UniqueConnection);
+    connect(m_Socket, &QIODevice::readyRead, this, &IpcReader::read, Qt::UniqueConnection);
     read();
 }
 
 void IpcReader::stop()
 {
     m_Started = false;
-    disconnect(m_Socket, &QTcpSocket::readyRead, this, &IpcReader::read);
+    disconnect(m_Socket, &QIODevice::readyRead, this, &IpcReader::read);
     resetFrame();
 }
 
@@ -79,7 +93,8 @@ void IpcReader::rejectFrame()
     m_Failed = true;
     resetFrame();
     QPointer<IpcReader> alive(this);
-    m_Socket->abort();
+    const auto abort = m_Abort;
+    abort();
     if (alive) {
         // Report the category, never the received command or log contents.
         emit protocolError(tr("Invalid service message."));
