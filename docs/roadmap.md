@@ -2,7 +2,7 @@
 
 Updated 2 November 2026. Starting point: upstream-derived commit
 `653e4badeb88f61de901581667d4465d7b1e2d52` on `master`.
-Current development version: **2.4.13-snapshot**.
+Current development version: **2.4.14-snapshot**.
 
 The aim is dependable control across several computers, with a clear account
 of which device receives input and what it may share. Security, recovery and
@@ -28,17 +28,16 @@ planning update. A snapshot is not a tested release.
 | BX-001 | In progress, 2.4.2-snapshot | SSL wrapper ownership, cleanup before initialisation, context allocation failure, repeated close and exception propagation implemented | Thirty-one SSL tests, including injected context/session/transport failures; session allocation, transport attachment and retry preservation added in 2.4.6; application I/O state/count guards added in 2.4.11 with seven regressions; real concurrent shutdown remains to check; see build.md |
 | BX-002 | In progress, 2.4.3-snapshot | TLS 1.2 minimum implemented; TLS 1.3 remains available. Readiness now follows pin approval (2.4.9); trust-setting migration remains planned | Real memory-BIO handshakes reject TLS 1.0/1.1 and accept 1.2/1.3 in both roles; five controlled peer-trust regressions added in 2.4.9; pairing migration and real network tests still required |
 | BX-003 | Implemented, 2.4.13-snapshot | Windows named-pipe caller credentials, administrator command policy, retained child identity and queued-request checks | Ten native Windows checks passed, including a second local user; six service adapters compiled with the SDK. Portable authority and sanitiser checks passed. Interactive UAC, installed-service/session transitions and full Windows desktop validation remain unverified; see local-management.md |
-| BX-004 | In progress, 2.4.5-snapshot | EVP RSA-3072 generation, checked certificate construction and sibling-file publication implemented; new POSIX files use mode 0600 | Twelve storage tests cover key matching/signature, permissions, links, Unicode and injected generation/write/flush/sync/replacement failures. Existing-key permission migration, Windows ACL hardening and Windows/macOS validation remain open |
+| BX-004 | In progress, 2.4.5-snapshot | EVP RSA-3072 generation, checked certificate construction and sibling-file publication implemented; new POSIX files use mode 0600 | Twenty-five storage tests, three engine-loader regressions and three GUI identity tests cover generation, existing POSIX mode migration, ownership/links, checked-handle loading and failure preservation (2.4.14). Windows ACL hardening and Windows/macOS storage validation remain open |
 | BX-005 | In progress, 2.4.2-snapshot | GCC 13 header fixes, optional test dependencies, CTest registration and pinned Linux CI workflow implemented | Ubuntu CLI and unit build established; Debug/Release CI added; Qt GUI and Qt IPC checks added in 2.4.10; Windows/macOS, packaging and dependency replacement remain outstanding |
 | BX-006 | Investigate | Bound protocol, clipboard and transfer accumulation; retain input responsiveness | Follow receive paths, fuzz malformed lengths/sequences, test queued-byte limits and cancellation; distinguish measured limits from assumptions |
 | BX-007 | Planned | Connection and pairing UX: discovered, approved, connected, focused, paused, failed | Status comes from engine state; distinct trust-rejection and network-loss errors; accessible controls; tested local-return path and key release on disconnect |
 
 The Linux harness and a Windows SDK management-channel job are established.
 The Windows transport now checks caller credentials and passed its native SDK
-suite. Interactive installed-service/session checks remain unverified. Existing-key
-permission migration and the remaining concurrent SSL shutdown paths follow.
-Existing-key permission migration and platform builds remain prerequisites to
-claiming complete certificate hardening. Review relevant patches
+suite. Interactive installed-service/session checks remain unverified. POSIX
+existing-key permissions now migrate on identity read; Windows ACL hardening,
+platform builds and the remaining concurrent SSL shutdown paths follow. Review relevant patches
 from other forks individually; importing a whole fork would import its mistakes
 as well. See `assessment.md` for the starting evidence and corrections.
 
@@ -62,6 +61,11 @@ local-return controls beside the focused device (BX-007/BX-009), show sharing
 limits before accepting an offer (BX-010/BX-011), and discard pending offers
 rather than silently replay them after reconnect (BX-011/BX-019). These are
 proposals; backend behaviour and accessibility checks still need evidence.
+
+For identity recovery (BX-007), I want clear ownership/mode errors and an
+explicit repair/replace action which explains changed peer pins. This remains
+planned. Diagnostic exports should contain public fingerprints and exclude
+private-key files (BX-023).
 
 The desktop interface will remain Qt initially. Improve engine status and the
 management boundary before replacing the presentation layer. A running process

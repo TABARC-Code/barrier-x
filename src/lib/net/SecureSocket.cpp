@@ -361,29 +361,13 @@ bool SecureSocket::load_certificates(const barrier::fs::path& path)
         showError("ssl certificate is not specified");
         return false;
     }
-    else {
-        if (!barrier::fs::is_regular_file(path)) {
-            showError("ssl certificate doesn't exist: " + path.u8string());
-            return false;
-        }
+    try {
+        barrier::load_pem_identity(m_ssl->m_context, path.u8string());
     }
-
-    int r = 0;
-    r = SSL_CTX_use_certificate_file(m_ssl->m_context, path.u8string().c_str(), SSL_FILETYPE_PEM);
-    if (r <= 0) {
-        showError("could not use ssl certificate: " + path.u8string());
-        return false;
-    }
-
-    r = SSL_CTX_use_PrivateKey_file(m_ssl->m_context, path.u8string().c_str(), SSL_FILETYPE_PEM);
-    if (r <= 0) {
-        showError("could not use ssl private key: " + path.u8string());
-        return false;
-    }
-
-    r = SSL_CTX_check_private_key(m_ssl->m_context);
-    if (!r) {
-        showError("could not verify ssl private key: " + path.u8string());
+    catch (const std::exception& error) {
+        showError(error.what());
+        // I have handled this load failure; its errors must not taint a retry.
+        ERR_clear_error();
         return false;
     }
 

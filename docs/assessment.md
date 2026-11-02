@@ -209,3 +209,28 @@ job exercises real Windows pipes and tokens; results are recorded in build.md.
 Full Windows desktop linking still depends on replacing inherited desktop/TLS
 build dependencies. I have not validated installed registry ACLs, interactive
 lock/unlock, UAC, session switching or packaging on a Windows desktop.
+
+## Follow-up: 2.4.14-snapshot
+
+I reproduced two engine-loader failures against 2.4.13: it followed an identity
+symlink and left a mode-0666 private-key file unchanged. POSIX loading now opens
+without following the final symlink, checks the effective owner and a single
+regular-file link, and uses fchmod on that same descriptor before reading.
+I verify the resulting mode and metadata, then read at most 1 MiB plus a limit
+sentinel into a snapshot which is cleansed after parsing. Existing key bytes
+and fingerprints survive the permission change.
+
+Certificate and private-key parsing use that one snapshot, with a matching-key
+check before installing anything in the SSL context. The GUI uses the same
+reader and fingerprints its validated in-memory certificate. Rejected existing
+identities remain on disk with an error. The existing GUI policy for replacing
+weak keys remains unchanged. Passphrase entry from these event-driven paths is unsupported.
+
+I added thirteen storage regressions, three engine-loader cases and three GUI
+identity cases. A rejected encrypted key left OpenSSL errors queued during
+integration; the loader now clears that handled failure before a later TLS call. A path-replacement test changes the directory entry during
+permission migration and requires the original open file's pair to be installed.
+The parent directory must still be trusted; I have not hardened traversal of
+parent components. Owner-only POSIX mode cannot revoke existing open handles
+or restore secrecy if a legacy key was previously copied. Windows ACL migration,
+non-local filesystem ACL policy and macOS/Windows storage checks remain open.

@@ -38,70 +38,43 @@ SslCertificate::SslCertificate(QObject *parent) :
 
 void SslCertificate::generateCertificate()
 {
-    auto cert_path = barrier::DataDirectories::ssl_certificate_path();
-
-    if (!barrier::fs::exists(cert_path) || !is_certificate_valid(cert_path)) {
-        try {
-            auto cert_dir = cert_path.parent_path();
-            if (!barrier::fs::exists(cert_dir)) {
-                barrier::fs::create_directories(cert_dir);
-            }
-
-            barrier::generate_pem_self_signed_cert(cert_path.u8string());
-        }  catch (const std::exception& e) {
-            emit error(QString("SSL tool failed: %1").arg(e.what()));
-            return;
-        }
-
-        emit info(tr("SSL certificate generated."));
-    }
-
-    generate_fingerprint(cert_path);
-
-    emit generateFinished();
-}
-
-void SslCertificate::generate_fingerprint(const barrier::fs::path& cert_path)
-{
     try {
-        auto local_path = barrier::DataDirectories::local_ssl_fingerprints_path();
-        auto local_dir = local_path.parent_path();
-        if (!barrier::fs::exists(local_dir)) {
-            barrier::fs::create_directories(local_dir);
+        const auto cert_path = barrier::DataDirectories::ssl_certificate_path();
+        barrier::PemIdentity identity;
+        if (barrier::fs::exists(barrier::fs::symlink_status(cert_path))) {
+            // I preserve files rejected by the reader; a new key would hide the fault.
+            identity = barrier::read_pem_identity(cert_path.u8string());
         }
-
-        barrier::FingerprintDatabase db;
-        db.add_trusted(barrier::get_pem_file_cert_fingerprint(cert_path.u8string(),
-                                                              barrier::FingerprintType::SHA1));
-        db.add_trusted(barrier::get_pem_file_cert_fingerprint(cert_path.u8string(),
-                                                              barrier::FingerprintType::SHA256));
-        db.write(local_path);
-
-        emit info(tr("SSL fingerprint generated."));
-    } catch (const std::exception& e) {
-        emit error(tr("Failed to find SSL fingerprint.") + e.what());
+        if (!identity.certificate || !is_certificate_valid(identity.certificate.get())) {
+            barrier::fs::create_directories(cert_path.parent_path());
+            barrier::generate_pem_self_signed_cert(cert_path.u8string());
+            identity = barrier::read_pem_identity(cert_path.u8string());
+            emit info(tr("SSL certificate generated."));
+        }
+        generate_fingerprint(identity.certificate.get());
+        emit generateFinished();
+    }
+    catch (const std::exception& error) {
+        // FUTURE(BX-007): I need an explicit repair/replace action that explains
+        // the pin changes before replacing an existing identity.
+        emit this->error(tr("SSL identity setup failed: ") + QString::fromUtf8(error.what()));
     }
 }
 
-bool SslCertificate::is_certificate_valid(const barrier::fs::path& path)
+void SslCertificate::generate_fingerprint(X509* certificate)
 {
-    OpenSSL_add_all_algorithms();
-    ERR_load_crypto_strings();
+    const auto local_path = barrier::DataDirectories::local_ssl_fingerprints_path();
+    barrier::fs::create_directories(local_path.parent_path());
+    barrier::FingerprintDatabase db;
+    db.add_trusted(barrier::get_ssl_cert_fingerprint(certificate, barrier::FingerprintType::SHA1));
+    db.add_trusted(barrier::get_ssl_cert_fingerprint(certificate, barrier::FingerprintType::SHA256));
+    // FUTURE(BX-002): I still need checked, atomic fingerprint-store publication.
+    db.write(local_path);
+    emit info(tr("SSL fingerprint generated."));
+}
 
-    auto fp = barrier::fopen_utf8_path(path, "r");
-    if (!fp) {
-        emit info(tr("Could not read from default certificate file."));
-        return false;
-    }
-    auto file_close = barrier::finally([fp]() { std::fclose(fp); });
-
-    auto* cert = PEM_read_X509(fp, nullptr, nullptr, nullptr);
-    if (!cert) {
-        emit info(tr("Error loading default certificate file to memory."));
-        return false;
-    }
-    auto cert_free = barrier::finally([cert]() { X509_free(cert); });
-
+bool SslCertificate::is_certificate_valid(X509* cert)
+{
     auto* pubkey = X509_get_pubkey(cert);
     if (!pubkey) {
         emit info(tr("Default certificate key file does not contain valid public key"));

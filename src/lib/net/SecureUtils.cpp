@@ -55,6 +55,8 @@
 #include <openssl/rand.h>
 #include <openssl/rsa.h>
 #include <openssl/bn.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 #include <algorithm>
 #include <cerrno>
 #include <cstdio>
@@ -265,6 +267,93 @@ FingerprintData get_pem_file_cert_fingerprint(const std::string& path, Fingerpri
     return get_ssl_cert_fingerprint(cert, type);
 }
 
+PemIdentity read_pem_identity(const std::string& path)
+{
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+    OpenSSL_add_all_algorithms();
+    ERR_load_crypto_strings();
+#endif
+    ERR_clear_error();
+    constexpr std::size_t limit = 1024 * 1024;
+    FILE* file = nullptr;
+#if SYSAPI_WIN32
+    // FUTURE(BX-004): enforce owner-only Windows ACLs on the opened handle.
+    file = fopen_utf8_path(fs::u8path(path), "rb");
+    if (!file) { throw std::runtime_error("Could not open certificate identity"); }
+#else
+    // I reject a final symlink and open FIFOs without waiting for a writer.
+    int descriptor = ::open(path.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK);
+    if (descriptor < 0) { throw std::runtime_error("Could not safely open certificate identity"); }
+    auto close_descriptor = finally([&] { if (descriptor >= 0) { ::close(descriptor); } });
+    auto check_file = [&](const struct stat& info) {
+        if (!S_ISREG(info.st_mode) || info.st_uid != geteuid() || info.st_nlink != 1) {
+            throw std::runtime_error("Certificate identity must be an owned regular file with one link");
+        }
+        if (info.st_size < 0 || static_cast<unsigned long long>(info.st_size) > limit) {
+            throw std::runtime_error("Certificate identity exceeds the size limit");
+        }
+    };
+    struct stat info{};
+    if (::fstat(descriptor, &info) != 0) { throw std::runtime_error("Could not inspect certificate identity"); }
+    check_file(info);
+    if ((info.st_mode & 07777) != 0600 && ::fchmod(descriptor, 0600) != 0) {
+        throw std::runtime_error("Could not restrict certificate identity permissions");
+    }
+    if (::fstat(descriptor, &info) != 0) { throw std::runtime_error("Could not verify certificate identity permissions"); }
+    check_file(info);
+    if ((info.st_mode & 07777) != 0600) { throw std::runtime_error("Certificate identity permissions remain unsafe"); }
+    // I keep this descriptor for the read. A second path lookup buys a race.
+    file = fdopen(descriptor, "rb");
+    if (!file) { throw std::runtime_error("Could not open certificate identity stream"); }
+    descriptor = -1;
+#endif
+    auto close_file = finally([&] { std::fclose(file); });
+    if (std::setvbuf(file, nullptr, _IONBF, 0) != 0) {
+        throw std::runtime_error("Could not configure certificate identity input");
+    }
+    std::vector<char> snapshot(limit + 1);
+    auto clear_snapshot = finally([&] { OPENSSL_cleanse(snapshot.data(), snapshot.size()); });
+    const auto count = std::fread(snapshot.data(), 1, snapshot.size(), file);
+    if (std::ferror(file)) { throw std::runtime_error("Could not read certificate identity"); }
+    if (count > limit) { throw std::runtime_error("Certificate identity exceeds the size limit"); }
+    if (count == 0) { throw std::runtime_error("Certificate identity is empty"); }
+    auto input = [&] {
+        return std::unique_ptr<BIO, decltype(&BIO_free)>(
+            BIO_new_mem_buf(snapshot.data(), static_cast<int>(count)), BIO_free);
+    };
+    auto certificate_input = input();
+    auto key_input = input();
+    if (!certificate_input || !key_input) { throw std::runtime_error("Could not allocate certificate identity input"); }
+    // I never ask the terminal for a passphrase from an event callback.
+    auto no_password = [](char*, int, int, void*) -> int { return 0; };
+    ERR_clear_error();
+    PemIdentity identity{
+        std::shared_ptr<X509>(PEM_read_bio_X509(certificate_input.get(), nullptr, no_password, nullptr), X509_free),
+        std::shared_ptr<EVP_PKEY>(PEM_read_bio_PrivateKey(key_input.get(), nullptr, no_password, nullptr), EVP_PKEY_free)
+    };
+    if (!identity.certificate || !identity.private_key) {
+        throw std::runtime_error("Certificate identity could not be parsed without a passphrase");
+    }
+    if (X509_check_private_key(identity.certificate.get(), identity.private_key.get()) != 1) {
+        throw std::runtime_error("Certificate identity key does not match its certificate");
+    }
+    return identity;
+}
+
+void load_pem_identity(SSL_CTX* context, const std::string& path)
+{
+    if (!context) { throw std::runtime_error("SSL context is unavailable"); }
+    const auto identity = read_pem_identity(path);
+#if OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined(LIBRESSL_VERSION_NUMBER)
+    require_success(SSL_CTX_use_cert_and_key(context, identity.certificate.get(),
+                    identity.private_key.get(), nullptr, 1), "Could not install certificate identity");
+#else
+    require_success(SSL_CTX_use_certificate(context, identity.certificate.get()), "Could not install certificate");
+    require_success(SSL_CTX_use_PrivateKey(context, identity.private_key.get()), "Could not install private key");
+#endif
+    require_success(SSL_CTX_check_private_key(context), "Could not verify installed certificate identity");
+}
+
 void generate_pem_self_signed_cert(const std::string& path)
 {
     std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)> generator(
@@ -312,8 +401,7 @@ void generate_pem_self_signed_cert(const std::string& path)
     if (X509_sign(cert.get(), private_key.get(), EVP_sha256()) <= 0) {
         throw std::runtime_error("Could not sign certificate");
     }
-    // FUTURE(BX-004): migrate existing key permissions and review Windows ACLs.
-    // Generation alone cannot tighten a valid identity that is never replaced.
+    // I publish only the completed pair. Existing POSIX files are checked on read.
     write_identity(fs::u8path(path), private_key.get(), cert.get());
 }
 

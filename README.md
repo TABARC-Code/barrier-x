@@ -1,6 +1,6 @@
 # barrier-x
 
-Development version: **2.4.13-snapshot**, based on Barrier 2.4.
+Development version: **2.4.14-snapshot**, based on Barrier 2.4.
 On Windows the service and its clients now use an authenticated named pipe.
 Changing a service command requires the active console user's elevated GUI;
 start the interface as administrator. Upgrade the service, GUI and engine together.
@@ -11,8 +11,8 @@ See the [development plan](docs/roadmap.md),
 [starting assessment](docs/assessment.md) and [fork changes](docs/changes.md).
 This snapshot sets a TLS 1.2 minimum, fixes POSIX wake-up resource ownership,
 and publishes generated certificates only after checked writes. New POSIX key
-files are owner-only; existing-key permission migration and Windows ACL review
-remain open. See [build and test notes](docs/build.md)
+files are owner-only; existing POSIX identities now get mode 0600 on read,
+without key rotation. Windows ACL hardening remains open. See [build and test notes](docs/build.md)
 for coverage and remaining checks. The inherited documentation below describes Barrier;
 its badges and download links refer to upstream builds, not verified fork builds.
 

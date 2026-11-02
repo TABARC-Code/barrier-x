@@ -358,3 +358,49 @@ Hosted Linux Debug/Release and ASan/UBSan with leak scanning passed in
 That run executes the local-socket Qt check without the local skip variable.
 The Windows validation branch and final master update share the same code;
 only completion evidence and roadmap status were updated afterwards.
+
+## Existing identity permissions and snapshot loading
+
+In 2.4.14 I read identity files through a shared certificate/key loader. On
+POSIX it opens with O_NOFOLLOW, O_CLOEXEC and O_NONBLOCK, checks regular-file
+status, effective ownership and a single link, and migrates the open file to
+mode 0600. A second fstat verifies the result. The same descriptor supplies a
+bounded snapshot, so path replacement cannot switch the loaded pair. I parse
+both PEM objects from that snapshot and verify that they match before installing
+them. OpenSSL 1.1.1+ uses SSL_CTX_use_cert_and_key; older headers retain the two
+installation calls after the pair check.
+
+Thirteen new storage cases cover permission migration with preserved bytes and
+fingerprints, symlinks, hardlinks, directories/FIFOs, size limits, missing and
+mismatched keys, non-interactive encrypted-key rejection, descriptor cleanup,
+injected stat/chmod failure and simulated foreign ownership. A rename injected
+during fchmod proves the SSL context receives the original open file's pair.
+Three engine cases cover mode migration, symlink refusal and clearing handled
+crypto errors. Three GUI cases check migration/fingerprint preservation and
+error-only completion without replacing a malformed or linked identity.
+
+I reproduced the mode/symlink failures against 2.4.13. During integration, the
+encrypted-key failure also reproduced a stale OpenSSL error queue; the loader
+now clears its handled errors. The earlier valid identity remains installed
+when a replacement pair fails validation.
+
+All twelve Linux CTest entries passed with 224 engine tests, 61 GUI unit tests,
+four transfers and seven IPC round trips. The 89 targeted engine checks passed
+ASan/UBSan. The Qt IPC suite reported 39 passes and one explicit Unix-socket skip,
+also under sanitisers, because this environment denies that socket type. Local
+leak inspection remains disabled for the recorded restriction; hosted checks
+keep it enabled. No new dependencies or third-party code were imported.
+
+Windows continues to depend on directory ACLs for private-key access, and its
+storage behaviour and macOS storage have not been exercised here. The parent
+identity directory must be trusted. Existing unreadable mode-0000 files may
+require the owner to correct access manually before opening; I do not fall back
+to pathname chmod. Certificate-only public fingerprint utilities retain their
+existing behaviour. The engine's optional client-certificate policy is unchanged.
+
+References: [Linux fchmod semantics](https://man7.org/linux/man-pages/man2/fchmod.2.html)
+and [OpenSSL certificate/key installation](https://docs.openssl.org/3.4/man3/SSL_CTX_use_certificate/).
+The previous master passed Linux checks in
+[run 41481373455](https://github.com/TABARC-Code/barrier-x/actions/runs/41481373455)
+and Windows native IPC checks in
+[run 41481373489](https://github.com/TABARC-Code/barrier-x/actions/runs/41481373489).

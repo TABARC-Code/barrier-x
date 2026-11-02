@@ -23,6 +23,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <memory>
 
 namespace barrier {
 
@@ -33,6 +34,15 @@ std::string format_ssl_fingerprint_columns(const std::vector<uint8_t>& fingerpri
 FingerprintData get_ssl_cert_fingerprint(X509* cert, FingerprintType type);
 
 FingerprintData get_pem_file_cert_fingerprint(const std::string& path, FingerprintType type);
+
+struct PemIdentity {
+    std::shared_ptr<X509> certificate;
+    std::shared_ptr<EVP_PKEY> private_key;
+};
+// I read one bounded snapshot. POSIX ownership/mode checks use its open handle;
+// the parent directory must be trusted. Windows ACL migration remains BX-004.
+PemIdentity read_pem_identity(const std::string& path);
+void load_pem_identity(SSL_CTX* context, const std::string& path);
 
 // Publish a complete key/certificate through a temporary sibling file. The
 // parent directory must be trusted. POSIX files are created with mode 0600;

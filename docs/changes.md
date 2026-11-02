@@ -1,5 +1,15 @@
 # barrier-x changes
 
+## 2.4.14-snapshot - 2 November 2026
+
+- I restrict existing POSIX identity files to mode 0600 through their open descriptor.
+- I reject foreign ownership, linked/non-regular files and identities larger than 1 MiB.
+- I load a matching certificate/key pair from one checked snapshot.
+- I clear handled identity-load errors before later TLS operations.
+- I preserve unreadable or malformed GUI identities and fingerprint the validated certificate.
+
+Windows ACL migration remains unfinished.
+
 ## 2.4.13-snapshot - 2 November 2026
 
 - I replace Windows service TCP management with a local named pipe and checked caller tokens.

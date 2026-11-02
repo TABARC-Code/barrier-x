@@ -24,6 +24,7 @@
 #include <openssl/err.h>
 #include <openssl/pem.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -289,6 +290,49 @@ TEST_F(SecureSocketTests, IoAfterCloseFailsWithZeroCount)
 }
 
 #ifdef BARRIER_TEST_WRAP_SSL_CONTEXT
+TEST_F(SecureSocketTests, LoadingLegacyIdentityRestrictsItsMode)
+{
+    preparePeer(false, true);
+    const auto path = barrier::DataDirectories::ssl_certificate_path();
+    ASSERT_EQ(0, chmod(path.c_str(), 0666));
+    auto connection = socket();
+    connection->initSsl(false);
+    ASSERT_TRUE(connection->load_certificates(path));
+    struct stat info{};
+    ASSERT_EQ(0, stat(path.c_str(), &info));
+    EXPECT_EQ(0600, info.st_mode & 07777);
+}
+
+TEST_F(SecureSocketTests, FailedIdentityLoadClearsHandledCryptoErrors)
+{
+    preparePeer(false, true);
+    const auto path = barrier::DataDirectories::ssl_certificate_path();
+    auto identity = barrier::read_pem_identity(path.u8string());
+    FILE* file = fopen(path.c_str(), "wb");
+    ASSERT_NE(nullptr, file);
+    unsigned char password[] = "unit-test-passphrase";
+    ASSERT_EQ(1, PEM_write_PrivateKey(file, identity.private_key.get(), EVP_aes_256_cbc(),
+                                     password, sizeof(password) - 1, nullptr, nullptr));
+    ASSERT_EQ(1, PEM_write_X509(file, identity.certificate.get()));
+    ASSERT_EQ(0, fclose(file));
+    auto connection = socket();
+    connection->initSsl(false);
+    EXPECT_FALSE(connection->load_certificates(path));
+    EXPECT_EQ(0u, ERR_peek_error());
+}
+
+TEST_F(SecureSocketTests, LoadingIdentityRefusesSymlink)
+{
+    preparePeer(false, true);
+    const auto path = barrier::DataDirectories::ssl_certificate_path();
+    const auto original = path.u8string() + ".original";
+    barrier::fs::rename(path, original);
+    barrier::fs::create_symlink(original, path);
+    auto connection = socket();
+    connection->initSsl(false);
+    EXPECT_FALSE(connection->load_certificates(path));
+}
+
 TEST_F(SecureSocketTests, UnapprovedSessionNeverEntersApplicationIo)
 {
     fake_transport = fake_io = true;

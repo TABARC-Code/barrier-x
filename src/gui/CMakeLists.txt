@@ -167,6 +167,9 @@ if (BARRIER_BUILD_TESTS)
     set(GUI_TEST_SOURCE_FILES
         test/KeySequenceTests.cpp
         test/HotkeyTests.cpp
+        test/SslCertificateTests.cpp
+        src/SslCertificate.cpp
+        src/SslCertificate.h
         test/main.cpp
     )
 
@@ -180,5 +183,5 @@ if (BARRIER_BUILD_TESTS)
     set_tests_properties(guiunittests PROPERTIES TIMEOUT 60 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
     target_include_directories(guiunittests PUBLIC ../../ext)
-    target_link_libraries(guiunittests gtest gmock Qt5::Core Qt5::Widgets Qt5::Network ${libs})
+    target_link_libraries(guiunittests gtest gmock Qt5::Core Qt5::Widgets Qt5::Network ${libs} net base io common ${OPENSSL_LIBS})
 endif()
