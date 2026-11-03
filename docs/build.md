@@ -404,3 +404,57 @@ The previous master passed Linux checks in
 [run 41481373455](https://github.com/TABARC-Code/barrier-x/actions/runs/41481373455)
 and Windows native IPC checks in
 [run 41481373489](https://github.com/TABARC-Code/barrier-x/actions/runs/41481373489).
+
+
+## Windows identity file ACLs (2.4.15)
+
+I create private identity files with an explicit user owner and protected
+owner/LocalSystem DACL, without handle inheritance or sharing. Existing files
+open with reparse traversal disabled and READ_CONTROL/WRITE_DAC; the reader
+checks ownership, disk-file attributes, link count and size before applying and
+verifying the ACL. The same handle becomes the CRT descriptor for PEM input.
+I tested permission migration without changing the file contents. A rename
+replacement retains the newly created file's protected ACL.
+
+The SDK harness now includes fourteen storage checks: creation in a deliberately
+public test folder, migration, collision preservation, hardlinks, symlinks,
+directories, the size cap, concurrent writes/renames, replacement, alternate
+streams, failed permission changes, a pre-existing writer, extended paths and
+another local user. The extra account cannot read the private file; its own
+publicly accessible file is rejected by the owner check. The denial fixture
+must first prove WRITE_DAC is refused, so an unrelated open failure cannot pass
+that assertion. The first denial fixture lacked READ_CONTROL on its setup
+handle; that fixture failed before reaching production code and was corrected.
+
+The Linux GUI/engine build and all twelve CTest entries passed locally: 224
+engine units, 61 GUI units, four transfers and seven IPC round trips. The Qt
+IPC suite reports 39 passes and one explicit Unix-socket skip, since the local
+environment denies that socket type. The new Windows helper and its tests also
+cross-compile as C++14 with MinGW, including -Wall -Wextra -Werror.
+
+Full Windows desktop linking, PEM integration, installed-service console-user
+transitions and macOS storage remain unverified. LocalSystem's extra owner
+allowance requires WTSQueryUserToken to succeed; it never accepts an arbitrary
+other owner. Legacy files owned by Administrators or another account require
+explicit ownership repair. The parent directory must remain trusted. ACL
+migration cannot undo earlier disclosure or revoke an existing handle. The
+empty temporary file is marked for deletion if a post-creation check fails;
+no key is written before the permission check. No dependency or third-party
+source was added.
+
+References: [CreateFileW](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew),
+[SetSecurityInfo](https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-setsecurityinfo),
+[WTSQueryUserToken](https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/nf-wtsapi32-wtsqueryusertoken)
+and [CRT handle ownership](https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/open-osfhandle).
+
+The final native candidate passed all fourteen file checks and ten existing
+pipe checks on Windows 2025 in
+[run 41719122150](https://github.com/TABARC-Code/barrier-x/actions/runs/41719122150),
+commit `ecfe92e51bd777a2b67e276a9e9bdab5b91aa1bb`. The service adapters also
+compiled with the Windows SDK. A strict MinGW compile of SecureUtils.cpp was
+blocked by function-pointer conversions in the inherited OpenSSL 1.0.2 applink
+C shim. The translation unit compiled with -fpermissive, with warnings from that
+shim; this does not establish full Windows application linkage or replace the
+old TLS dependency. The new helper/tests compile without that relaxation.
+Hosted Linux candidate checks were still queued or running at publication;
+the local Linux results above are completed checks.

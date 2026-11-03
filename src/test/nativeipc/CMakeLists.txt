@@ -19,3 +19,9 @@ add_library(nativeipc_adapters OBJECT HeaderChecks.cpp
     ../../lib/barrier/win32/DaemonApp.cpp ../../lib/platform/MSWindowsWatchdog.cpp)
 target_include_directories(nativeipc_adapters PRIVATE ../../lib ../../../ext ../../../ext/gulrak-filesystem/include)
 target_compile_definitions(nativeipc_adapters PRIVATE _WIN32_WINNT=0x0601 WINVER=0x0601 SYSAPI_WIN32=1 WINAPI_MSWINDOWS=1 NOMINMAX WIN32_LEAN_AND_MEAN BARRIER_VERSION="native-check")
+
+add_executable(nativefiletests PrivateFileTests.cpp ../../lib/io/WinPrivateFile.cpp)
+target_link_libraries(nativefiletests PRIVATE advapi32 wtsapi32 netapi32 bcrypt)
+target_compile_definitions(nativefiletests PRIVATE _WIN32_WINNT=0x0601 NOMINMAX WIN32_LEAN_AND_MEAN)
+add_test(NAME native-private-files COMMAND nativefiletests)
+set_tests_properties(native-private-files PROPERTIES TIMEOUT 60)

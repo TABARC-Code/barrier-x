@@ -39,14 +39,14 @@ struct PemIdentity {
     std::shared_ptr<X509> certificate;
     std::shared_ptr<EVP_PKEY> private_key;
 };
-// I read one bounded snapshot. POSIX ownership/mode checks use its open handle;
-// the parent directory must be trusted. Windows ACL migration remains BX-004.
+// I check ownership and restrictive permissions through the open file handle.
+// FUTURE(BX-004): protect parent traversal; the identity directory must be trusted.
 PemIdentity read_pem_identity(const std::string& path);
 void load_pem_identity(SSL_CTX* context, const std::string& path);
 
 // Publish a complete key/certificate through a temporary sibling file. The
-// parent directory must be trusted. POSIX files are created with mode 0600;
-// Windows access still depends on the directory ACL. Existing identities are
+// parent directory must be trusted. POSIX uses mode 0600; Windows grants access
+// to the owner and LocalSystem through a protected ACL. Existing identities are
 // preserved if generation, writing or replacement fails.
 void generate_pem_self_signed_cert(const std::string& path);
 

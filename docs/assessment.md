@@ -234,3 +234,27 @@ The parent directory must still be trusted; I have not hardened traversal of
 parent components. Owner-only POSIX mode cannot revoke existing open handles
 or restore secrecy if a legacy key was previously copied. Windows ACL migration,
 non-local filesystem ACL policy and macOS/Windows storage checks remain open.
+
+
+## Follow-up: 2.4.15-snapshot
+
+I replaced Windows CRT-only identity creation with CreateFileW and an explicit,
+protected DACL granting the current process user and LocalSystem full access.
+The file gets these permissions before any key bytes are written. The owner is
+set explicitly, including when an elevated token would otherwise choose a group.
+A failed post-creation check marks the empty file for deletion through its handle.
+
+Existing identities open without final reparse traversal or write/delete sharing.
+I check disk-file type, attributes, one link and a 1 MiB limit before reading.
+The owner must match the process user. A LocalSystem process may also accept the
+active console user's file, using WTSQueryUserToken; failure to identify that user
+refuses access. I apply and verify the protected ACL on this same handle before
+passing it to the bounded PEM reader. Alternate streams are refused.
+
+I preserve foreign/group ownership and report that explicit repair is needed.
+The migration does not rotate the key. The identity directory and parent path
+components remain trusted. Permission changes cannot recall previously copied
+keys or handles opened before the migration. Full Windows PEM/GUI/engine linking,
+installed-service console transitions, macOS storage and non-local filesystem
+behaviour remain unverified. The standalone Windows tests exercise the file
+helper, not the complete desktop application. No third-party code was imported.
