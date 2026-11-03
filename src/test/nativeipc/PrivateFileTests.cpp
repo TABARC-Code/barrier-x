@@ -144,11 +144,11 @@ void permission_failure() {
     require(ConvertStringSecurityDescriptorToSecurityDescriptorW(L"D:P(D;;WD;;;OW)(A;;FA;;;WD)", SDDL_REVISION_1, &raw, nullptr), "deny fixture ACL");
     PACL acl = nullptr; BOOL present = FALSE, defaulted = FALSE;
     require(GetSecurityDescriptorDacl(raw, &present, &acl, &defaulted), "deny fixture DACL");
-    Handle retained(CreateFileW(path.c_str(), WRITE_DAC, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, 0, nullptr));
+    Handle retained(CreateFileW(path.c_str(), WRITE_DAC | READ_CONTROL, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, 0, nullptr));
     require(static_cast<bool>(retained), "retain ACL repair handle");
     DWORD result = SetSecurityInfo(retained.get(), SE_FILE_OBJECT, DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
                                    nullptr, nullptr, acl, nullptr);
-    require(result == ERROR_SUCCESS, "deny permission changes");
+    if (result != ERROR_SUCCESS) { throw std::runtime_error("deny permission changes: " + std::to_string(result)); }
     // Close the retained handle while testing; sharing refusal must not mask the ACL failure.
     retained.reset();
     Handle denied(CreateFileW(path.c_str(), GENERIC_READ | WRITE_DAC, 0, nullptr, OPEN_EXISTING, 0, nullptr));
