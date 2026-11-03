@@ -71,7 +71,8 @@
 // versions of the Win32 C runtime. See OpenSSL FAQ.
 #include <openssl/applink.c>
 #include <io.h>
-#include <share.h>
+#include "io/WinPrivateFile.h"
+#include <system_error>
 #else
 #include <unistd.h>
 #endif
@@ -112,14 +113,14 @@ void write_identity(const fs::path& destination, EVP_PKEY* key, X509* certificat
         std::vector<std::uint8_t> bytes(random, random + sizeof(random));
         temporary += ".tmp." + barrier::string::to_hex(bytes, 2);
 #if SYSAPI_WIN32
-        errno_t error = _wsopen_s(&descriptor, temporary.native().c_str(),
-                                  _O_WRONLY | _O_CREAT | _O_EXCL | _O_BINARY | _O_NOINHERIT,
-                                  _SH_DENYRW, _S_IREAD | _S_IWRITE);
-        if (error == 0) {
+        try {
+            descriptor = create_private_file(temporary.native());
             break;
         }
-        if (error != EEXIST) {
-            throw std::runtime_error("Could not create certificate temporary file");
+        catch (const std::system_error& error) {
+            if (error.code() != std::errc::file_exists) {
+                throw;
+            }
         }
 #else
         // Restrict access at creation. Fixing the mode after writing is late.
@@ -277,9 +278,12 @@ PemIdentity read_pem_identity(const std::string& path)
     constexpr std::size_t limit = 1024 * 1024;
     FILE* file = nullptr;
 #if SYSAPI_WIN32
-    // FUTURE(BX-004): enforce owner-only Windows ACLs on the opened handle.
-    file = fopen_utf8_path(fs::u8path(path), "rb");
-    if (!file) { throw std::runtime_error("Could not open certificate identity"); }
+    int descriptor = read_private_file(fs::u8path(path).native());
+    file = _fdopen(descriptor, "rb");
+    if (!file) {
+        _close(descriptor);
+        throw std::runtime_error("Could not open checked certificate stream");
+    }
 #else
     // I reject a final symlink and open FIFOs without waiting for a writer.
     int descriptor = ::open(path.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK);

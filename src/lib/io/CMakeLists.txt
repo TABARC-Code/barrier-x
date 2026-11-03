@@ -22,3 +22,7 @@ if (BARRIER_ADD_HEADERS)
 endif()
 
 add_library(io STATIC ${sources})
+
+if(WIN32)
+    target_link_libraries(io PUBLIC advapi32 wtsapi32)
+endif()

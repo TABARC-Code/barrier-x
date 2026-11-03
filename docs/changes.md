@@ -1,5 +1,12 @@
 # barrier-x changes
 
+## 2.4.15-snapshot - 3 November 2026
+
+- I create Windows identity files with protected owner and LocalSystem permissions.
+- I restrict existing identity permissions through the handle used for reading.
+- I reject foreign owners, reparse points, hardlinks, alternate streams and oversized files.
+- I prevent concurrent writes and renames while reading the checked identity.
+
 ## 2.4.14-snapshot - 2 November 2026
 
 - I restrict existing POSIX identity files to mode 0600 through their open descriptor.

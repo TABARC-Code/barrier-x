@@ -1,6 +1,6 @@
 # barrier-x
 
-Development version: **2.4.14-snapshot**, based on Barrier 2.4.
+Development version: **2.4.15-snapshot**, based on Barrier 2.4.
 On Windows the service and its clients now use an authenticated named pipe.
 Changing a service command requires the active console user's elevated GUI;
 start the interface as administrator. Upgrade the service, GUI and engine together.
