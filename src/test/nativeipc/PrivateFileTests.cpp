@@ -137,6 +137,42 @@ void streams() {
     rejected([&] { Descriptor file(barrier::read_private_file(path + L":hidden")); });
     rejected([&] { Descriptor file(barrier::create_private_file(path + L":hidden")); });
 }
+void permission_failure() {
+    Fixture f; auto path = f.path(L"denied.pem"); write_key(path);
+    PSECURITY_DESCRIPTOR raw = nullptr;
+    // OWNER RIGHTS removes the owner's implicit WRITE_DAC for this failure fixture.
+    require(ConvertStringSecurityDescriptorToSecurityDescriptorW(L"D:P(D;;WD;;;OW)(A;;FA;;;WD)", SDDL_REVISION_1, &raw, nullptr), "deny fixture ACL");
+    PACL acl = nullptr; BOOL present = FALSE, defaulted = FALSE;
+    require(GetSecurityDescriptorDacl(raw, &present, &acl, &defaulted), "deny fixture DACL");
+    Handle retained(CreateFileW(path.c_str(), WRITE_DAC, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, 0, nullptr));
+    require(static_cast<bool>(retained), "retain ACL repair handle");
+    DWORD result = SetSecurityInfo(retained.get(), SE_FILE_OBJECT, DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+                                   nullptr, nullptr, acl, nullptr);
+    require(result == ERROR_SUCCESS, "deny permission changes");
+    // Close the retained handle while testing; sharing refusal must not mask the ACL failure.
+    retained.reset();
+    Handle denied(CreateFileW(path.c_str(), GENERIC_READ | WRITE_DAC, 0, nullptr, OPEN_EXISTING, 0, nullptr));
+    require(!denied && GetLastError() == ERROR_ACCESS_DENIED, "deny fixture did not refuse WRITE_DAC");
+    rejected([&] { Descriptor file(barrier::read_private_file(path)); });
+    Handle reader(CreateFileW(path.c_str(), GENERIC_READ, 0, nullptr, OPEN_EXISTING, 0, nullptr));
+    require(static_cast<bool>(reader), "read denied fixture bytes");
+    char bytes[13]; DWORD count = 0;
+    require(ReadFile(reader.get(), bytes, sizeof(bytes), &count, nullptr) && count == 13 && std::string(bytes, 13) == "test identity", "failed migration changed bytes");
+    LocalFree(raw);
+}
+void busy_writer() {
+    Fixture f; auto path = f.path(L"busy.pem"); write_key(path);
+    Handle writer(CreateFileW(path.c_str(), GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, 0, nullptr));
+    require(static_cast<bool>(writer), "existing writer fixture");
+    rejected([&] { Descriptor file(barrier::read_private_file(path)); });
+}
+void extended_path() {
+    Fixture f; auto path = f.path(L"extended.pem");
+    auto extended = std::wstring(L"\\\\?\\") + path;
+    { Descriptor file(barrier::create_private_file(extended)); }
+    Descriptor file(barrier::read_private_file(extended));
+    check_private(reinterpret_cast<HANDLE>(_get_osfhandle(file.value)));
+}
 struct Impersonation {
     explicit Impersonation(HANDLE token) { require(ImpersonateLoggedOnUser(token), "test impersonation"); }
     ~Impersonation() { if (!RevertToSelf()) { std::terminate(); } }
@@ -174,7 +210,8 @@ int main() {
     struct Test { const char* name; void (*run)(); } tests[] = {
         {"creation", creation}, {"migration", migration}, {"collision", collision}, {"hardlink", hardlink},
         {"symlink", symlink}, {"directory", directory}, {"size limit", size_limit}, {"sharing", sharing},
-        {"replacement", replacement}, {"streams", streams}, {"other user", other_user}};
+        {"replacement", replacement}, {"streams", streams}, {"permission failure", permission_failure},
+        {"busy writer", busy_writer}, {"extended path", extended_path}, {"other user", other_user}};
     int failed = 0;
     for (auto& test : tests) { try { test.run(); std::cout << "PASS " << test.name << '\n'; }
         catch (const std::exception& error) { ++failed; std::cerr << "FAIL " << test.name << ": " << error.what() << '\n'; } }

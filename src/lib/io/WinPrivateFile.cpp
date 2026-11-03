@@ -64,7 +64,11 @@ std::vector<BYTE> private_acl(PSID owner, PSID system) {
 void check_path(const std::wstring& path) {
     // I reject alternate streams: a private identity is a file, not a hiding place.
     auto colon = path.find(L':');
-    if (colon != std::wstring::npos && (colon != 1 || path.find(L':', colon + 1) != std::wstring::npos)) {
+    const std::size_t drive = path.compare(0, 4, L"\\\\?\\") == 0 ? 4 : 0;
+    bool drive_letter = path.size() > drive && ((path[drive] >= L'A' && path[drive] <= L'Z') ||
+                                               (path[drive] >= L'a' && path[drive] <= L'z'));
+    if (path.find(L'\0') != std::wstring::npos ||
+        (colon != std::wstring::npos && (!drive_letter || colon != drive + 1 || path.find(L':', colon + 1) != std::wstring::npos))) {
         throw std::runtime_error("Identity streams are unsupported");
     }
 }
