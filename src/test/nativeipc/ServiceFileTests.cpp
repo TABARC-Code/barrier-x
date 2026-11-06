@@ -139,7 +139,7 @@ DWORD exercise_service() {
     stage = 5;
     write_identity(directory + L"\\denied.pem");
     Security denied;
-    require(ConvertStringSecurityDescriptorToSecurityDescriptorW(L"D:P(D;;WD;;;SY)(A;;FA;;;SY)", SDDL_REVISION_1, &denied.value, nullptr), "denial ACL");
+    require(ConvertStringSecurityDescriptorToSecurityDescriptorW(L"D:P(D;;WD;;;OW)(A;;FA;;;SY)", SDDL_REVISION_1, &denied.value, nullptr), "denial ACL");
     PACL acl = nullptr; BOOL present = FALSE, defaulted = FALSE;
     require(GetSecurityDescriptorDacl(denied.value, &present, &acl, &defaulted), "denial DACL");
     require(SetNamedSecurityInfoW(const_cast<wchar_t*>((directory + L"\\denied.pem").c_str()), SE_FILE_OBJECT,
@@ -214,6 +214,23 @@ struct Fixture {
         SECURITY_ATTRIBUTES attributes{sizeof(attributes), security.value, FALSE};
         require(CreateDirectoryW(directory.c_str(), &attributes), "fixture directory");
     }
+    void lock() {
+        Security owner_descriptor; PSID owner = nullptr;
+        auto path = directory + L"\\console.pem";
+        require(GetNamedSecurityInfoW(const_cast<wchar_t*>(path.c_str()), SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION,
+                                     &owner, nullptr, nullptr, nullptr, &owner_descriptor.value) == ERROR_SUCCESS, "fixture owner");
+        wchar_t* text = nullptr;
+        require(ConvertSidToStringSidW(owner, &text), "fixture owner SID");
+        std::wstring acl_text = L"D:P(A;;FA;;;" + std::wstring(text) + L")(A;;FA;;;SY)";
+        LocalFree(text);
+        Security security;
+        require(ConvertStringSecurityDescriptorToSecurityDescriptorW(acl_text.c_str(), SDDL_REVISION_1, &security.value, nullptr), "private fixture directory ACL");
+        PACL acl = nullptr; BOOL present = FALSE, defaulted = FALSE;
+        require(GetSecurityDescriptorDacl(security.value, &present, &acl, &defaulted), "fixture directory DACL");
+        // I close the public setup window before launching anything as LocalSystem.
+        require(SetNamedSecurityInfoW(const_cast<wchar_t*>(directory.c_str()), SE_FILE_OBJECT,
+            DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION, nullptr, nullptr, acl, nullptr) == ERROR_SUCCESS, "lock fixture directory");
+    }
     ~Fixture() {
         for (auto name : {L"console.pem", L"foreign.pem", L"system.pem", L"denied.pem"}) { DeleteFileW((directory + L"\\" + name).c_str()); }
         RemoveDirectoryW(directory.c_str());
@@ -285,11 +302,11 @@ int wmain(int argc, wchar_t** argv) {
         Account account;
         require(ImpersonateLoggedOnUser(account.token.get()), "foreign user impersonation");
         HANDLE created = CreateFileW((directory + L"\\foreign.pem").c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, 0, nullptr);
-        DWORD creation_error = GetLastError();
         if (!RevertToSelf()) { std::terminate(); }
         Handle foreign(created);
-        require(foreign && creation_error != ERROR_ALREADY_EXISTS, "foreign identity fixture");
+        require(static_cast<bool>(foreign), "foreign identity fixture");
         foreign.reset();
+        fixture.lock();
         DWORD result = 0;
         { TemporaryService service; result = service.run(); service.remove(); }
         account.remove();
