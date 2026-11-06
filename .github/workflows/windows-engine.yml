@@ -38,6 +38,20 @@ jobs:
         with:
           path: ${{ runner.temp }}/barrier-deps
           key: ${{ steps.key.outputs.key }}
+      - name: Reject legacy TLS and installer configuration
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $false
+          $output = cmd /c clean_build.bat 2>&1
+          if ($LASTEXITCODE -ne 1 -or ($output -join "`n") -notmatch 'helper is retired') { throw 'Retired build helper was not blocked' }
+          $output = cmd /c build_installer.bat 2>&1
+          if ($LASTEXITCODE -ne 1 -or ($output -join "`n") -notmatch 'installers are disabled') { throw 'Retired installer helper was not blocked' }
+          $legacy = "$env:GITHUB_WORKSPACE/ext/openssl/windows/x64"
+          $output = cmake -S . -B rejected-tls -A x64 -DBARRIER_BUILD_GUI=OFF -DBARRIER_BUILD_TESTS=OFF -DBARRIER_BUILD_INSTALLER=OFF "-DOPENSSL_INCLUDE_DIR=$legacy/include" "-DOPENSSL_SSL_LIBRARY=$legacy/lib/ssleay32.lib" "-DOPENSSL_CRYPTO_LIBRARY=$legacy/lib/libeay32.lib" 2>&1
+          if ($LASTEXITCODE -eq 0 -or ($output -join "`n") -notmatch 'unsuitable\s+version\s+"1[.]0[.]2') { throw 'Legacy OpenSSL rejection was not verified' }
+          $output = cmake -S . -B rejected-installer -A x64 -DBARRIER_BUILD_GUI=OFF -DBARRIER_BUILD_TESTS=OFF -DBARRIER_BUILD_INSTALLER=ON "-DOPENSSL_ROOT_DIR=$env:RUNNER_TEMP/barrier-deps/openssl" 2>&1
+          if ($LASTEXITCODE -eq 0 -or ($output -join "`n") -notmatch 'legacy Windows installer packages obsolete') { throw 'Legacy installer rejection was not verified' }
+          $global:LASTEXITCODE = 0
       - name: Configure engine and tests
         shell: pwsh
         run: |

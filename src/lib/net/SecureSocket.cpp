@@ -408,7 +408,7 @@ SecureSocket::initContext(bool server)
         method = TLS_client_method();
     }
 #else
-    // Keep older headers buildable until the bundled dependency is replaced.
+    // Legacy SDKs still use the older method names.
     if (server) {
         method = SSLv23_server_method();
     }

@@ -8,6 +8,8 @@ trigger:
 
 jobs:
 - job: WinBuild
+  # I keep the retired Windows downloads disabled; current checks use windows-engine.yml.
+  condition: false
   displayName: Windows Build
   pool:
     vmImage: 'vs2017-win2016'

@@ -8,7 +8,10 @@ Previously saved commands need administrator approval again after upgrading.
 There is no service TCP fallback. I now check identity access through a temporary
 LocalSystem service. Interactive desktop and installer checks remain open.
 
-See the [development plan](docs/roadmap.md),
+Windows engine builds now require external OpenSSL 3.5 LTS, at least 3.5.9.
+The old build/installer helpers are retired; see [Windows build notes](docs/windows-build.md).
+
+See the [working plan](docs/working-plan.md), [development backlog](docs/roadmap.md),
 [starting assessment](docs/assessment.md) and [fork changes](docs/changes.md).
 This snapshot sets a TLS 1.2 minimum, fixes POSIX wake-up resource ownership,
 and publishes generated certificates only after checked writes. New POSIX key

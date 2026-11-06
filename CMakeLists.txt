@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-cmake_minimum_required (VERSION 3.4)
+cmake_minimum_required (VERSION 3.20)
 project (barrier C CXX)
 
 option (BARRIER_BUILD_GUI "Build the GUI" ON)
@@ -36,12 +36,6 @@ endif()
 
 include (cmake/Version.cmake)
 include (cmake/Package.cmake)
-
-# TODO: Find out why we need these, and remove them
-if (COMMAND cmake_policy)
-    cmake_policy (SET CMP0003 NEW)
-    cmake_policy (SET CMP0005 NEW)
-endif()
 
 # Add headers to source list
 if (${CMAKE_GENERATOR} STREQUAL "Unix Makefiles")

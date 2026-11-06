@@ -2,8 +2,11 @@
 
 ## 2.4.17-snapshot - 6 November 2026
 
+- I raise the CMake baseline to 3.20 for current build tools.
 - I select external OpenSSL 3.5 LTS libraries for Windows builds.
-- I refuse the obsolete installer path and support imported Google Test targets.
+- I retire Windows helpers that copied old DLLs or downloaded unchecked SDKs.
+- I refuse obsolete installer generation and support imported Google Test targets.
+- I add a working plan, dependency notes and concrete external review requests.
 
 ## 2.4.16-snapshot - 6 November 2026
 

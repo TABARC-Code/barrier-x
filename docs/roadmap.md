@@ -8,6 +8,9 @@ The aim is dependable control across several computers, with a clear account
 of which device receives input and what it may share. Security, recovery and
 usable configuration come before extra transports or a new interface toolkit.
 
+The current order of work and external review requests are in
+[working-plan.md](working-plan.md).
+
 ## Tracking ideas in the code
 
 `FUTURE(BX-007)` links a source comment to an entry below. The comment explains
