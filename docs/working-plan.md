@@ -40,3 +40,15 @@ Before distributing new dependency bundles, I also want the OpenSSL linking
 exception and the selected Qt/discovery licences checked together. I retain the
 licence texts and source references; this note doesn't settle every downstream
 licensing question. Release signing and provenance remain BX-024.
+
+## Things worth borrowing
+
+I checked Deskflow at `b29f16f937b3a375085ce202ef484a1d7c776fa8` and Input Leap
+at `34a34fb20b93113a6b26052cb5a54f9be2327775`. These are proposals. I haven't
+imported their source or run their scripts.
+
+- Input Leap's [Qt-major selection](https://github.com/input-leap/input-leap/blob/34a34fb20b93113a6b26052cb5a54f9be2327775/src/gui/CMakeLists.txt) is a useful migration pattern. I'd stage Qt 6 separately, check the supported SDK and licences, then exercise reader reconnects, identity creation, translations and layout. Its Qt 6 build uses C++17; that change needs its own build evidence.
+- Deskflow's [runtime collection](https://github.com/deskflow/deskflow/blob/b29f16f937b3a375085ce202ef484a1d7c776fa8/src/apps/CMakeLists.txt) and [Qt deployment](https://github.com/deskflow/deskflow/blob/b29f16f937b3a375085ce202ef484a1d7c776fa8/src/apps/deskflow-gui/CMakeLists.txt) are better candidates than a fixed DLL list. I'd add a dependency manifest and reject unresolved/conflicting files. Its runtime dependency sets need CMake 3.21+, above this change's 3.20 baseline. The inspected build files carry MIT notices; those must stay if code is reused.
+- I'd make discovery an optional backend with a manual-connection fallback. Input Leap still requires Bonjour in the reviewed Windows GUI build. [Native Windows browsing](https://learn.microsoft.com/en-us/windows/win32/api/windns/nf-windns-dnsservicebrowse) is worth investigating, with Windows 10+ capability checks, bounded records and safe callback cancellation. A discovered address still needs peer approval.
+
+I wouldn't copy Input Leap's [2019 Bonjour download](https://github.com/input-leap/input-leap/blob/34a34fb20b93113a6b26052cb5a54f9be2327775/.github/workflows/builds.yml) or [historical WiX DLL list](https://github.com/input-leap/input-leap/blob/34a34fb20b93113a6b26052cb5a54f9be2327775/dist/wix/Product.wxs) unchanged. The download has no pinned digest, and that list still names the old OpenSSL DLLs. Its Qt 6 discovery code also casts narrow strings to wide pointers; that's no encoding conversion. These bits need separate review, rather than inheriting their problems along with their useful ideas.

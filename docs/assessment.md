@@ -319,3 +319,7 @@ check of distribution licence combinations before installers are published.
 The first engine compilation also exposed Windows min/max macros rewriting the
 standard-library bounds calls in fingerprint randomart. I define NOMINMAX for
 the Windows build, matching the existing native SDK harness.
+
+Current Google Mock also rejected a Windows-only matcher which cast a base
+message matcher to a derived log frame. I match the actual frame type and text
+instead, preserving the test's assertion without an unchecked downcast.
