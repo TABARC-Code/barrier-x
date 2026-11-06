@@ -163,6 +163,7 @@ int read_private_file(const std::wstring& path) {
     bool allowed = owner && EqualSid(owner, sid(user));
     if (!allowed && owner && EqualSid(sid(user), system.data())) {
         // The service may read its console user's key, never an arbitrary user's file.
+        // FUTURE(BX-007): distinguish an unavailable console token from a foreign owner.
         HANDLE raw_token = nullptr;
         if (WTSQueryUserToken(WTSGetActiveConsoleSessionId(), &raw_token)) {
             Handle token(raw_token);

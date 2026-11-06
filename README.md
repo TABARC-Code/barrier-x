@@ -1,11 +1,12 @@
 # barrier-x
 
-Development version: **2.4.15-snapshot**, based on Barrier 2.4.
+Development version: **2.4.16-snapshot**, based on Barrier 2.4.
 On Windows the service and its clients now use an authenticated named pipe.
 Changing a service command requires the active console user's elevated GUI;
 start the interface as administrator. Upgrade the service, GUI and engine together.
 Previously saved commands need administrator approval again after upgrading.
-There is no service TCP fallback. Native desktop and installer checks remain open.
+There is no service TCP fallback. I now check identity access through a temporary
+LocalSystem service. Interactive desktop and installer checks remain open.
 
 See the [development plan](docs/roadmap.md),
 [starting assessment](docs/assessment.md) and [fork changes](docs/changes.md).

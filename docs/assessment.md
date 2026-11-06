@@ -258,3 +258,33 @@ keys or handles opened before the migration. Full Windows PEM/GUI/engine linking
 installed-service console transitions, macOS storage and non-local filesystem
 behaviour remain unverified. The standalone Windows tests exercise the file
 helper, not the complete desktop application. No third-party code was imported.
+
+
+## Follow-up: 2.4.16-snapshot
+
+I added an SDK test executable which installs and starts a temporary LocalSystem
+service. It verifies the process SID before exercising the unchanged private-file
+helper. The service creates and reads its own dummy identity, checks a caller-owned
+identity against the actual console token, rejects a separate user's accessible
+file, refuses access when console-token lookup fails and preserves bytes when
+WRITE_DAC is denied. The denial ACL targets OWNER RIGHTS, since an owner otherwise
+receives implicit permission to change its DACL.
+
+I disable SeTcbPrivilege only inside the test service for the failed-token case,
+and restore it afterwards. The service reports a bounded result through SCM status.
+The fixture directory is locked to the caller and LocalSystem after the separate
+user creates its file, before the privileged service starts. The test checks that
+the temporary service registration and local account are removed. All identity
+contents are fixed dummy text; real keys and account passwords are not logged.
+
+The suite reports console-user acceptance as skipped if the runner has no matching
+active console. This is a test of the storage helper under an installed test
+service, not the Barrier service's complete engine/GUI path. Logout, console
+switching, UAC, desktop linkage and installer validation remain separate work.
+No production permission policy or cryptographic dependency changes in this version.
+
+The Windows 2025 candidate passed all five service scenarios, including active
+console-user access, in run 42149125814. The existing fourteen storage and ten
+pipe checks passed in the same run. This confirms the tested storage helper's
+policy under a real LocalSystem process; it does not close the interactive
+session-transition work.

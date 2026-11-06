@@ -458,3 +458,50 @@ shim; this does not establish full Windows application linkage or replace the
 old TLS dependency. The new helper/tests compile without that relaxation.
 Hosted Linux candidate checks were still queued or running at publication;
 the local Linux results above are completed checks.
+
+
+## LocalSystem storage checks (2.4.16)
+
+I added `native-service-private-files` to the existing Windows SDK harness.
+It installs a uniquely named, demand-start test service as LocalSystem and
+verifies that SID before touching the dummy identities. The service exercises
+its own key creation/read, the runner user's key against the actual console
+identity, foreign ownership, failed WTSQueryUserToken lookup and denied
+WRITE_DAC. Dummy bytes must survive permission failures unchanged. The foreign
+fixture has explicit owner/System access so the check reaches ownership
+validation rather than passing because the file could not be opened.
+
+The token-failure case temporarily disables SeTcbPrivilege and verifies the
+query fails before requiring the reader to refuse access. The previous token
+privileges are restored. The denial fixture uses OWNER RIGHTS because owners
+otherwise receive implicit WRITE_DAC. The fixture directory is restricted to
+the caller and System before the privileged service starts. The service result
+comes from SCM status; no result file, key material or account password is logged.
+I mark the service for deletion after starting it, close its handle after it
+stops and check that its registration disappears. The second local account is
+also deleted explicitly, with fallback cleanup on failure.
+
+Console-user acceptance is conditional on a matching active console token.
+The executable prints an explicit skip when that positive case is unavailable,
+and still checks refusal. A skipped positive case is not evidence of successful
+console-user access. This suite uses the real SCM and WTS APIs, without replacing
+those calls or changing the production access policy. It does not run the full
+Barrier service, engine or GUI, and it does not simulate interactive logout,
+lock/unlock, UAC or user switching. Those checks remain open, as does replacing
+the inherited Windows OpenSSL dependency. Native execution requires Windows;
+these tests run on the hosted Windows 2025 runner.
+
+References: [WTSQueryUserToken](https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/nf-wtsapi32-wtsqueryusertoken),
+[LocalSystem account](https://learn.microsoft.com/en-us/windows/win32/services/localsystem-account)
+and [DeleteService lifetime](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-deleteservice).
+
+The final Windows candidate, `fedf3f124733925df8d13dceb296af1be1fa165e`,
+passed all three native CTest entries in
+[run 42149125814](https://github.com/TABARC-Code/barrier-x/actions/runs/42149125814):
+ten pipe checks, fourteen file checks and five service scenarios. The active
+console-user read passed on this runner, with no positive-case skip. The six
+existing service integration units also compiled. Earlier candidate failures
+were in the denial and inherited-access fixtures; the final assertions still
+require the intended access or rejection, with no production policy relaxation.
+Hosted Linux checks for the final candidate were still queued at publication.
+No local Linux build is claimed for this change.
