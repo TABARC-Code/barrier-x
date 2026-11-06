@@ -84,6 +84,7 @@ struct TcbDisabled {
     }
 };
 
+// FUTURE(BX-004): exercise logout and user switching through the installed desktop service.
 // Only dummy identities live in this temporary directory. The service result
 // travels through SCM status, rather than another file for somebody to replace.
 std::wstring service_name, directory;
@@ -215,21 +216,25 @@ struct Fixture {
         require(CreateDirectoryW(directory.c_str(), &attributes), "fixture directory");
     }
     void lock() {
-        Security owner_descriptor; PSID owner = nullptr;
-        auto path = directory + L"\\console.pem";
-        require(GetNamedSecurityInfoW(const_cast<wchar_t*>(path.c_str()), SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION,
-                                     &owner, nullptr, nullptr, nullptr, &owner_descriptor.value) == ERROR_SUCCESS, "fixture owner");
-        wchar_t* text = nullptr;
-        require(ConvertSidToStringSidW(owner, &text), "fixture owner SID");
-        std::wstring acl_text = L"D:P(A;;FA;;;" + std::wstring(text) + L")(A;;FA;;;SY)";
-        LocalFree(text);
-        Security security;
-        require(ConvertStringSecurityDescriptorToSecurityDescriptorW(acl_text.c_str(), SDDL_REVISION_1, &security.value, nullptr), "private fixture directory ACL");
-        PACL acl = nullptr; BOOL present = FALSE, defaulted = FALSE;
-        require(GetSecurityDescriptorDacl(security.value, &present, &acl, &defaulted), "fixture directory DACL");
+        auto restrict = [](const std::wstring& target, const std::wstring& owner_path) {
+            Security owner_descriptor; PSID owner = nullptr;
+            require(GetNamedSecurityInfoW(const_cast<wchar_t*>(owner_path.c_str()), SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION,
+                                         &owner, nullptr, nullptr, nullptr, &owner_descriptor.value) == ERROR_SUCCESS, "fixture owner");
+            wchar_t* text = nullptr;
+            require(ConvertSidToStringSidW(owner, &text), "fixture owner SID");
+            std::wstring acl_text = L"D:P(A;;FA;;;" + std::wstring(text) + L")(A;;FA;;;SY)";
+            LocalFree(text);
+            Security security;
+            require(ConvertStringSecurityDescriptorToSecurityDescriptorW(acl_text.c_str(), SDDL_REVISION_1, &security.value, nullptr), "private fixture ACL");
+            PACL acl = nullptr; BOOL present = FALSE, defaulted = FALSE;
+            require(GetSecurityDescriptorDacl(security.value, &present, &acl, &defaulted), "fixture DACL");
+            require(SetNamedSecurityInfoW(const_cast<wchar_t*>(target.c_str()), SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION, nullptr, nullptr, acl, nullptr) == ERROR_SUCCESS, "restrict fixture access");
+        };
+        // I preserve explicit service access before removing the inherited public ACEs.
+        restrict(directory + L"\\foreign.pem", directory + L"\\foreign.pem");
         // I close the public setup window before launching anything as LocalSystem.
-        require(SetNamedSecurityInfoW(const_cast<wchar_t*>(directory.c_str()), SE_FILE_OBJECT,
-            DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION, nullptr, nullptr, acl, nullptr) == ERROR_SUCCESS, "lock fixture directory");
+        restrict(directory, directory + L"\\console.pem");
     }
     ~Fixture() {
         for (auto name : {L"console.pem", L"foreign.pem", L"system.pem", L"denied.pem"}) { DeleteFileW((directory + L"\\" + name).c_str()); }
