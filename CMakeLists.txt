@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-cmake_minimum_required (VERSION 3.4)
+cmake_minimum_required (VERSION 3.20)
 project (barrier C CXX)
 
 option (BARRIER_BUILD_GUI "Build the GUI" ON)
@@ -36,12 +36,6 @@ endif()
 
 include (cmake/Version.cmake)
 include (cmake/Package.cmake)
-
-# TODO: Find out why we need these, and remove them
-if (COMMAND cmake_policy)
-    cmake_policy (SET CMP0003 NEW)
-    cmake_policy (SET CMP0005 NEW)
-endif()
 
 # Add headers to source list
 if (${CMAKE_GENERATOR} STREQUAL "Unix Makefiles")
@@ -291,6 +285,7 @@ elseif (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     list (APPEND libs Wtsapi32 Userenv Wininet comsuppw Shlwapi)
 
     add_definitions (
+        /DNOMINMAX=1
         /DSYSAPI_WIN32=1
         /DWINAPI_MSWINDOWS=1
         /D_SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING=1  # tr1 is used from gtest and gmock
@@ -308,18 +303,16 @@ include_directories("${CMAKE_SOURCE_DIR}/ext/gulrak-filesystem/include")
 # OpenSSL
 #
 if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    set (OPENSSL_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/ext/openssl/windows)
-    if (CMAKE_SIZEOF_VOID_P EQUAL 8)
-        set (OPENSSL_ROOT "${OPENSSL_ROOT}/x64")
-    else()
-        set (OPENSSL_ROOT "${OPENSSL_ROOT}/x86")
+    # I require the supported LTS line; bundled 1.0.2 binaries are no longer a fallback.
+    find_package(OpenSSL 3.5.9 REQUIRED COMPONENTS SSL Crypto)
+    if (NOT OPENSSL_VERSION MATCHES "^3[.]5[.]")
+        message(FATAL_ERROR "Windows requires OpenSSL 3.5 LTS, version 3.5.9 or newer")
     endif()
-
-    include_directories (BEFORE SYSTEM ${OPENSSL_ROOT}/include)
-    set (OPENSSL_LIBS
-        ${OPENSSL_ROOT}/lib/libeay32.lib
-        ${OPENSSL_ROOT}/lib/ssleay32.lib
-    )
+    set (OPENSSL_LIBS OpenSSL::SSL OpenSSL::Crypto)
+    if (BARRIER_BUILD_INSTALLER)
+        # FUTURE(BX-005): package the selected DLLs and notices before enabling installers.
+        message(FATAL_ERROR "The legacy Windows installer packages obsolete OpenSSL DLLs. Set BARRIER_BUILD_INSTALLER=OFF until packaging is updated.")
+    endif()
 elseif (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     find_program(APT_PROGRAM "apt")
     find_program(BREW_PROGRAM "brew")

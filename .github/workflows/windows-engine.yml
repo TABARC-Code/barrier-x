@@ -1,0 +1,69 @@
+name: Windows engine build
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: windows-engine-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  engine:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Initialise filesystem headers
+        run: git submodule update --init ext/gulrak-filesystem
+      - name: Identify dependency cache
+        id: key
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash ci/windows-dependencies.ps1 -Algorithm SHA256).Hash
+          "key=windows-engine-x64-$env:ImageVersion-$hash" >> $env:GITHUB_OUTPUT
+      - uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
+        id: dependencies
+        with:
+          path: ${{ runner.temp }}/barrier-deps
+          key: ${{ steps.key.outputs.key }}
+      - name: Build checked dependencies
+        if: steps.dependencies.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: ./ci/windows-dependencies.ps1 -Prefix "$env:RUNNER_TEMP\barrier-deps"
+      - uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
+        if: steps.dependencies.outputs.cache-hit != 'true'
+        with:
+          path: ${{ runner.temp }}/barrier-deps
+          key: ${{ steps.key.outputs.key }}
+      - name: Reject legacy TLS and installer configuration
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $false
+          $output = cmd /c clean_build.bat 2>&1
+          if ($LASTEXITCODE -ne 1 -or ($output -join "`n") -notmatch 'helper is retired') { throw 'Retired build helper was not blocked' }
+          $output = cmd /c build_installer.bat 2>&1
+          if ($LASTEXITCODE -ne 1 -or ($output -join "`n") -notmatch 'installers are disabled') { throw 'Retired installer helper was not blocked' }
+          $legacy = "$env:GITHUB_WORKSPACE/ext/openssl/windows/x64"
+          $output = cmake -S . -B rejected-tls -A x64 -DBARRIER_BUILD_GUI=OFF -DBARRIER_BUILD_TESTS=OFF -DBARRIER_BUILD_INSTALLER=OFF "-DOPENSSL_INCLUDE_DIR=$legacy/include" "-DOPENSSL_SSL_LIBRARY=$legacy/lib/ssleay32.lib" "-DOPENSSL_CRYPTO_LIBRARY=$legacy/lib/libeay32.lib" 2>&1
+          if ($LASTEXITCODE -eq 0 -or ($output -join "`n") -notmatch 'unsuitable\s+version\s+"1[.]0[.]2') { throw 'Legacy OpenSSL rejection was not verified' }
+          $output = cmake -S . -B rejected-installer -A x64 -DBARRIER_BUILD_GUI=OFF -DBARRIER_BUILD_TESTS=OFF -DBARRIER_BUILD_INSTALLER=ON "-DOPENSSL_ROOT_DIR=$env:RUNNER_TEMP/barrier-deps/openssl" 2>&1
+          if ($LASTEXITCODE -eq 0 -or ($output -join "`n") -notmatch 'legacy Windows installer packages obsolete') { throw 'Legacy installer rejection was not verified' }
+          $global:LASTEXITCODE = 0
+      - name: Configure engine and tests
+        shell: pwsh
+        run: |
+          cmake -S . -B build -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_CONFIGURATION_TYPES=Release -DBARRIER_BUILD_GUI=OFF -DBARRIER_BUILD_INSTALLER=OFF -DBARRIER_BUILD_TESTS=ON -DBARRIER_USE_EXTERNAL_GTEST=ON "-DOPENSSL_ROOT_DIR=$env:RUNNER_TEMP\barrier-deps\openssl" "-DCMAKE_PREFIX_PATH=$env:RUNNER_TEMP\barrier-deps\gtest"
+          if ($LASTEXITCODE -ne 0) { throw 'Engine configuration failed' }
+      - name: Build engine and tests
+        run: cmake --build build --config Release --parallel 2
+      - name: Check linked TLS and engine
+        shell: pwsh
+        run: |
+          $env:PATH = "$env:RUNNER_TEMP\barrier-deps\openssl\bin;$env:PATH"
+          & "$env:RUNNER_TEMP\barrier-deps\openssl\bin\openssl.exe" version -a
+          if ($LASTEXITCODE -ne 0) { throw 'OpenSSL runtime failed' }
+          ctest --test-dir build -C Release --output-on-failure
+          if ($LASTEXITCODE -ne 0) { throw 'Engine checks failed' }

@@ -24,5 +24,8 @@ endif()
 add_library(net STATIC ${sources})
 
 if (UNIX)
-    target_link_libraries(net mt io ${OPENSSL_LIBS})
+    target_link_libraries(net mt io)
 endif()
+
+# Imported TLS targets carry the selected headers and Windows system libraries.
+target_link_libraries(net ${OPENSSL_LIBS})

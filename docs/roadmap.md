@@ -2,11 +2,14 @@
 
 Updated 6 November 2026. Starting point: upstream-derived commit
 `653e4badeb88f61de901581667d4465d7b1e2d52` on `master`.
-Current development version: **2.4.16-snapshot**.
+Current development version: **2.4.17-snapshot**.
 
 The aim is dependable control across several computers, with a clear account
 of which device receives input and what it may share. Security, recovery and
 usable configuration come before extra transports or a new interface toolkit.
+
+The current order of work and external review requests are in
+[working-plan.md](working-plan.md).
 
 ## Tracking ideas in the code
 
@@ -29,7 +32,7 @@ planning update. A snapshot is not a tested release.
 | BX-002 | In progress, 2.4.3-snapshot | TLS 1.2 minimum implemented; TLS 1.3 remains available. Readiness now follows pin approval (2.4.9); trust-setting migration remains planned | Real memory-BIO handshakes reject TLS 1.0/1.1 and accept 1.2/1.3 in both roles; five controlled peer-trust regressions added in 2.4.9; pairing migration and real network tests still required |
 | BX-003 | Implemented, 2.4.13-snapshot | Windows named-pipe caller credentials, administrator command policy, retained child identity and queued-request checks | Ten native Windows checks passed, including a second local user; six service adapters compiled with the SDK. Portable authority and sanitiser checks passed. Interactive UAC, installed-service/session transitions and full Windows desktop validation remain unverified; see local-management.md |
 | BX-004 | In progress, 2.4.5-snapshot | EVP RSA-3072 generation, checked certificate construction and sibling-file publication implemented; new POSIX files use mode 0600 | Twenty-five storage tests, three engine-loader regressions and three GUI identity tests cover generation, existing POSIX mode migration, ownership/links, checked-handle loading and failure preservation (2.4.14). Windows protected owner/LocalSystem ACL creation and handle-based migration added in 2.4.15; fourteen native storage checks passed in run 41719122150, covering another local user, links and failed migration. Five LocalSystem service scenarios passed in run 42149125814 (2.4.16), including the actual console user and failed token/permission checks; live console switching, full Windows/macOS storage integration and parent traversal remain open |
-| BX-005 | In progress, 2.4.2-snapshot | GCC 13 header fixes, optional test dependencies, CTest registration and pinned Linux CI workflow implemented | Ubuntu CLI and unit build established; Debug/Release CI added; Qt GUI and Qt IPC checks added in 2.4.10; Windows/macOS, packaging and dependency replacement remain outstanding |
+| BX-005 | In progress, 2.4.2-snapshot | GCC 13 header fixes, optional test dependencies, CTest registration and pinned Linux CI workflow implemented | Ubuntu CLI and unit build established; Debug/Release CI added; Qt GUI and Qt IPC checks added in 2.4.10; Windows x64 Release engine builds and ten CTest entries established with checksum-pinned OpenSSL 3.5.9 in 2.4.17; CMake baseline 3.20, imported test targets and obsolete Windows helper/installer refusal added. Windows GUI/Debug, macOS and packaging remain outstanding |
 | BX-006 | Investigate | Bound protocol, clipboard and transfer accumulation; retain input responsiveness | Follow receive paths, fuzz malformed lengths/sequences, test queued-byte limits and cancellation; distinguish measured limits from assumptions |
 | BX-007 | Planned | Connection and pairing UX: discovered, approved, connected, focused, paused, failed | Status comes from engine state; distinct trust-rejection and network-loss errors; accessible controls; tested local-return path and key release on disconnect |
 

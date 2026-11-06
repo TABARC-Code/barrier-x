@@ -505,3 +505,55 @@ were in the denial and inherited-access fixtures; the final assertions still
 require the intended access or rejection, with no production policy relaxation.
 Hosted Linux checks for the final candidate were still queued at publication.
 No local Linux build is claimed for this change.
+
+
+## Windows engine TLS route (2.4.17)
+
+I build OpenSSL 3.5.9 from its checksum-pinned release archive and Google Test
+1.15.2 from its pinned commit. The Windows workflow then configures the full
+engine with external SDKs and imported targets. It checks old OpenSSL rejection,
+installer refusal and retired batch-helper exit codes before the positive build.
+The old Windows Azure download job is disabled. The new dependency cache uses an
+exact runner image/script key, with no prefix fallback.
+
+I read OpenSSL's Configure and Windows makefile entries, the Google Test CMake
+entry points/utilities and the cache action's restore/save source and metadata.
+Source hashes, licences, support/advisory references and review limits are in
+[dependencies.md](dependencies.md). OpenSSL's upstream test suite is not run by
+this helper; the application suites test integration. The loaded-version assertion
+covers libcrypto. It doesn't verify every provider or runtime DLL's hash.
+
+The first Windows candidate built both dependencies, then failed because the
+hosted CMake had removed compatibility below 3.5. The baseline is now 3.20;
+no compatibility flag hides that failure. The cache retains the checked SDKs
+while the engine changes are verified.
+
+This is an x64 Release engine route. Qt, discovery, desktop interaction, Debug
+Windows validation, installer deployment and interactive session changes remain
+open. Local execution is Linux; no local Windows build is claimed. The final Linux candidate passed Debug and Release builds, including the GUI.
+
+The final Windows engine candidate, `1333aafd920fc570d275a3c310639b53b8603141`,
+passed all ten CTest entries in
+[run 42264522552](https://github.com/TABARC-Code/barrier-x/actions/runs/42264522552).
+The client, server and service linked against the external SDK; the runtime
+command reported OpenSSL 3.5.9. Unit, SSL lifecycle, certificate storage, IPC
+framing/round trips, transfers and four client/server entry-point checks passed.
+The old SDK, installer and retired helper rejection checks passed before the
+positive build. CMake/GMock migration also exposed Windows min/max macro clashes
+and an invalid matcher downcast; NOMINMAX and a checked frame matcher fix those.
+The separate native suite passed all twenty-nine checks in
+[run 42264522574](https://github.com/TABARC-Code/barrier-x/actions/runs/42264522574).
+
+Windows failure-injection cases which rely on Unix linker wrapping remain
+unavailable in this route. Linking the service isn't an installed desktop test;
+those limits above still apply. No Deskflow or Input Leap source was copied or
+executed: their inspected Qt/deployment patterns are recorded as proposals in
+the working plan, with pinned source links and licence constraints.
+
+The same final candidate passed Linux Debug/Release and the Debug ASan/UBSan
+checks with leak detection enabled in
+[run 42264522576](https://github.com/TABARC-Code/barrier-x/actions/runs/42264522576).
+Both normal configurations passed twelve CTest entries; the sanitised job passed
+its four selected entries. I reviewed the final diff after those results. The
+implemented version is 2.4.17-snapshot; the working plan keeps Windows GUI,
+Debug, packaging and interactive desktop checks open.

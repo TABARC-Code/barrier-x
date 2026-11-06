@@ -288,3 +288,48 @@ console-user access, in run 42149125814. The existing fourteen storage and ten
 pipe checks passed in the same run. This confirms the tested storage helper's
 policy under a real LocalSystem process; it does not close the interactive
 session-transition work.
+
+
+## Follow-up: 2.4.17-snapshot
+
+I replace the Windows CMake selection of bundled OpenSSL 1.0.2 with imported
+OpenSSL targets. The Windows SDK must be on the supported 3.5 LTS line, at least
+3.5.9. The source archive is checked against the official SHA-256 before building.
+This changes dependency selection; it doesn't change peer approval or the TLS
+1.2 protocol minimum. The added runtime assertion checks libcrypto's version.
+Full libssl/provider provenance and deployment paths still need packaging work.
+
+I refuse installer generation while the historical templates select old DLLs.
+The batch build/installer helpers are retired, and the old Azure Windows job is
+disabled before its unchecked legacy SDK downloads. Other historical packaging
+files remain for reference. The current engine route builds from pinned sources
+and has explicit rejection checks for the old SDK and helper paths.
+
+The hosted CMake version rejected the project's 3.4 compatibility declaration.
+I raise the baseline to 3.20, remove redundant policy settings and use imported
+Google Test/Mock targets where available. The GUI test target now consumes those
+selected targets too. The Windows GUI still needs Qt and discovery work; this
+change doesn't claim a complete desktop or installer build.
+
+The working plan separates build, library, shutdown, trust/recovery, input and
+sharing work. Dependency notes record reviewed entry points, source revisions,
+licences and gaps. I ask for external Windows deployment/session review and a
+check of distribution licence combinations before installers are published.
+
+The first engine compilation also exposed Windows min/max macros rewriting the
+standard-library bounds calls in fingerprint randomart. I define NOMINMAX for
+the Windows build, matching the existing native SDK harness.
+
+Current Google Mock also rejected a Windows-only matcher which cast a base
+message matcher to a derived log frame. I match the actual frame type and text
+instead, preserving the test's assertion without an unchecked downcast.
+
+The x64 Windows Release candidate passed all ten engine CTest entries in run
+42264522552, alongside twenty-nine native checks in run 42264522574. The client,
+server and service linked with the external OpenSSL SDK. The working plan records
+reviewed Deskflow/Input Leap migration and deployment approaches as proposals;
+none of their source or scripts was adopted by this change.
+
+Linux Debug/Release, GUI checks and Debug ASan/UBSan with leak detection passed
+for the final candidate in run 42264522576. This is verified build progress;
+the full application security audit and the desktop/deployment review stay open.
