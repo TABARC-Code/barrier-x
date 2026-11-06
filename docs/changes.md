@@ -1,5 +1,10 @@
 # barrier-x changes
 
+## 2.4.17-snapshot - 6 November 2026
+
+- I select external OpenSSL 3.5 LTS libraries for Windows builds.
+- I refuse the obsolete installer path and support imported Google Test targets.
+
 ## 2.4.16-snapshot - 6 November 2026
 
 - I add Windows identity checks through a temporary LocalSystem service.

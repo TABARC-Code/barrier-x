@@ -15,13 +15,15 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 if (BARRIER_USE_EXTERNAL_GTEST)
-    include (FindPkgConfig)
     find_package(GTest REQUIRED)
-    pkg_check_modules(GMOCK REQUIRED gmock)
-    include_directories(
-        ${GTEST_INCLUDE_DIRS}
-        ${GMOCK_INCLUDE_DIRS}
-    )
+    if (TARGET GTest::gmock)
+        set(GTEST_LIBRARIES GTest::gtest)
+        set(GMOCK_LIBRARIES GTest::gmock)
+    else()
+        include(FindPkgConfig)
+        pkg_check_modules(GMOCK REQUIRED gmock)
+        include_directories(${GTEST_INCLUDE_DIRS} ${GMOCK_INCLUDE_DIRS})
+    endif()
 else()
     include_directories(
         ../ext/gtest

@@ -183,5 +183,5 @@ if (BARRIER_BUILD_TESTS)
     set_tests_properties(guiunittests PROPERTIES TIMEOUT 60 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
     target_include_directories(guiunittests PUBLIC ../../ext)
-    target_link_libraries(guiunittests gtest gmock Qt5::Core Qt5::Widgets Qt5::Network ${libs} net base io common ${OPENSSL_LIBS})
+    target_link_libraries(guiunittests ${GTEST_LIBRARIES} ${GMOCK_LIBRARIES} Qt5::Core Qt5::Widgets Qt5::Network ${libs} net base io common ${OPENSSL_LIBS})
 endif()
