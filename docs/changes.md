@@ -1,5 +1,10 @@
 # barrier-x changes
 
+## 2.4.16-snapshot - 6 November 2026
+
+- I check Windows identity access through a temporary LocalSystem service.
+- I cover console-user ownership, foreign keys and failed permission or token checks.
+
 ## 2.4.15-snapshot - 3 November 2026
 
 - I create Windows identity files with protected owner and LocalSystem permissions.

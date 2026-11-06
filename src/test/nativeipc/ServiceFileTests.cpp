@@ -1,0 +1,307 @@
+/* Copyright (C) 2026 barrier-x contributors
+ * Distributed under the GNU General Public License; see LICENSE. */
+#include "../../lib/io/WinPrivateFile.h"
+#include "../../lib/ipc/WinLocalPipe.h"
+#include <aclapi.h>
+#include <sddl.h>
+#include <wtsapi32.h>
+#include <lm.h>
+#include <bcrypt.h>
+#include <io.h>
+#include <iostream>
+#include <stdexcept>
+#include <system_error>
+#include <vector>
+using barrier::localipc::Handle;
+namespace {
+void require(bool condition, const char* message) {
+    if (!condition) { throw std::runtime_error(message); }
+}
+struct Descriptor {
+    int value;
+    explicit Descriptor(int fd) : value(fd) {}
+    ~Descriptor() { if (value >= 0) { _close(value); } }
+    Descriptor(const Descriptor&) = delete;
+    Descriptor& operator=(const Descriptor&) = delete;
+};
+struct Security {
+    PSECURITY_DESCRIPTOR value = nullptr;
+    ~Security() { LocalFree(value); }
+};
+struct ScHandle {
+    SC_HANDLE value;
+    explicit ScHandle(SC_HANDLE handle) : value(handle) {}
+    ~ScHandle() { if (value) { CloseServiceHandle(value); } }
+    ScHandle(const ScHandle&) = delete;
+    ScHandle& operator=(const ScHandle&) = delete;
+};
+std::vector<BYTE> user(HANDLE token) {
+    DWORD size = 0;
+    GetTokenInformation(token, TokenUser, nullptr, 0, &size);
+    require(size != 0, "token size");
+    std::vector<BYTE> bytes(size);
+    require(GetTokenInformation(token, TokenUser, bytes.data(), size, &size), "token user");
+    return bytes;
+}
+PSID sid(std::vector<BYTE>& bytes) { return reinterpret_cast<TOKEN_USER*>(bytes.data())->User.Sid; }
+void write_identity(const std::wstring& path) {
+    Descriptor file(barrier::create_private_file(path));
+    require(_write(file.value, "test identity", 13) == 13, "write dummy identity");
+}
+void read_identity(const std::wstring& path) {
+    Descriptor file(barrier::read_private_file(path));
+    char bytes[14]{};
+    require(_read(file.value, bytes, sizeof(bytes)) == 13 && std::string(bytes, 13) == "test identity", "identity bytes changed");
+}
+void ownership_refused(const std::wstring& path) {
+    bool refused = false;
+    try { read_identity(path); }
+    catch (const std::runtime_error& error) { refused = std::string(error.what()).find("another owner") != std::string::npos; }
+    require(refused, "service accepted foreign ownership");
+}
+struct TcbDisabled {
+    Handle token;
+    TOKEN_PRIVILEGES previous{};
+    bool changed = false;
+    TcbDisabled() {
+        HANDLE raw = nullptr;
+        require(OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY | TOKEN_ADJUST_PRIVILEGES, &raw), "privilege token");
+        token.reset(raw);
+        TOKEN_PRIVILEGES update{};
+        update.PrivilegeCount = 1;
+        require(LookupPrivilegeValueW(nullptr, L"SeTcbPrivilege", &update.Privileges[0].Luid), "TCB privilege lookup");
+        DWORD size = sizeof(previous);
+        SetLastError(ERROR_SUCCESS);
+        BOOL result = AdjustTokenPrivileges(token.get(), FALSE, &update, sizeof(previous), &previous, &size);
+        require(result && GetLastError() == ERROR_SUCCESS, "disable TCB privilege");
+        changed = true;
+    }
+    ~TcbDisabled() {
+        if (changed) {
+            SetLastError(ERROR_SUCCESS);
+            if (!AdjustTokenPrivileges(token.get(), FALSE, &previous, 0, nullptr, nullptr) || GetLastError() != ERROR_SUCCESS) { std::terminate(); }
+        }
+    }
+};
+
+// Only dummy identities live in this temporary directory. The service result
+// travels through SCM status, rather than another file for somebody to replace.
+std::wstring service_name, directory;
+constexpr DWORD result_marker = 0x42580000;
+constexpr DWORD own_pass = 1, console_pass = 2, foreign_pass = 4, token_failure_pass = 8,
+                permission_pass = 16, console_accepted = 32, failure = 0x8000;
+DWORD stage = 0;
+DWORD exercise_service() {
+    stage = 1;
+    HANDLE raw = nullptr;
+    require(OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &raw), "service process token");
+    Handle token(raw);
+    auto process_user = user(token.get());
+    BYTE system[SECURITY_MAX_SID_SIZE]; DWORD size = sizeof(system);
+    require(CreateWellKnownSid(WinLocalSystemSid, nullptr, system, &size) && EqualSid(sid(process_user), system), "service is not LocalSystem");
+    DWORD result = result_marker;
+    write_identity(directory + L"\\system.pem");
+    read_identity(directory + L"\\system.pem");
+    result |= own_pass;
+
+    stage = 2;
+    Security security; PSID owner = nullptr;
+    require(GetNamedSecurityInfoW(const_cast<wchar_t*>((directory + L"\\console.pem").c_str()), SE_FILE_OBJECT,
+                                 OWNER_SECURITY_INFORMATION, &owner, nullptr, nullptr, nullptr, &security.value) == ERROR_SUCCESS, "console file owner");
+    bool matches_console = false;
+    HANDLE console_raw = nullptr;
+    if (WTSQueryUserToken(WTSGetActiveConsoleSessionId(), &console_raw)) {
+        Handle console(console_raw);
+        auto console_user = user(console.get());
+        matches_console = EqualSid(owner, sid(console_user)) != FALSE;
+    }
+    if (matches_console) { read_identity(directory + L"\\console.pem"); result |= console_accepted; }
+    else { ownership_refused(directory + L"\\console.pem"); }
+    result |= console_pass;
+
+    stage = 3;
+    // I prove the service can open the fixture before testing its owner policy.
+    { Handle file(CreateFileW((directory + L"\\foreign.pem").c_str(), GENERIC_READ | READ_CONTROL | WRITE_DAC,
+                              0, nullptr, OPEN_EXISTING, 0, nullptr));
+      require(static_cast<bool>(file), "foreign fixture inaccessible to service"); }
+    ownership_refused(directory + L"\\foreign.pem");
+    result |= foreign_pass;
+
+    stage = 4;
+    { TcbDisabled disabled;
+      HANDLE unexpected = nullptr;
+      BOOL queried = WTSQueryUserToken(WTSGetActiveConsoleSessionId(), &unexpected);
+      Handle cleanup(unexpected);
+      require(!queried, "console query succeeded without TCB privilege");
+      ownership_refused(directory + L"\\console.pem"); }
+    result |= token_failure_pass;
+
+    stage = 5;
+    write_identity(directory + L"\\denied.pem");
+    Security denied;
+    require(ConvertStringSecurityDescriptorToSecurityDescriptorW(L"D:P(D;;WD;;;SY)(A;;FA;;;SY)", SDDL_REVISION_1, &denied.value, nullptr), "denial ACL");
+    PACL acl = nullptr; BOOL present = FALSE, defaulted = FALSE;
+    require(GetSecurityDescriptorDacl(denied.value, &present, &acl, &defaulted), "denial DACL");
+    require(SetNamedSecurityInfoW(const_cast<wchar_t*>((directory + L"\\denied.pem").c_str()), SE_FILE_OBJECT,
+                                 DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION, nullptr, nullptr, acl, nullptr) == ERROR_SUCCESS, "apply denial ACL");
+    bool refused = false;
+    try { read_identity(directory + L"\\denied.pem"); }
+    catch (const std::system_error& error) { refused = error.code().value() == ERROR_ACCESS_DENIED; }
+    require(refused, "service ignored denied WRITE_DAC");
+    { Handle file(CreateFileW((directory + L"\\denied.pem").c_str(), GENERIC_READ, 0, nullptr, OPEN_EXISTING, 0, nullptr));
+      char bytes[14]{}; DWORD count = 0;
+      require(file && ReadFile(file.get(), bytes, sizeof(bytes), &count, nullptr) && count == 13 &&
+              std::string(bytes, 13) == "test identity", "failed migration changed bytes"); }
+    return result | permission_pass;
+}
+void WINAPI control(DWORD operation) {
+    // This is a short-lived test service; cancellation must not leave it running.
+    if (operation == SERVICE_CONTROL_STOP) { ExitProcess(ERROR_CANCELLED); }
+}
+void WINAPI service_main(DWORD, wchar_t**) {
+    SERVICE_STATUS_HANDLE handle = RegisterServiceCtrlHandlerW(service_name.c_str(), control);
+    if (!handle) { return; }
+    SERVICE_STATUS status{};
+    status.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
+    status.dwCurrentState = SERVICE_RUNNING;
+    status.dwControlsAccepted = SERVICE_ACCEPT_STOP;
+    if (!SetServiceStatus(handle, &status)) { return; }
+    DWORD result = result_marker | failure;
+    try { result = exercise_service(); } catch (...) { result |= stage << 8; }
+    status.dwCurrentState = SERVICE_STOPPED;
+    status.dwControlsAccepted = 0;
+    // SCM preserves the bounded test result as a service-specific exit code.
+    status.dwWin32ExitCode = ERROR_SERVICE_SPECIFIC_ERROR;
+    status.dwServiceSpecificExitCode = result;
+    SetServiceStatus(handle, &status);
+}
+struct Account {
+    std::wstring name = L"BXSvc" + std::to_wstring(GetCurrentProcessId()) + std::to_wstring(GetTickCount64() % 1000000);
+    bool created = false;
+    Handle token;
+    Account() {
+        UCHAR random[24];
+        require(BCryptGenRandom(nullptr, random, sizeof(random), BCRYPT_USE_SYSTEM_PREFERRED_RNG) == 0, "account randomness");
+        std::wstring password = L"Bx9!";
+        for (auto byte : random) { password += L"0123456789abcdef"[byte >> 4]; password += L"0123456789abcdef"[byte & 15]; }
+        USER_INFO_1 info{};
+        info.usri1_name = const_cast<wchar_t*>(name.c_str()); info.usri1_password = const_cast<wchar_t*>(password.c_str());
+        info.usri1_priv = USER_PRIV_USER; info.usri1_flags = UF_SCRIPT | UF_NORMAL_ACCOUNT;
+        DWORD parameter = 0;
+        require(NetUserAdd(nullptr, 1, reinterpret_cast<BYTE*>(&info), &parameter) == NERR_Success, "create test user");
+        created = true;
+        HANDLE raw = nullptr;
+        if (!LogonUserW(name.c_str(), L".", password.c_str(), LOGON32_LOGON_INTERACTIVE, LOGON32_PROVIDER_DEFAULT, &raw)) {
+            NetUserDel(nullptr, name.c_str()); created = false;
+            throw std::runtime_error("test user logon");
+        }
+        token.reset(raw);
+    }
+    ~Account() { if (created) { NetUserDel(nullptr, name.c_str()); } }
+    void remove() {
+        token.reset();
+        require(NetUserDel(nullptr, name.c_str()) == NERR_Success, "delete test user"); created = false;
+    }
+};
+struct Fixture {
+    Fixture() {
+        wchar_t path[MAX_PATH]; DWORD length = GetTempPathW(MAX_PATH, path);
+        require(length && length < MAX_PATH, "temporary path");
+        directory = std::wstring(path) + L"BXServiceFile-" + std::to_wstring(GetCurrentProcessId()) + L"-" + std::to_wstring(GetTickCount64());
+        Security security;
+        // Deliberately public fixtures allow a real second user to create its file.
+        require(ConvertStringSecurityDescriptorToSecurityDescriptorW(L"D:P(A;OICI;FA;;;WD)", SDDL_REVISION_1, &security.value, nullptr), "fixture ACL");
+        SECURITY_ATTRIBUTES attributes{sizeof(attributes), security.value, FALSE};
+        require(CreateDirectoryW(directory.c_str(), &attributes), "fixture directory");
+    }
+    ~Fixture() {
+        for (auto name : {L"console.pem", L"foreign.pem", L"system.pem", L"denied.pem"}) { DeleteFileW((directory + L"\\" + name).c_str()); }
+        RemoveDirectoryW(directory.c_str());
+    }
+};
+struct TemporaryService {
+    ScHandle manager{OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT | SC_MANAGER_CREATE_SERVICE)};
+    ScHandle handle{nullptr};
+    bool marked = false;
+    TemporaryService() {
+        require(manager.value != nullptr, "open service manager");
+        std::vector<wchar_t> path(32768);
+        DWORD length = GetModuleFileNameW(nullptr, path.data(), static_cast<DWORD>(path.size()));
+        require(length && length < path.size(), "test executable path");
+        service_name = L"BXFileTest-" + std::to_wstring(GetCurrentProcessId()) + L"-" + std::to_wstring(GetTickCount64());
+        std::wstring command = L"\"" + std::wstring(path.data(), length) + L"\" --service \"" + service_name + L"\" \"" + directory + L"\"";
+        handle.value = CreateServiceW(manager.value, service_name.c_str(), service_name.c_str(),
+            SERVICE_START | SERVICE_QUERY_STATUS | SERVICE_STOP | DELETE, SERVICE_WIN32_OWN_PROCESS, SERVICE_DEMAND_START,
+            SERVICE_ERROR_NORMAL, command.c_str(), nullptr, nullptr, nullptr, L"LocalSystem", nullptr);
+        require(handle.value != nullptr, "create temporary service");
+    }
+    ~TemporaryService() {
+        if (handle.value) {
+            SERVICE_STATUS status{};
+            ControlService(handle.value, SERVICE_CONTROL_STOP, &status);
+            if (!marked) { DeleteService(handle.value); }
+        }
+    }
+    void remove() {
+        CloseServiceHandle(handle.value); handle.value = nullptr;
+        ULONGLONG deadline = GetTickCount64() + 5000;
+        do {
+            SC_HANDLE probe = OpenServiceW(manager.value, service_name.c_str(), SERVICE_QUERY_STATUS);
+            DWORD error = GetLastError();
+            if (probe) { CloseServiceHandle(probe); }
+            else if (error == ERROR_SERVICE_DOES_NOT_EXIST) { return; }
+            Sleep(50);
+        } while (GetTickCount64() < deadline);
+        throw std::runtime_error("temporary service registration remains");
+    }
+    DWORD run() {
+        require(StartServiceW(handle.value, 0, nullptr), "start temporary service");
+        // Mark only after starting: SCM refuses to start an entry already marked for deletion.
+        require(DeleteService(handle.value), "mark temporary service for deletion");
+        marked = true;
+        SERVICE_STATUS_PROCESS status{}; DWORD size = 0;
+        ULONGLONG deadline = GetTickCount64() + 20000;
+        do {
+            require(QueryServiceStatusEx(handle.value, SC_STATUS_PROCESS_INFO, reinterpret_cast<BYTE*>(&status), sizeof(status), &size), "query service result");
+            if (status.dwCurrentState == SERVICE_STOPPED) {
+                require(status.dwWin32ExitCode == ERROR_SERVICE_SPECIFIC_ERROR, "service stopped without a test result");
+                return status.dwServiceSpecificExitCode;
+            }
+            Sleep(50);
+        } while (GetTickCount64() < deadline);
+        throw std::runtime_error("service test timed out");
+    }
+};
+}
+int wmain(int argc, wchar_t** argv) {
+    if (argc == 4 && std::wstring(argv[1]) == L"--service") {
+        service_name = argv[2]; directory = argv[3];
+        SERVICE_TABLE_ENTRYW table[] = {{const_cast<wchar_t*>(service_name.c_str()), service_main}, {nullptr, nullptr}};
+        return StartServiceCtrlDispatcherW(table) ? 0 : 1;
+    }
+    try {
+        Fixture fixture;
+        write_identity(directory + L"\\console.pem");
+        Account account;
+        require(ImpersonateLoggedOnUser(account.token.get()), "foreign user impersonation");
+        HANDLE created = CreateFileW((directory + L"\\foreign.pem").c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, 0, nullptr);
+        DWORD creation_error = GetLastError();
+        if (!RevertToSelf()) { std::terminate(); }
+        Handle foreign(created);
+        require(foreign && creation_error != ERROR_ALREADY_EXISTS, "foreign identity fixture");
+        foreign.reset();
+        DWORD result = 0;
+        { TemporaryService service; result = service.run(); service.remove(); }
+        account.remove();
+        constexpr DWORD required = result_marker | own_pass | console_pass | foreign_pass | token_failure_pass | permission_pass;
+        if ((result & ~console_accepted) != required) {
+            throw std::runtime_error("LocalSystem file check failed at stage " + std::to_string((result >> 8) & 0x7f));
+        }
+        std::cout << "PASS LocalSystem key creation and reading\n";
+        if (result & console_accepted) { std::cout << "PASS active console user's key\n"; }
+        else { std::cout << "SKIP console-user acceptance: runner has no matching active console\nPASS console-owner mismatch refused\n"; }
+        std::cout << "PASS foreign owner's key refused\nPASS failed console-token lookup refused\nPASS denied permission migration preserves bytes\n";
+        return 0;
+    }
+    catch (const std::exception& error) { std::cerr << "FAIL " << error.what() << '\n'; return 1; }
+}
