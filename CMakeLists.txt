@@ -285,6 +285,7 @@ elseif (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     list (APPEND libs Wtsapi32 Userenv Wininet comsuppw Shlwapi)
 
     add_definitions (
+        /DNOMINMAX=1
         /DSYSAPI_WIN32=1
         /DWINAPI_MSWINDOWS=1
         /D_SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING=1  # tr1 is used from gtest and gmock

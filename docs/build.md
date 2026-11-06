@@ -505,3 +505,31 @@ were in the denial and inherited-access fixtures; the final assertions still
 require the intended access or rejection, with no production policy relaxation.
 Hosted Linux checks for the final candidate were still queued at publication.
 No local Linux build is claimed for this change.
+
+
+## Windows engine TLS route (2.4.17)
+
+I build OpenSSL 3.5.9 from its checksum-pinned release archive and Google Test
+1.15.2 from its pinned commit. The Windows workflow then configures the full
+engine with external SDKs and imported targets. It checks old OpenSSL rejection,
+installer refusal and retired batch-helper exit codes before the positive build.
+The old Windows Azure download job is disabled. The new dependency cache uses an
+exact runner image/script key, with no prefix fallback.
+
+I read OpenSSL's Configure and Windows makefile entries, the Google Test CMake
+entry points/utilities and the cache action's restore/save source and metadata.
+Source hashes, licences, support/advisory references and review limits are in
+[dependencies.md](dependencies.md). OpenSSL's upstream test suite is not run by
+this helper; the application suites test integration. The loaded-version assertion
+covers libcrypto. It doesn't verify every provider or runtime DLL's hash.
+
+The first Windows candidate built both dependencies, then failed because the
+hosted CMake had removed compatibility below 3.5. The baseline is now 3.20;
+no compatibility flag hides that failure. The cache retains the checked SDKs
+while the engine changes are verified.
+
+This is an x64 Release engine route. Qt, discovery, desktop interaction, Debug
+Windows validation, installer deployment and interactive session changes remain
+open. Local execution is Linux; no local Windows build is claimed. The initial
+Linux Debug candidate passed its full checks; final-candidate evidence follows
+when its run completes.
