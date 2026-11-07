@@ -90,10 +90,10 @@ set(GUI_HEADER_FILES
 if (BARRIER_BUILD_DISCOVERY)
     list(APPEND GUI_SOURCE_FILES
         src/ZeroconfBrowser.cpp src/ZeroconfRegister.cpp src/ZeroconfServer.cpp
-        src/ZeroconfService.cpp src/ZeroconfThread.cpp)
+        src/ZeroconfService.cpp)
     list(APPEND GUI_HEADER_FILES
         src/ZeroconfBrowser.h src/ZeroconfRegister.h src/ZeroconfServer.h
-        src/ZeroconfService.h src/ZeroconfThread.h src/ZeroconfRecord.h)
+        src/ZeroconfService.h src/ZeroconfRecord.h)
 endif()
 
 set(GUI_UI_FILES

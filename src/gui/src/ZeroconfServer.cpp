@@ -16,9 +16,8 @@
  */
 
 #include "ZeroconfServer.h"
-#include "ZeroconfThread.h"
+#include <QTcpSocket>
 
-#include <stdlib.h>
 
 ZeroconfServer::ZeroconfServer(QObject* parent) :
     QTcpServer(parent)
@@ -27,7 +26,10 @@ ZeroconfServer::ZeroconfServer(QObject* parent) :
 
 void ZeroconfServer::incomingConnection(qintptr socketDescriptor)
 {
-    ZeroconfThread* thread = new ZeroconfThread(socketDescriptor, this);
-    connect(thread, SIGNAL(finished()), thread, SLOT(deleteLater()));
-    thread->start();
+    // This listener advertises availability; it has no payload to read or worker to wait for.
+    QTcpServer::incomingConnection(socketDescriptor);
+    while (QTcpSocket* socket = nextPendingConnection()) {
+        socket->abort();
+        delete socket;
+    }
 }

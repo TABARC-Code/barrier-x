@@ -147,7 +147,6 @@ MainWindow::MainWindow(QSettings& settings, AppConfig& appConfig) :
 #endif
 
     updateDiscoveryControls();
-    updateZeroconfService();
 
     m_pComboServerList->hide();
     m_pLabelPadlock->hide();
@@ -1176,6 +1175,9 @@ void MainWindow::updateDiscoveryControls()
 {
     const bool available = discoveryAvailable();
     const bool automatic = available && appConfig().autoConfig();
+    const bool changed = available != m_DiscoveryWasAvailable ||
+        automatic != m_pCheckBoxAutoConfig->isChecked();
+    m_DiscoveryWasAvailable = available;
     // I keep the saved preference when the backend is absent. A build switch isn't a user choice.
     const QSignalBlocker blocker(m_pCheckBoxAutoConfig);
     m_pCheckBoxAutoConfig->setChecked(automatic);
@@ -1188,6 +1190,8 @@ void MainWindow::updateDiscoveryControls()
         m_pComboServerList->clear();
         m_pComboServerList->hide();
     }
+    // Blocked checkbox signals mustn't leave recovered discovery without a reader.
+    if (changed) { updateZeroconfService(); }
     // FUTURE(BX-007): show discovery availability separately from connection and peer approval.
 }
 

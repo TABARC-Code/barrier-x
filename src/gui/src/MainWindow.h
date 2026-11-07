@@ -105,7 +105,7 @@ class MainWindow : public QMainWindow, public Ui::MainWindowBase
         void showConfigureServer(const QString& message);
         void showConfigureServer() { showConfigureServer(""); }
         void autoAddScreen(const QString name);
-        void updateZeroconfService();
+        virtual void updateZeroconfService();
         void serverDetected(const QString name);
 
 public slots:
@@ -155,7 +155,7 @@ public slots:
 #if defined(Q_OS_WIN)
         bool isServiceRunning(QString name);
 #endif
-        bool discoveryAvailable();
+        virtual bool discoveryAvailable();
         void updateDiscoveryControls();
         void checkConnected(const QString& line);
         void checkFingerprint(const QString& line);
@@ -165,6 +165,7 @@ public slots:
         void updateSSLFingerprint();
 
     private:
+        bool m_DiscoveryWasAvailable = false;
         QSettings& m_Settings;
         AppConfig* m_AppConfig;
         QProcess* m_pBarrier;

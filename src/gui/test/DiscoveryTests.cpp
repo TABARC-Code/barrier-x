@@ -11,12 +11,26 @@
 #include <QLineEdit>
 #include <QTemporaryDir>
 #include <memory>
+#if BARRIER_WITH_DISCOVERY
+#include "../src/ZeroconfServer.h"
+#include <QTcpSocket>
+#include <QThread>
+#endif
 
 class DiscoveryWindow : public MainWindow {
 public:
     using MainWindow::MainWindow;
     using MainWindow::clientArgs;
     using MainWindow::discoveryAvailable;
+    using MainWindow::updateDiscoveryControls;
+};
+class RecoveryWindow : public DiscoveryWindow {
+public:
+    using DiscoveryWindow::DiscoveryWindow;
+    bool available = false;
+    int lifecycleUpdates = 0;
+    bool discoveryAvailable() override { return available; }
+    void updateZeroconfService() override { ++lifecycleUpdates; }
 };
 class DiscoveryTests : public ::testing::Test {
 protected:
@@ -123,5 +137,46 @@ TEST_F(DiscoveryTests, ExplicitManualChoiceUpdatesTheSavedPreference)
     EXPECT_TRUE(hostname()->isEnabled());
     window.reset(); config.reset();
     EXPECT_FALSE(settings->value("autoConfig").toBool());
+}
+#endif
+
+#if BARRIER_WITH_DISCOVERY
+TEST_F(DiscoveryTests, AvailabilityRefreshReconcilesReaderAndControls)
+{
+    settings->setValue("autoConfig", true);
+    config.reset(new AppConfig(settings.get()));
+    RecoveryWindow recovery(*settings, *config);
+    recovery.updateDiscoveryControls();
+    const int initial = recovery.lifecycleUpdates;
+    auto* checkbox = recovery.findChild<QCheckBox*>("m_pCheckBoxAutoConfig");
+    auto* address = recovery.findChild<QLineEdit*>("m_pLineEditHostname");
+    EXPECT_FALSE(checkbox->isChecked());
+    recovery.available = true;
+    recovery.updateDiscoveryControls();
+    EXPECT_EQ(initial + 1, recovery.lifecycleUpdates);
+    EXPECT_TRUE(checkbox->isChecked());
+    EXPECT_FALSE(address->isEnabled());
+    recovery.updateDiscoveryControls();
+    EXPECT_EQ(initial + 1, recovery.lifecycleUpdates);
+    recovery.available = false;
+    recovery.updateDiscoveryControls();
+    EXPECT_EQ(initial + 2, recovery.lifecycleUpdates);
+    EXPECT_FALSE(checkbox->isChecked());
+    EXPECT_TRUE(address->isEnabled());
+    EXPECT_TRUE(config->autoConfig());
+}
+TEST(DiscoveryListenerTests, AcceptedConnectionsLeaveNoWorkersOrPendingSockets)
+{
+    for (int attempt = 0; attempt != 20; ++attempt) {
+        ZeroconfServer listener;
+        ASSERT_TRUE(listener.listen(QHostAddress::LocalHost, 0));
+        QTcpSocket client;
+        client.connectToHost(QHostAddress::LocalHost, listener.serverPort());
+        ASSERT_TRUE(client.waitForConnected(2000));
+        ASSERT_TRUE(listener.waitForNewConnection(2000));
+        EXPECT_FALSE(listener.hasPendingConnections());
+        EXPECT_TRUE(listener.findChildren<QTcpSocket*>().isEmpty());
+        EXPECT_TRUE(listener.findChildren<QThread*>().isEmpty());
+    }
 }
 #endif
