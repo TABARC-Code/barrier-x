@@ -23,15 +23,15 @@
 #include "AboutDialog.h"
 #include "ServerConfigDialog.h"
 #include "SettingsDialog.h"
+#if BARRIER_WITH_DISCOVERY
 #include "ZeroconfService.h"
-#include "DataDownloader.h"
-#include "CommandProcess.h"
+#endif
 #include "FingerprintAcceptDialog.h"
 #include "QUtility.h"
-#include "ProcessorArch.h"
 #include "SslCertificate.h"
 #include "ShutdownCh.h"
 #include "base/String.h"
+#include "base/finally.h"
 #include "common/DataDirectories.h"
 #include "net/FingerprintDatabase.h"
 #include "net/SecureUtils.h"
@@ -60,10 +60,6 @@ static const QString allFilesFilter(QObject::tr("All files (*.*)"));
 #if defined(Q_OS_WIN)
 static const char barrierConfigName[] = "barrier.sgc";
 static const QString barrierConfigFilter(QObject::tr("Barrier Configurations (*.sgc)"));
-static QString bonjourBaseUrl = "http://binaries.symless.com/bonjour/";
-static const char bonjourFilename32[] = "Bonjour.msi";
-static const char bonjourFilename64[] = "Bonjour64.msi";
-static const char bonjourTargetFilename[] = "Bonjour.msi";
 #else
 static const char barrierConfigName[] = "barrier.conf";
 static const QString barrierConfigFilter(QObject::tr("Barrier Configurations (*.conf)"));
@@ -112,11 +108,6 @@ MainWindow::MainWindow(QSettings& settings, AppConfig& appConfig) :
     m_pMenuBarrier(NULL),
     m_pMenuHelp(NULL),
     m_pZeroconfService(NULL),
-    m_pDataDownloader(NULL),
-    m_DownloadMessageBox(NULL),
-    m_pCancelButton(NULL),
-    m_SuppressAutoConfigWarning(false),
-    m_BonjourInstall(NULL),
     m_SuppressEmptyServerWarning(false),
     m_ExpectedRunningState(kStopped),
     m_pSslCertificate(NULL),
@@ -155,9 +146,8 @@ MainWindow::MainWindow(QSettings& settings, AppConfig& appConfig) :
     setMinimumSize(700, 0);
 #endif
 
-    m_SuppressAutoConfigWarning = true;
-    m_pCheckBoxAutoConfig->setChecked(appConfig.autoConfig());
-    m_SuppressAutoConfigWarning = false;
+    updateDiscoveryControls();
+    updateZeroconfService();
 
     m_pComboServerList->hide();
     m_pLabelPadlock->hide();
@@ -190,9 +180,9 @@ MainWindow::~MainWindow()
 
     saveSettings();
 
+#if BARRIER_WITH_DISCOVERY
     delete m_pZeroconfService;
-    delete m_DownloadMessageBox;
-    delete m_BonjourInstall;
+#endif
     delete m_pSslCertificate;
 
     // LogWindow is created as a sibling of the MainWindow rather than a child
@@ -213,9 +203,7 @@ void MainWindow::open()
         showNormal();
     }
 
-    if (!appConfig().autoConfigPrompted()) {
-        promptAutoConfig();
-    }
+    updateDiscoveryControls();
 
     // only start if user has previously started. this stops the gui from
     // auto hiding before the user has configured barrier (which of course
@@ -948,6 +936,7 @@ void MainWindow::changeEvent(QEvent* event)
         {
             retranslateUi(this);
             retranslateMenuBar();
+            updateDiscoveryControls();
 
             proofreadInfo();
 
@@ -978,24 +967,23 @@ bool MainWindow::event(QEvent* event)
 
 void MainWindow::updateZeroconfService()
 {
+#if BARRIER_WITH_DISCOVERY
     QMutexLocker locker(&m_UpdateZeroconfMutex);
-
-    if (isBonjourRunning()) {
-        if (!m_AppConfig->wizardShouldRun()) {
-            if (m_pZeroconfService) {
-                delete m_pZeroconfService;
-                m_pZeroconfService = NULL;
-            }
-
-            if (m_AppConfig->autoConfig() || barrier_type() == BarrierType::Server) {
-                m_pZeroconfService = new ZeroconfService(this);
-            }
-        }
+    delete m_pZeroconfService;
+    m_pZeroconfService = nullptr;
+    if (discoveryAvailable() && !m_AppConfig->wizardShouldRun() &&
+            (m_pCheckBoxAutoConfig->isChecked() || barrier_type() == BarrierType::Server)) {
+        m_pZeroconfService = new ZeroconfService(this);
     }
+#endif
 }
 
 void MainWindow::serverDetected(const QString name)
 {
+    // I ignore late discovery results once the user is choosing a manual address.
+    if (!m_pCheckBoxAutoConfig->isChecked() || !discoveryAvailable()) {
+        return;
+    }
     if (m_pComboServerList->findText(name) == -1) {
         // Note: the first added item triggers startBarrier
         m_pComboServerList->addItem(name);
@@ -1158,165 +1146,49 @@ void MainWindow::on_m_pButtonReload_clicked()
 #if defined(Q_OS_WIN)
 bool MainWindow::isServiceRunning(QString name)
 {
-    SC_HANDLE hSCManager;
-    hSCManager = OpenSCManager(NULL, NULL, SC_MANAGER_CONNECT);
-    if (hSCManager == NULL) {
-        appendLogError("failed to open a service controller manager, error: " +
-            GetLastError());
+    SC_HANDLE manager = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT);
+    if (!manager) {
+        appendLogDebug(tr("Cannot query discovery service status (%1)").arg(GetLastError()));
         return false;
     }
+    auto close_manager = barrier::finally([&] { CloseServiceHandle(manager); });
+    const auto native_name = name.toStdWString();
+    SC_HANDLE service = OpenServiceW(manager, native_name.c_str(), SERVICE_QUERY_STATUS);
+    if (!service) { return false; }
+    auto close_service = barrier::finally([&] { CloseServiceHandle(service); });
+    SERVICE_STATUS status{};
+    return QueryServiceStatus(service, &status) && status.dwCurrentState == SERVICE_RUNNING;
+}
+#endif
 
-    auto array = name.toLocal8Bit();
-    SC_HANDLE hService = OpenService(hSCManager, array.data(), SERVICE_QUERY_STATUS);
-
-    if (hService == NULL) {
-        appendLogDebug("failed to open service: " + name);
-        return false;
-    }
-
-    SERVICE_STATUS status;
-    if (QueryServiceStatus(hService, &status)) {
-        if (status.dwCurrentState == SERVICE_RUNNING) {
-            return true;
-        }
-    }
-
+bool MainWindow::discoveryAvailable()
+{
+#if !BARRIER_WITH_DISCOVERY
     return false;
-}
+#elif defined(Q_OS_WIN)
+    return isServiceRunning(QStringLiteral("Bonjour Service"));
 #else
-bool MainWindow::isServiceRunning()
-{
-    return false;
-}
-#endif
-
-bool MainWindow::isBonjourRunning()
-{
-    bool result = false;
-
-#if defined(Q_OS_WIN)
-    result = isServiceRunning("Bonjour Service");
-#else
-    result = true;
-#endif
-
-    return result;
-}
-
-void MainWindow::downloadBonjour()
-{
-#if defined(Q_OS_WIN)
-    QUrl url;
-    int arch = getProcessorArch();
-    if (arch == kProcessorArchWin32) {
-        url.setUrl(bonjourBaseUrl + bonjourFilename32);
-        appendLogInfo("downloading 32-bit Bonjour");
-    }
-    else if (arch == kProcessorArchWin64) {
-        url.setUrl(bonjourBaseUrl + bonjourFilename64);
-        appendLogInfo("downloading 64-bit Bonjour");
-    }
-    else {
-        QMessageBox::critical(
-            this, tr("Barrier"),
-            tr("Failed to detect system architecture."));
-        return;
-    }
-
-    if (m_pDataDownloader == NULL) {
-        m_pDataDownloader = new DataDownloader(this);
-        connect(m_pDataDownloader, SIGNAL(isComplete()), SLOT(installBonjour()));
-    }
-
-    m_pDataDownloader->download(url);
-
-    if (m_DownloadMessageBox == NULL) {
-        m_DownloadMessageBox = new QMessageBox(this);
-        m_DownloadMessageBox->setWindowTitle("Barrier");
-        m_DownloadMessageBox->setIcon(QMessageBox::Information);
-        m_DownloadMessageBox->setText("Installing Bonjour, please wait...");
-        m_DownloadMessageBox->setStandardButtons(0);
-        m_pCancelButton = m_DownloadMessageBox->addButton(
-            tr("Cancel"), QMessageBox::RejectRole);
-    }
-
-    m_DownloadMessageBox->exec();
-
-    if (m_DownloadMessageBox->clickedButton() == m_pCancelButton) {
-        m_pDataDownloader->cancel();
-    }
+    return true;
 #endif
 }
 
-void MainWindow::installBonjour()
+void MainWindow::updateDiscoveryControls()
 {
-#if defined(Q_OS_WIN)
-#if QT_VERSION >= 0x050000
-    QString tempLocation = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
-#else
-    QString tempLocation = QDesktopServices::storageLocation(
-                                QDesktopServices::TempLocation);
-#endif
-    QString filename = tempLocation;
-    filename.append("\\").append(bonjourTargetFilename);
-    QFile file(filename);
-    if (!file.open(QIODevice::WriteOnly)) {
-        m_DownloadMessageBox->hide();
-
-        QMessageBox::warning(
-            this, "Barrier",
-            tr("Failed to download Bonjour installer to location: %1")
-            .arg(tempLocation));
-        return;
+    const bool available = discoveryAvailable();
+    const bool automatic = available && appConfig().autoConfig();
+    // I keep the saved preference when the backend is absent. A build switch isn't a user choice.
+    const QSignalBlocker blocker(m_pCheckBoxAutoConfig);
+    m_pCheckBoxAutoConfig->setChecked(automatic);
+    m_pCheckBoxAutoConfig->setEnabled(BARRIER_WITH_DISCOVERY);
+    m_pCheckBoxAutoConfig->setToolTip(available ? QString() :
+        tr("Automatic discovery is unavailable. Enter a server name or IP address."));
+    m_pLineEditHostname->setEnabled(!automatic);
+    if (!automatic) {
+        const QSignalBlocker list_blocker(m_pComboServerList);
+        m_pComboServerList->clear();
+        m_pComboServerList->hide();
     }
-
-    file.write(m_pDataDownloader->data());
-    file.close();
-
-    QStringList arguments;
-    arguments.append("/i");
-    QString winFilename = QDir::toNativeSeparators(filename);
-    arguments.append(winFilename);
-    arguments.append("/passive");
-    if (m_BonjourInstall == NULL) {
-        m_BonjourInstall = new CommandProcess("msiexec", arguments);
-    }
-
-    QThread* thread = new QThread;
-    connect(m_BonjourInstall, SIGNAL(finished()), this,
-        SLOT(bonjourInstallFinished()));
-    connect(m_BonjourInstall, SIGNAL(finished()), thread, SLOT(quit()));
-    connect(thread, SIGNAL(finished()), thread, SLOT(deleteLater()));
-
-    m_BonjourInstall->moveToThread(thread);
-    thread->start();
-
-    QMetaObject::invokeMethod(m_BonjourInstall, "run", Qt::QueuedConnection);
-
-    m_DownloadMessageBox->hide();
-#endif
-}
-
-void MainWindow::promptAutoConfig()
-{
-    if (!isBonjourRunning()) {
-        int r = QMessageBox::question(
-            this, tr("Barrier"),
-            tr("Do you want to enable auto config and install Bonjour?\n\n"
-               "This feature helps you establish the connection."),
-            QMessageBox::Yes | QMessageBox::No);
-
-        if (r == QMessageBox::Yes) {
-            m_AppConfig->setAutoConfig(true);
-            downloadBonjour();
-        }
-        else {
-            m_AppConfig->setAutoConfig(false);
-            m_pCheckBoxAutoConfig->setChecked(false);
-        }
-    }
-
-    m_AppConfig->setAutoConfigPrompted(true);
+    // FUTURE(BX-007): show discovery availability separately from connection and peer approval.
 }
 
 void MainWindow::on_m_pComboServerList_currentIndexChanged(QString )
@@ -1328,38 +1200,14 @@ void MainWindow::on_m_pComboServerList_currentIndexChanged(QString )
 
 void MainWindow::on_m_pCheckBoxAutoConfig_toggled(bool checked)
 {
-    if (!isBonjourRunning() && checked) {
-        if (!m_SuppressAutoConfigWarning) {
-            int r = QMessageBox::information(
-                this, tr("Barrier"),
-                tr("Auto config feature requires Bonjour.\n\n"
-                   "Do you want to install Bonjour?"),
-                QMessageBox::Yes | QMessageBox::No);
-
-            if (r == QMessageBox::Yes) {
-                downloadBonjour();
-            }
-        }
-
-        m_pCheckBoxAutoConfig->setChecked(false);
+    if (checked && !discoveryAvailable()) {
+        updateDiscoveryControls();
+        appendLogInfo(tr("Automatic discovery is unavailable. Enter a server name or IP address."));
         return;
     }
-
-    m_pLineEditHostname->setDisabled(checked);
     appConfig().setAutoConfig(checked);
+    updateDiscoveryControls();
     updateZeroconfService();
-
-    if (!checked) {
-        m_pComboServerList->clear();
-        m_pComboServerList->hide();
-    }
-}
-
-void MainWindow::bonjourInstallFinished()
-{
-    appendLogInfo("Bonjour install finished");
-
-    m_pCheckBoxAutoConfig->setChecked(true);
 }
 
 void MainWindow::windowStateChanged()

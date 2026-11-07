@@ -44,7 +44,7 @@ jobs:
           -DBARRIER_BUILD_TESTS=ON -DBARRIER_USE_EXTERNAL_GTEST=ON
           -DBARRIER_BUILD_GUI_IPC_TESTS=ON
       - name: Build client, server and tests
-        run: cmake --build build --target barrier barrierc barriers guiunittests guiipctests unittests integtests --parallel 2
+        run: cmake --build build --target barrier barrierc barriers guiunittests guiipctests guidiscoverytests unittests integtests --parallel 2
       - name: Run unit tests
         env:
           QT_QPA_PLATFORM: offscreen
@@ -53,6 +53,17 @@ jobs:
         run: |
           build/bin/barriers --version
           build/bin/barrierc --version
+      - name: Build manual-only GUI without DNS-SD
+        if: matrix.sanitise
+        run: |
+          cmake -S . -B build-manual -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBARRIER_BUILD_GUI=ON -DBARRIER_BUILD_DISCOVERY=OFF -DBARRIER_BUILD_INSTALLER=OFF -DBARRIER_BUILD_TESTS=ON -DBARRIER_USE_EXTERNAL_GTEST=ON
+          cmake --build build-manual --target barrier guidiscoverytests --parallel 2
+          QT_QPA_PLATFORM=offscreen ctest --test-dir build-manual -R '^gui-discovery$' --output-on-failure -V
+          ldd build-manual/bin/barrier > build-manual/runtime-dependencies.txt
+          if rg -q 'libdns_sd|libavahi-compat-libdns_sd' build-manual/runtime-dependencies.txt; then
+            echo 'Manual-only GUI unexpectedly links DNS-SD'
+            exit 1
+          fi
       - name: Configure sanitised build
         if: matrix.sanitise
         run: >-
