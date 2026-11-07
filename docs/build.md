@@ -557,3 +557,25 @@ Both normal configurations passed twelve CTest entries; the sanitised job passed
 its four selected entries. I reviewed the final diff after those results. The
 implemented version is 2.4.17-snapshot; the working plan keeps Windows GUI,
 Debug, packaging and interactive desktop checks open.
+
+
+## Optional GUI discovery, 2.4.18
+
+I checked candidate `ad1b6e85867096263581687019f3db0f16da54e2` in
+[Linux run 42336093923](https://github.com/TABARC-Code/barrier-x/actions/runs/42336093923).
+Debug and Release each passed thirteen CTest entries. The Debug job also built
+the GUI with `BARRIER_BUILD_DISCOVERY=OFF`, passed its five widget tests and
+checked that the executable had no DNS-SD runtime link. The enabled build's
+five discovery tests include lifecycle dispatch with substituted availability
+and twenty real localhost listener lifetimes. They don't establish real
+Bonjour browsing, daemon recovery or automatic application startup. The Debug
+ASan/UBSan job also passed its four selected network, storage and IPC entries
+with leak detection enabled; it does not sanitise the new discovery widgets.
+
+The same candidate passed the ten Windows engine CTest entries in
+[run 42336093965](https://github.com/TABARC-Code/barrier-x/actions/runs/42336093965)
+and the three native suites in
+[run 42336093963](https://github.com/TABARC-Code/barrier-x/actions/runs/42336093963).
+These Windows jobs don't build the GUI. Windows/macOS GUI execution, a
+supported Qt SDK, live daemon failure handling and installer deployment remain
+open. No dependency was upgraded or imported in this change.

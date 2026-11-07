@@ -1,6 +1,10 @@
 # barrier-x
 
-Development version: **2.4.17-snapshot**, based on Barrier 2.4.
+Development version: **2.4.18-snapshot**, based on Barrier 2.4.
+
+I can build the GUI without DNS-SD using `-DBARRIER_BUILD_DISCOVERY=OFF`.
+Manual connections stay available; the GUI no longer downloads Bonjour installers.
+
 On Windows the service and its clients now use an authenticated named pipe.
 Changing a service command requires the active console user's elevated GUI;
 start the interface as administrator. Upgrade the service, GUI and engine together.
@@ -79,7 +83,7 @@ On the machine with the keyboard and mouse, make it the server.
 Click the "Configure server" button and drag a new screen onto the grid for each client machine.
 Ensure the "screen name" matches exactly (case-sensitive) for each configured screen -- the clients' barrier windows will tell you their screen names (just above the server IP).
 
-On the client(s), put in the server machine's IP address (or use Bonjour/auto configuration when prompted) and "start" them.
+On the client(s), put in the server machine's IP address (or use automatic discovery when available) and "start" them.
 You should see `Barrier is running` on both server and clients.
 You should now be able to move the mouse between all the screens as if they were the same machine.
 

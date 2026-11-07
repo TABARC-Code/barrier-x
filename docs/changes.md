@@ -1,5 +1,13 @@
 # barrier-x changes
 
+## 2.4.18-snapshot - 7 November 2026
+
+- I remove the GUI's HTTP Bonjour download and installer execution path.
+- I make DNS-SD discovery optional and keep manual connection controls usable.
+- I preserve the saved discovery preference while its backend is unavailable.
+- I ignore late discovery results in manual mode and close service-query handles.
+- I reconcile the reader when discovery availability changes and remove idle listener threads.
+
 ## 2.4.17-snapshot - 6 November 2026
 
 - I raise the CMake baseline to 3.20 for current build tools.

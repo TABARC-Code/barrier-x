@@ -17,10 +17,7 @@
 
 #pragma once
 
-#include <QStringList>
 #include <QTcpServer>
-
-class ZeroconfRegister;
 
 class ZeroconfServer : public QTcpServer
 {
@@ -31,7 +28,4 @@ public:
 
 protected:
     void incomingConnection(qintptr socketDescriptor) override;
-
-private:
-    QStringList fortunes;
 };

@@ -27,7 +27,6 @@ set(GUI_SOURCE_FILES
     src/BarrierLocale.cpp
     src/BaseConfig.cpp
     src/CommandProcess.cpp
-    src/DataDownloader.cpp
     src/DisplayIsValid.cpp
     src/FingerprintAcceptDialog.cpp
     src/HotkeyDialog.cpp
@@ -36,7 +35,6 @@ set(GUI_SOURCE_FILES
     src/IpcReader.cpp
     src/KeySequenceWidget.cpp
     src/LogWindow.cpp
-    src/main.cpp
     src/MainWindow.cpp
     src/NewScreenWidget.cpp
     src/QBarrierApplication.cpp
@@ -52,11 +50,6 @@ set(GUI_SOURCE_FILES
     src/SslCertificate.cpp
     src/TrashScreenWidget.cpp
     src/VersionChecker.cpp
-    src/ZeroconfBrowser.cpp
-    src/ZeroconfRegister.cpp
-    src/ZeroconfServer.cpp
-    src/ZeroconfService.cpp
-    src/ZeroconfThread.cpp
 )
 
 set(GUI_HEADER_FILES
@@ -67,7 +60,6 @@ set(GUI_HEADER_FILES
     src/BarrierLocale.h
     src/BaseConfig.h
     src/CommandProcess.h
-    src/DataDownloader.h
     src/DisplayIsValid.h
     src/ElevateMode.h
     src/HotkeyDialog.h
@@ -93,13 +85,16 @@ set(GUI_HEADER_FILES
     src/SslCertificate.h
     src/TrashScreenWidget.h
     src/VersionChecker.h
-    src/ZeroconfBrowser.h
-    src/ZeroconfRecord.h
-    src/ZeroconfRegister.h
-    src/ZeroconfServer.h
-    src/ZeroconfService.h
-    src/ZeroconfThread.h
 )
+
+if (BARRIER_BUILD_DISCOVERY)
+    list(APPEND GUI_SOURCE_FILES
+        src/ZeroconfBrowser.cpp src/ZeroconfRegister.cpp src/ZeroconfServer.cpp
+        src/ZeroconfService.cpp)
+    list(APPEND GUI_HEADER_FILES
+        src/ZeroconfBrowser.h src/ZeroconfRegister.h src/ZeroconfServer.h
+        src/ZeroconfService.h src/ZeroconfRecord.h)
+endif()
 
 set(GUI_UI_FILES
     src/AboutDialogBase.ui
@@ -120,6 +115,7 @@ if (WIN32)
 endif()
 
 add_executable (barrier WIN32
+    src/main.cpp
     ${GUI_COMMON_SOURCE_FILES}
     ${GUI_COMMON_HEADER_FILES}
     ${GUI_SOURCE_FILES}
@@ -131,31 +127,42 @@ add_executable (barrier WIN32
 
 include_directories (./src)
 
-target_link_libraries(barrier net base io Qt5::Core Qt5::Widgets Qt5::Network ${OPENSSL_LIBS})
-target_compile_definitions (barrier PRIVATE -DBARRIER_VERSION_STAGE="${BARRIER_VERSION_STAGE}")
-target_compile_definitions (barrier PRIVATE -DBARRIER_REVISION="${BARRIER_REVISION}")
-
-if (WIN32)
-    target_sources(barrier PRIVATE ../lib/ipc/WinLocalPipe.cpp)
-    target_link_libraries(barrier advapi32 wtsapi32)
-    include_directories ($ENV{BONJOUR_SDK_HOME}/Include)
-    find_library (DNSSD_LIB dnssd.lib
-                  HINTS ENV BONJOUR_SDK_HOME
-                  PATH_SUFFIXES "Lib/x64")
-    set_target_properties (barrier PROPERTIES LINK_FLAGS "/NODEFAULTLIB:LIBCMT")
-    target_link_libraries (barrier ${DNSSD_LIB})
-elseif (APPLE)
-    find_library(APPSERVICES_LIB ApplicationServices)
-    target_link_libraries(barrier ${APPSERVICES_LIB})
-else()
-    target_link_libraries (barrier dns_sd)
+if (WIN32 AND BARRIER_BUILD_DISCOVERY)
+    find_path(DNSSD_INCLUDE_DIR dns_sd.h HINTS ENV BONJOUR_SDK_HOME PATH_SUFFIXES Include REQUIRED)
+    if (CMAKE_SIZEOF_VOID_P EQUAL 8)
+        set(DNSSD_LIBRARY_SUFFIXES Lib/x64)
+    else()
+        set(DNSSD_LIBRARY_SUFFIXES Lib/Win32 Lib/x86)
+    endif()
+    find_library(DNSSD_LIB dnssd HINTS ENV BONJOUR_SDK_HOME PATH_SUFFIXES ${DNSSD_LIBRARY_SUFFIXES} REQUIRED)
+elseif (NOT APPLE AND BARRIER_BUILD_DISCOVERY)
+    find_library(DNSSD_LIB dns_sd REQUIRED)
 endif()
 
-if (HAVE_X11)
-    target_link_libraries (barrier X11)
-endif()
-
-target_link_libraries (barrier common)
+function(barrier_gui_support target)
+    target_link_libraries(${target} net base io common Qt5::Core Qt5::Widgets Qt5::Network ${OPENSSL_LIBS})
+    target_compile_definitions(${target} PRIVATE
+        BARRIER_WITH_DISCOVERY=$<BOOL:${BARRIER_BUILD_DISCOVERY}>
+        BARRIER_VERSION_STAGE="${BARRIER_VERSION_STAGE}" BARRIER_REVISION="${BARRIER_REVISION}")
+    if (WIN32)
+        target_sources(${target} PRIVATE ../lib/ipc/WinLocalPipe.cpp)
+        target_link_libraries(${target} advapi32 wtsapi32)
+        set_target_properties(${target} PROPERTIES LINK_FLAGS "/NODEFAULTLIB:LIBCMT")
+    elseif (APPLE)
+        find_library(APPSERVICES_LIB ApplicationServices REQUIRED)
+        target_link_libraries(${target} ${APPSERVICES_LIB})
+    endif()
+    if (BARRIER_BUILD_DISCOVERY AND NOT APPLE)
+        target_link_libraries(${target} ${DNSSD_LIB})
+        if (WIN32)
+            target_include_directories(${target} PRIVATE ${DNSSD_INCLUDE_DIR})
+        endif()
+    endif()
+    if (HAVE_X11)
+        target_link_libraries(${target} X11)
+    endif()
+endfunction()
+barrier_gui_support(barrier)
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     install (TARGETS barrier DESTINATION ${BARRIER_BUNDLE_BINARY_DIR})
@@ -184,4 +191,16 @@ if (BARRIER_BUILD_TESTS)
 
     target_include_directories(guiunittests PUBLIC ../../ext)
     target_link_libraries(guiunittests ${GTEST_LIBRARIES} ${GMOCK_LIBRARIES} Qt5::Core Qt5::Widgets Qt5::Network ${libs} net base io common ${OPENSSL_LIBS})
+endif()
+
+if (BARRIER_BUILD_TESTS)
+    add_executable(guidiscoverytests
+        test/DiscoveryTests.cpp test/discovery-main.cpp
+        ${GUI_COMMON_SOURCE_FILES} ${GUI_COMMON_HEADER_FILES}
+        ${GUI_SOURCE_FILES} ${GUI_HEADER_FILES} ${GUI_UI_FILES} res/Barrier.qrc)
+    barrier_gui_support(guidiscoverytests)
+    target_link_libraries(guidiscoverytests ${GTEST_LIBRARIES} ${GMOCK_LIBRARIES})
+    add_dependencies(guidiscoverytests barrierc)
+    add_test(NAME gui-discovery COMMAND guidiscoverytests)
+    set_tests_properties(gui-discovery PROPERTIES TIMEOUT 60 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endif()

@@ -333,3 +333,25 @@ none of their source or scripts was adopted by this change.
 Linux Debug/Release, GUI checks and Debug ASan/UBSan with leak detection passed
 for the final candidate in run 42264522576. This is verified build progress;
 the full application security audit and the desktop/deployment review stay open.
+
+
+## Optional discovery, 2.4.18
+
+I remove the GUI's HTTP Bonjour MSI download and execution path. DNS-SD is
+now a build option; without it, manual hostname entry remains available and
+the saved automatic-discovery preference survives. Late discovery callbacks
+are ignored in manual mode. Availability refreshes also reconcile the reader,
+rather than just changing a checkbox. Windows service-query handles now close
+on every inspected exit path.
+
+The discovery advertisement listener only accepts and closes connections. I
+remove its worker threads, which could previously be destroyed while running.
+Qt's [QTcpServer ownership contract](https://doc.qt.io/archives/qt-5.15/qtcpserver.html#incomingConnection)
+lets the listener accept and close sockets in its own thread. No external
+source was copied.
+
+The widget recovery test substitutes availability and the lifecycle hook; it
+doesn't start or stop Bonjour. Linux availability still means compiled DNS-SD
+support, not a live Avahi probe. Live daemon failure, modal provider errors,
+Windows GUI execution and Qt migration remain open. Availability is refreshed
+when opening or retranslating the window, not polled in the background.

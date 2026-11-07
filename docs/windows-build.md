@@ -29,7 +29,10 @@ NASM and Visual C++ installation; it's not a general SDK installer.
 
 ## Remaining work
 
-The GUI still needs its Qt/discovery dependency work. Windows installer generation
+The GUI still needs a verified Qt SDK and native Windows build. From 2.4.18,
+`-DBARRIER_BUILD_DISCOVERY=OFF` removes the Bonjour SDK requirement; the GUI
+no longer downloads or executes a Bonjour installer. This build option has
+Linux coverage, not a verified Windows GUI build. Windows installer generation
 fails explicitly until it selects the new runtime DLLs, provider/configuration
 paths and notices. The retired Azure Windows job is disabled before its old
 SDK-download steps. I haven't changed the historical WiX templates into a working

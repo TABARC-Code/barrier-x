@@ -8,7 +8,7 @@ TLS work. I haven't audited every library or the complete application.
 | OpenSSL | 3.5.9, commit `45e844fa2a14ec92d146bd8f5778ac130b6625fb` | Windows engine SDK, built from the official release archive. CMake requires 3.5 LTS at 3.5.9 or later. Runtime packaging is still blocked. |
 | Google Test / Google Mock | 1.15.2, commit `b514bdc898e2951020cbdca1304b75f5950d1f59` | Windows test builds only. This revision supports the project's C++14 code. Linux uses its packaged test libraries. |
 | gulrak filesystem | Submodule `614bbe87b80435d87ab8791564370e0c1d13627d` | Existing filesystem dependency; unchanged here. Parent traversal hardening remains BX-004. |
-| Qt and DNS-SD | Existing platform selections | Not upgraded by this change. Supported versions, source licences, advisories and Windows discovery integration need checking before the GUI build moves. |
+| Qt and DNS-SD | Existing platform selections | Qt is unchanged. DNS-SD is optional from 2.4.18; OFF omits its GUI sources and libraries. Supported Qt versions, SDK licences/advisories and Windows GUI integration still need checking. |
 | GitHub cache action | `caa296126883cff596d87d8935842f9db880ef25` | Build acceleration only. I pin the revision and use an exact image/script cache key, without fallback keys. |
 
 ## What I checked

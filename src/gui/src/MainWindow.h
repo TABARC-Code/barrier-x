@@ -57,8 +57,6 @@ class LogDialog;
 class QBarrierApplication;
 class SetupWizard;
 class ZeroconfService;
-class DataDownloader;
-class CommandProcess;
 class SslCertificate;
 
 class MainWindow : public QMainWindow, public Ui::MainWindowBase
@@ -107,7 +105,7 @@ class MainWindow : public QMainWindow, public Ui::MainWindowBase
         void showConfigureServer(const QString& message);
         void showConfigureServer() { showConfigureServer(""); }
         void autoAddScreen(const QString name);
-        void updateZeroconfService();
+        virtual void updateZeroconfService();
         void serverDetected(const QString name);
 
 public slots:
@@ -130,7 +128,6 @@ public slots:
         void stopBarrier();
         void logOutput();
         void logError();
-        void bonjourInstallFinished();
         void showLogWindow();
 
     protected:
@@ -157,12 +154,9 @@ public slots:
         void retranslateMenuBar();
 #if defined(Q_OS_WIN)
         bool isServiceRunning(QString name);
-#else
-        bool isServiceRunning();
 #endif
-        bool isBonjourRunning();
-        void downloadBonjour();
-        void promptAutoConfig();
+        virtual bool discoveryAvailable();
+        void updateDiscoveryControls();
         void checkConnected(const QString& line);
         void checkFingerprint(const QString& line);
         void restartBarrier();
@@ -171,6 +165,7 @@ public slots:
         void updateSSLFingerprint();
 
     private:
+        bool m_DiscoveryWasAvailable = false;
         QSettings& m_Settings;
         AppConfig* m_AppConfig;
         QProcess* m_pBarrier;
@@ -186,12 +181,7 @@ public slots:
         QMenu* m_pMenuBarrier;
         QMenu* m_pMenuHelp;
         ZeroconfService* m_pZeroconfService;
-        DataDownloader* m_pDataDownloader;
-        QMessageBox* m_DownloadMessageBox;
-        QAbstractButton* m_pCancelButton;
         QMutex m_UpdateZeroconfMutex;
-        bool m_SuppressAutoConfigWarning;
-        CommandProcess* m_BonjourInstall;
         bool m_SuppressEmptyServerWarning;
         qRuningState m_ExpectedRunningState;
         QMutex m_StopDesktopMutex;
@@ -205,7 +195,6 @@ private slots:
     void on_m_pCheckBoxAutoConfig_toggled(bool checked);
     void on_m_pComboServerList_currentIndexChanged(QString );
     void on_m_pButtonReload_clicked();
-    void installBonjour();
 
 };
 
