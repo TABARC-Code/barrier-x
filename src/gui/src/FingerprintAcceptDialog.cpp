@@ -18,6 +18,9 @@
 #include "FingerprintAcceptDialog.h"
 #include "ui_FingerprintAcceptDialog.h"
 #include "net/SecureUtils.h"
+#include <QApplication>
+#include <QClipboard>
+#include <QPushButton>
 
 FingerprintAcceptDialog::FingerprintAcceptDialog(QWidget *parent,
                                                  BarrierType type,
@@ -28,38 +31,59 @@ FingerprintAcceptDialog::FingerprintAcceptDialog(QWidget *parent,
 {
     ui_->setupUi(this);
 
-    if (type == BarrierType::Server) {
-        ui_->label_sha1->hide();
-        ui_->label_sha1_fingerprint_full->hide();
-    } else {
+    const bool client = type == BarrierType::Server;
+    valid_fingerprint_ = fingerprint_sha256.algorithm == "sha256" && fingerprint_sha256.data.size() == 32;
+    auto* trust = ui_->buttonBox->addButton(client ? tr("Trust &client") : tr("Trust &server"),
+                                           QDialogButtonBox::AcceptRole);
+    trust->setObjectName(QStringLiteral("trustPeer"));
+    trust->setEnabled(valid_fingerprint_);
+    trust->setAutoDefault(false);
+    trust->setDefault(false);
+    auto* reject = ui_->buttonBox->addButton(tr("&Reject"), QDialogButtonBox::RejectRole);
+    reject->setObjectName(QStringLiteral("rejectPeer"));
+    reject->setAutoDefault(false);
+    // Return mustn't approve a stranger just because the window appeared.
+    reject->setDefault(true);
+    reject->setFocus();
+    auto* copy = ui_->buttonBox->addButton(tr("Copy SHA-&256"), QDialogButtonBox::ActionRole);
+    copy->setObjectName(QStringLiteral("copyPeerFingerprint"));
+    copy->setAutoDefault(false);
+    copy->setEnabled(valid_fingerprint_);
+    copy->setAccessibleName(tr("Copy the full public SHA-256 fingerprint"));
+
+    const bool legacy = !client && fingerprint_sha1.algorithm == "sha1" && fingerprint_sha1.data.size() == 20;
+    ui_->label_sha1->setVisible(legacy);
+    ui_->label_sha1_fingerprint_full->setVisible(legacy);
+    if (legacy) {
         ui_->label_sha1_fingerprint_full->setText(
-                QString::fromStdString(barrier::format_ssl_fingerprint(fingerprint_sha1.data)));
+            QString::fromStdString(barrier::format_ssl_fingerprint(fingerprint_sha1.data)));
     }
-
+    ui_->label_title->setText(client ? tr("Verify this client") : tr("Verify this server"));
+    if (!valid_fingerprint_) {
+        ui_->label_explanation->setText(tr("The peer did not provide a valid SHA-256 fingerprint. Reject this request."));
+        return;
+    }
+    const QString full = QString::fromStdString(barrier::format_ssl_fingerprint(fingerprint_sha256.data));
     ui_->label_sha256_fingerprint_full->setText(
-            QString::fromStdString(barrier::format_ssl_fingerprint_columns(fingerprint_sha256.data)));
+        QString::fromStdString(barrier::format_ssl_fingerprint_columns(fingerprint_sha256.data)));
     ui_->label_sha256_fingerprint_randomart->setText(
-            QString::fromStdString(barrier::create_fingerprint_randomart(fingerprint_sha256.data)));
+        QString::fromStdString(barrier::create_fingerprint_randomart(fingerprint_sha256.data)));
+    connect(copy, &QPushButton::clicked, this, [this, full] {
+        QApplication::clipboard()->setText(full);
+        ui_->copyFeedback->setText(tr("Full SHA-256 fingerprint copied."));
+    });
+    ui_->label_explanation->setText(client ?
+        tr("Compare the full SHA-256 fingerprint with the one shown on your client's screen. "
+           "Trust only if they match exactly.\n\n"
+           "Trusting saves this fingerprint for future connections. If you're unsure, reject it.") :
+        tr("Compare the full SHA-256 fingerprint with the one shown on your server's screen. "
+           "Trust only if they match exactly.\n\n"
+           "Trusting saves this fingerprint for future connections. If you're unsure, reject it."));
+}
 
-    QString explanation;
-    if (type == BarrierType::Server) {
-        explanation = tr("This is a client fingerprint. You should compare this "
-                         "fingerprint to the one on your client's screen. If the "
-                         "two don't match exactly, then it's probably not the client "
-                         "you're expecting (it could be a malicious user).\n\n"
-                         "To automatically trust this fingerprint for future "
-                         "connections, click Yes. To reject this fingerprint and "
-                         "disconnect the client, click No.");
-    } else {
-        explanation = tr("This is a server fingerprint. You should compare this "
-                         "fingerprint to the one on your server's screen. If the "
-                         "two don't match exactly, then it's probably not the server "
-                         "you're expecting (it could be a malicious user).\n\n"
-                         "To automatically trust this fingerprint for future "
-                         "connections, click Yes. To reject this fingerprint and "
-                         "disconnect from the server, click No.");
-    }
-    ui_->label_explanation->setText(explanation);
+void FingerprintAcceptDialog::accept()
+{
+    if (valid_fingerprint_) { QDialog::accept(); }
 }
 
 FingerprintAcceptDialog::~FingerprintAcceptDialog() = default;

@@ -3,306 +3,33 @@
  <class>MainWindowBase</class>
  <widget class="QMainWindow" name="MainWindowBase">
   <property name="sizePolicy">
-   <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
     <horstretch>0</horstretch>
     <verstretch>0</verstretch>
    </sizepolicy>
   </property>
-  <property name="windowTitle">
-   <string>Barrier</string>
-  </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout_2">
     <property name="sizeConstraint">
-     <enum>QLayout::SetFixedSize</enum>
+     <enum>QLayout::SetMinimumSize</enum>
     </property>
     <item>
-     <widget class="QGroupBox" name="m_pGroupServer">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-        <horstretch>0</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
+     <widget class="QLabel" name="dashboardTitle">
+      <property name="text">
+       <string>barrier-x</string>
       </property>
-      <property name="title">
-       <string>Ser&amp;ver (share this computer's mouse and keyboard):</string>
+      <property name="textFormat">
+       <enum>Qt::PlainText</enum>
       </property>
-      <property name="checkable">
+      <property name="wordWrap">
        <bool>true</bool>
       </property>
-      <property name="checked">
-       <bool>true</bool>
+      <property name="font">
+       <font>
+        <pointsize>16</pointsize>
+        <bold>true</bold>
+       </font>
       </property>
-      <layout class="QVBoxLayout">
-       <item>
-        <layout class="QFormLayout" name="formLayout">
-         <property name="fieldGrowthPolicy">
-          <enum>QFormLayout::AllNonFixedFieldsGrow</enum>
-         </property>
-         <item row="0" column="0">
-          <widget class="QLabel" name="label_2">
-           <property name="text">
-            <string>IP addresses:</string>
-           </property>
-          </widget>
-         </item>
-         <item row="0" column="1">
-          <widget class="QLabel" name="m_pLabelIpAddresses">
-           <property name="text">
-            <string notr="true"/>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </item>
-       <item>
-        <widget class="QRadioButton" name="m_pRadioInternalConfig">
-         <property name="text">
-          <string>Configure interactively:</string>
-         </property>
-         <property name="checked">
-          <bool>true</bool>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <layout class="QHBoxLayout" name="horizontalLayout_4">
-         <item>
-          <widget class="QPushButton" name="m_pButtonConfigureServer">
-           <property name="text">
-            <string>&amp;Configure Server...</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <spacer>
-           <property name="orientation">
-            <enum>Qt::Horizontal</enum>
-           </property>
-           <property name="sizeHint" stdset="0">
-            <size>
-             <width>40</width>
-             <height>20</height>
-            </size>
-           </property>
-          </spacer>
-         </item>
-        </layout>
-       </item>
-       <item>
-        <widget class="QRadioButton" name="m_pRadioExternalConfig">
-         <property name="text">
-          <string>Use existing configuration:</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <layout class="QHBoxLayout">
-         <item>
-          <widget class="QLabel" name="m_pLabelConfigurationFile">
-           <property name="text">
-            <string>&amp;Configuration file:</string>
-           </property>
-           <property name="buddy">
-            <cstring>m_pLineEditConfigFile</cstring>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QLineEdit" name="m_pLineEditConfigFile">
-           <property name="enabled">
-            <bool>false</bool>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QPushButton" name="m_pButtonBrowseConfigFile">
-           <property name="enabled">
-            <bool>false</bool>
-           </property>
-           <property name="text">
-            <string>&amp;Browse...</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </item>
-      </layout>
-     </widget>
-    </item>
-    <item>
-     <widget class="QGroupBox" name="m_pGroupClient">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-        <horstretch>0</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
-      <property name="title">
-       <string>&amp;Client (use another computer's mouse and keyboard):</string>
-      </property>
-      <property name="checkable">
-       <bool>true</bool>
-      </property>
-      <property name="checked">
-       <bool>true</bool>
-      </property>
-      <layout class="QFormLayout" name="formLayout_3">
-       <property name="fieldGrowthPolicy">
-        <enum>QFormLayout::AllNonFixedFieldsGrow</enum>
-       </property>
-       <item row="0" column="0">
-        <widget class="QLabel" name="label_5">
-         <property name="text">
-          <string>Screen name:</string>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="1">
-        <widget class="QLabel" name="m_pLabelScreenName">
-         <property name="text">
-          <string notr="true"/>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="0">
-        <widget class="QLabel" name="m_pLabelServerName">
-         <property name="text">
-          <string>&amp;Server IP:</string>
-         </property>
-         <property name="buddy">
-          <cstring>m_pLineEditHostname</cstring>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="1">
-        <widget class="QLineEdit" name="m_pLineEditHostname"/>
-       </item>
-       <item row="3" column="0">
-        <widget class="QCheckBox" name="m_pCheckBoxAutoConfig">
-         <property name="text">
-          <string>Auto config</string>
-         </property>
-        </widget>
-       </item>
-       <item row="3" column="1">
-        <widget class="QComboBox" name="m_pComboServerList">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
-         <property name="minimumSize">
-          <size>
-           <width>120</width>
-           <height>0</height>
-          </size>
-         </property>
-        </widget>
-       </item>
-      </layout>
-     </widget>
-    </item>
-    <item>
-     <layout class="QHBoxLayout" name="horizontalLayout_3">
-      <item>
-       <widget class="QLabel" name="m_pLabelFingerprint">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string>SSL Fingerprint:</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLabel" name="m_pLabelLocalFingerprint">
-        <property name="text">
-         <string/>
-        </property>
-        <property name="textFormat">
-         <enum>Qt::PlainText</enum>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QToolButton" name="toolbutton_show_fingerprint">
-        <property name="text">
-         <string>...</string>
-        </property>
-        <property name="arrowType">
-         <enum>Qt::DownArrow</enum>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </item>
-    <item>
-     <widget class="QFrame" name="frame_fingerprint_details">
-      <property name="frameShape">
-       <enum>QFrame::StyledPanel</enum>
-      </property>
-      <property name="frameShadow">
-       <enum>QFrame::Raised</enum>
-      </property>
-      <layout class="QGridLayout" name="gridLayout">
-       <property name="sizeConstraint">
-        <enum>QLayout::SetMinimumSize</enum>
-       </property>
-       <item row="1" column="1">
-        <widget class="QLabel" name="label_sha256_randomart">
-         <property name="font">
-          <font>
-           <family>Courier</family>
-          </font>
-         </property>
-         <property name="text">
-          <string/>
-         </property>
-         <property name="textInteractionFlags">
-          <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="0" colspan="2">
-        <widget class="QLabel" name="label_sha1">
-         <property name="text">
-          <string>SHA1 (deprecated, compare to old clients and servers only):</string>
-         </property>
-        </widget>
-       </item>
-       <item row="3" column="0" colspan="2">
-        <widget class="QLabel" name="label_sha1_fingerprint_full">
-         <property name="text">
-          <string/>
-         </property>
-         <property name="textInteractionFlags">
-          <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="0" colspan="2">
-        <widget class="QLabel" name="label_sha256">
-         <property name="text">
-          <string>SHA256:</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="0">
-        <widget class="QLabel" name="label_sha256_fingerprint_full">
-         <property name="text">
-          <string/>
-         </property>
-         <property name="textInteractionFlags">
-          <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
-         </property>
-        </widget>
-       </item>
-      </layout>
      </widget>
     </item>
     <item>
@@ -316,7 +43,7 @@
          <bool>true</bool>
         </property>
         <property name="text">
-         <string/>
+         <string />
         </property>
         <property name="pixmap">
          <pixmap resource="../res/Barrier.qrc">:/res/icons/16x16/padlock.png</pixmap>
@@ -325,8 +52,19 @@
       </item>
       <item>
        <widget class="QLabel" name="m_pStatusLabel">
+        <property name="accessibleName">
+         <string>Connection status</string>
+        </property>
+        <property name="textFormat">
+         <enum>Qt::PlainText</enum>
+        </property>
+        <property name="font">
+         <font>
+          <bold>true</bold>
+         </font>
+        </property>
         <property name="text">
-         <string>Ready</string>
+         <string>Stopped</string>
         </property>
        </widget>
       </item>
@@ -345,11 +83,14 @@
       </item>
       <item>
        <widget class="QPushButton" name="m_pButtonReload">
+        <property name="toolTip">
+         <string>Restart with the current configuration. Active connections will be interrupted.</string>
+        </property>
         <property name="enabled">
          <bool>false</bool>
         </property>
         <property name="text">
-         <string>&amp;Reload</string>
+         <string>&amp;Restart</string>
         </property>
        </widget>
       </item>
@@ -358,9 +99,725 @@
         <property name="text">
          <string>&amp;Start</string>
         </property>
+        <property name="font">
+         <font>
+          <bold>true</bold>
+         </font>
+        </property>
        </widget>
       </item>
      </layout>
+    </item>
+    <item>
+     <widget class="QLabel" name="connectionHint">
+      <property name="wordWrap">
+       <bool>true</bool>
+      </property>
+      <property name="text">
+       <string>Choose this computer's role, then start the connection.</string>
+      </property>
+      <property name="textFormat">
+       <enum>Qt::PlainText</enum>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <layout class="QHBoxLayout" name="identityAlertRow">
+      <item>
+       <widget class="QLabel" name="identityAlert">
+        <property name="text">
+         <string>Secure identity needs attention.</string>
+        </property>
+        <property name="textFormat">
+         <enum>Qt::PlainText</enum>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="reviewIdentity">
+        <property name="text">
+         <string>Review &amp;identity</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+    <item>
+     <widget class="QTabWidget" name="dashboardTabs">
+      <property name="accessibleName">
+       <string>Dashboard sections</string>
+      </property>
+      <property name="currentIndex">
+       <number>0</number>
+      </property>
+      <widget class="QWidget" name="connectionPage">
+       <attribute name="title">
+        <string>Connection</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="connectionPageLayout">
+        <item>
+         <widget class="QScrollArea" name="connectionPageScroll">
+          <property name="widgetResizable">
+           <bool>true</bool>
+          </property>
+          <property name="frameShape">
+           <enum>QFrame::NoFrame</enum>
+          </property>
+          <widget class="QWidget" name="connectionPageContents">
+           <layout class="QVBoxLayout" name="connectionPageBody">
+            <property name="spacing">
+             <number>12</number>
+            </property>
+            <property name="sizeConstraint">
+             <enum>QLayout::SetMinAndMaxSize</enum>
+            </property>
+            <item>
+             <widget class="QGroupBox" name="localComputer">
+              <property name="title">
+               <string>This computer</string>
+              </property>
+              <layout class="QVBoxLayout" name="localComputerLayout">
+               <item>
+                <layout class="QFormLayout" name="localIdentityForm">
+                 <item row="0" column="0">
+                  <widget class="QLabel" name="label_5">
+                   <property name="text">
+                    <string>Name:</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="0" column="1">
+                  <widget class="QLabel" name="m_pLabelScreenName">
+                   <property name="textFormat">
+                    <enum>Qt::PlainText</enum>
+                   </property>
+                   <property name="textInteractionFlags">
+                    <set>Qt::TextSelectableByMouse|Qt::TextSelectableByKeyboard</set>
+                   </property>
+                   <property name="text">
+                    <string notr="true" />
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="1" column="0">
+                  <widget class="QLabel" name="label_2">
+                   <property name="text">
+                    <string>Addresses:</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="1" column="1">
+                  <layout class="QHBoxLayout" name="addressActions">
+                   <item>
+                    <widget class="QLabel" name="m_pLabelIpAddresses">
+                     <property name="textFormat">
+                      <enum>Qt::PlainText</enum>
+                     </property>
+                     <property name="textInteractionFlags">
+                      <set>Qt::TextSelectableByMouse|Qt::TextSelectableByKeyboard</set>
+                     </property>
+                     <property name="text">
+                      <string notr="true" />
+                     </property>
+                    </widget>
+                   </item>
+                   <item>
+                    <widget class="QToolButton" name="copyAddresses">
+                     <property name="text">
+                      <string>Copy</string>
+                     </property>
+                     <property name="toolTip">
+                      <string>Copy this computer’s IP addresses</string>
+                     </property>
+                     <property name="accessibleName">
+                      <string>Copy this computer’s IP addresses</string>
+                     </property>
+                     <property name="focusPolicy">
+                      <enum>Qt::StrongFocus</enum>
+                     </property>
+                    </widget>
+                   </item>
+                  </layout>
+                 </item>
+                </layout>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <widget class="QGroupBox" name="m_pGroupServer">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="title">
+               <string>Ser&amp;ver: share this computer's keyboard and mouse</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+              <property name="checked">
+               <bool>true</bool>
+              </property>
+              <layout class="QVBoxLayout">
+               <item>
+                <widget class="QLabel" name="serverRoleHint">
+                 <property name="text">
+                  <string>Share this computer's keyboard and mouse. Arrange your client screens before starting.</string>
+                 </property>
+                 <property name="textFormat">
+                  <enum>Qt::PlainText</enum>
+                 </property>
+                 <property name="wordWrap">
+                  <bool>true</bool>
+                 </property>
+                </widget>
+               </item>
+               <item alignment="Qt::AlignLeft">
+                <widget class="QPushButton" name="goToLayout">
+                 <property name="text">
+                  <string>Open screen &amp;layout</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <widget class="QGroupBox" name="m_pGroupClient">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="title">
+               <string>&amp;Client: use another computer's keyboard and mouse</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+              <property name="checked">
+               <bool>true</bool>
+              </property>
+              <layout class="QFormLayout" name="formLayout_3">
+               <property name="fieldGrowthPolicy">
+                <enum>QFormLayout::AllNonFixedFieldsGrow</enum>
+               </property>
+               <item row="2" column="0">
+                <widget class="QLabel" name="m_pLabelServerName">
+                 <property name="text">
+                  <string>Server &amp;address:</string>
+                 </property>
+                 <property name="buddy">
+                  <cstring>m_pLineEditHostname</cstring>
+                 </property>
+                </widget>
+               </item>
+               <item row="2" column="1">
+                <widget class="QLineEdit" name="m_pLineEditHostname">
+                 <property name="toolTip">
+                  <string>Enter the name or IP address of the computer sharing its keyboard and mouse.</string>
+                 </property>
+                 <property name="accessibleName">
+                  <string>Server address</string>
+                 </property>
+                 <property name="placeholderText">
+                  <string>Server name or IP address</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="3" column="0">
+                <widget class="QCheckBox" name="m_pCheckBoxAutoConfig">
+                 <property name="text">
+                  <string>Find servers a&amp;utomatically</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="3" column="1">
+                <widget class="QComboBox" name="m_pComboServerList">
+                 <property name="toolTip">
+                  <string>A discovered address still needs fingerprint approval before it is trusted.</string>
+                 </property>
+                 <property name="accessibleName">
+                  <string>Discovered servers</string>
+                 </property>
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
+                 <property name="minimumSize">
+                  <size>
+                   <width>120</width>
+                   <height>0</height>
+                  </size>
+                 </property>
+                </widget>
+               </item>
+               <item row="4" column="0" colspan="2">
+                <widget class="QLabel" name="discoveryHint">
+                 <property name="wordWrap">
+                  <bool>true</bool>
+                 </property>
+                 <property name="textFormat">
+                  <enum>Qt::PlainText</enum>
+                 </property>
+                 <property name="text">
+                  <string>Enter the server's name or IP address.</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <widget class="QGroupBox" name="securityOverview">
+              <property name="title">
+               <string>Secure identity</string>
+              </property>
+              <layout class="QVBoxLayout" name="securityOverviewLayout">
+               <item>
+                <layout class="QVBoxLayout" name="horizontalLayout_3">
+                 <item>
+                  <widget class="QLabel" name="m_pLabelFingerprint">
+                   <property name="sizePolicy">
+                    <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
+                     <horstretch>0</horstretch>
+                     <verstretch>0</verstretch>
+                    </sizepolicy>
+                   </property>
+                   <property name="text">
+                    <string>SHA-256 fingerprint:</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QLabel" name="m_pLabelLocalFingerprint">
+                   <property name="text">
+                    <string />
+                   </property>
+                   <property name="textFormat">
+                    <enum>Qt::PlainText</enum>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <layout class="QHBoxLayout" name="fingerprintActions">
+                   <item>
+                    <widget class="QToolButton" name="copyFingerprint">
+                     <property name="text">
+                      <string>Copy SHA-256</string>
+                     </property>
+                     <property name="toolTip">
+                      <string>Copy the full public SHA-256 fingerprint</string>
+                     </property>
+                     <property name="accessibleName">
+                      <string>Copy the full public SHA-256 fingerprint</string>
+                     </property>
+                     <property name="focusPolicy">
+                      <enum>Qt::StrongFocus</enum>
+                     </property>
+                    </widget>
+                   </item>
+                   <item>
+                    <widget class="QToolButton" name="toolbutton_show_fingerprint">
+                     <property name="focusPolicy">
+                      <enum>Qt::StrongFocus</enum>
+                     </property>
+                     <property name="checkable">
+                      <bool>true</bool>
+                     </property>
+                     <property name="accessibleName">
+                      <string>Fingerprint details</string>
+                     </property>
+                     <property name="toolTip">
+                      <string>Show or hide the full public fingerprints</string>
+                     </property>
+                     <property name="text">
+                      <string>Details</string>
+                     </property>
+                     <property name="arrowType">
+                      <enum>Qt::DownArrow</enum>
+                     </property>
+                     <property name="toolButtonStyle">
+                      <enum>Qt::ToolButtonTextBesideIcon</enum>
+                     </property>
+                    </widget>
+                   </item>
+                   <item>
+                    <spacer name="fingerprintActionStretch">
+                     <property name="orientation">
+                      <enum>Qt::Horizontal</enum>
+                     </property>
+                    </spacer>
+                   </item>
+                  </layout>
+                 </item>
+                </layout>
+               </item>
+               <item>
+                <widget class="QLabel" name="identityError">
+                 <property name="text">
+                  <string />
+                 </property>
+                 <property name="wordWrap">
+                  <bool>true</bool>
+                 </property>
+                 <property name="textFormat">
+                  <enum>Qt::PlainText</enum>
+                 </property>
+                 <property name="accessibleName">
+                  <string>Secure identity error</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QToolButton" name="retryIdentity">
+                 <property name="text">
+                  <string>Retry &amp;identity setup</string>
+                 </property>
+                 <property name="toolTip">
+                  <string>Read the existing identity again. Existing invalid files are kept.</string>
+                 </property>
+                 <property name="focusPolicy">
+                  <enum>Qt::StrongFocus</enum>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QFrame" name="frame_fingerprint_details">
+                 <property name="frameShape">
+                  <enum>QFrame::StyledPanel</enum>
+                 </property>
+                 <property name="frameShadow">
+                  <enum>QFrame::Raised</enum>
+                 </property>
+                 <layout class="QGridLayout" name="gridLayout">
+                  <property name="sizeConstraint">
+                   <enum>QLayout::SetMinimumSize</enum>
+                  </property>
+                  <item row="1" column="1">
+                   <widget class="QLabel" name="label_sha256_randomart">
+                    <property name="font">
+                     <font>
+                      <family>Courier</family>
+                     </font>
+                    </property>
+                    <property name="text">
+                     <string />
+                    </property>
+                    <property name="textInteractionFlags">
+                     <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="2" column="0" colspan="2">
+                   <widget class="QLabel" name="label_sha1">
+                    <property name="text">
+                     <string>SHA1 (deprecated, compare to old clients and servers only):</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="3" column="0" colspan="2">
+                   <widget class="QLabel" name="label_sha1_fingerprint_full">
+                    <property name="textFormat">
+                     <enum>Qt::PlainText</enum>
+                    </property>
+                    <property name="textInteractionFlags">
+                     <set>Qt::TextSelectableByMouse|Qt::TextSelectableByKeyboard</set>
+                    </property>
+                    <property name="text">
+                     <string />
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="0" column="0" colspan="2">
+                   <widget class="QLabel" name="label_sha256">
+                    <property name="text">
+                     <string>SHA256:</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="1" column="0">
+                   <widget class="QLabel" name="label_sha256_fingerprint_full">
+                    <property name="textFormat">
+                     <enum>Qt::PlainText</enum>
+                    </property>
+                    <property name="textInteractionFlags">
+                     <set>Qt::TextSelectableByMouse|Qt::TextSelectableByKeyboard</set>
+                    </property>
+                    <property name="text">
+                     <string />
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <spacer name="connectionStretch">
+              <property name="orientation">
+               <enum>Qt::Vertical</enum>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </widget>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="layoutPage">
+       <attribute name="title">
+        <string>Screen layout</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="layoutPageLayout">
+        <item>
+         <widget class="QScrollArea" name="layoutPageScroll">
+          <property name="widgetResizable">
+           <bool>true</bool>
+          </property>
+          <property name="frameShape">
+           <enum>QFrame::NoFrame</enum>
+          </property>
+          <widget class="QWidget" name="layoutPageContents">
+           <layout class="QVBoxLayout" name="layoutPageBody">
+            <property name="spacing">
+             <number>12</number>
+            </property>
+            <property name="sizeConstraint">
+             <enum>QLayout::SetMinAndMaxSize</enum>
+            </property>
+            <item>
+             <widget class="QLabel" name="layoutHint">
+              <property name="text">
+               <string>Arrange the client screens to match your desk.</string>
+              </property>
+              <property name="textFormat">
+               <enum>Qt::PlainText</enum>
+              </property>
+              <property name="wordWrap">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item alignment="Qt::AlignLeft">
+             <widget class="QPushButton" name="goToConnection">
+              <property name="text">
+               <string>Choose this computer’s role</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QGroupBox" name="layoutTools">
+              <property name="title">
+               <string>Server configuration</string>
+              </property>
+              <layout class="QVBoxLayout" name="layoutToolsLayout">
+               <item>
+                <widget class="QRadioButton" name="m_pRadioInternalConfig">
+                 <property name="text">
+                  <string>Arrange connected scree&amp;ns:</string>
+                 </property>
+                 <property name="checked">
+                  <bool>true</bool>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <layout class="QHBoxLayout" name="horizontalLayout_4">
+                 <item>
+                  <widget class="QPushButton" name="m_pButtonConfigureServer">
+                   <property name="text">
+                    <string>Screen &amp;layout...</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <spacer>
+                   <property name="orientation">
+                    <enum>Qt::Horizontal</enum>
+                   </property>
+                   <property name="sizeHint" stdset="0">
+                    <size>
+                     <width>40</width>
+                     <height>20</height>
+                    </size>
+                   </property>
+                  </spacer>
+                 </item>
+                </layout>
+               </item>
+               <item>
+                <widget class="QRadioButton" name="m_pRadioExternalConfig">
+                 <property name="text">
+                  <string>Use a confi&amp;guration file:</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <layout class="QHBoxLayout">
+                 <item>
+                  <widget class="QLabel" name="m_pLabelConfigurationFile">
+                   <property name="text">
+                    <string>Configuration &amp;file:</string>
+                   </property>
+                   <property name="buddy">
+                    <cstring>m_pLineEditConfigFile</cstring>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QLineEdit" name="m_pLineEditConfigFile">
+                   <property name="enabled">
+                    <bool>false</bool>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QPushButton" name="m_pButtonBrowseConfigFile">
+                   <property name="enabled">
+                    <bool>false</bool>
+                   </property>
+                   <property name="text">
+                    <string>Bro&amp;wse...</string>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <spacer name="layoutStretch">
+              <property name="orientation">
+               <enum>Qt::Vertical</enum>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </widget>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="settingsPage">
+       <attribute name="title">
+        <string>Settings</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="settingsPageLayout">
+        <item>
+         <widget class="QScrollArea" name="settingsPageScroll">
+          <property name="widgetResizable">
+           <bool>true</bool>
+          </property>
+          <property name="frameShape">
+           <enum>QFrame::NoFrame</enum>
+          </property>
+          <widget class="QWidget" name="settingsPageContents">
+           <layout class="QVBoxLayout" name="settingsPageBody">
+            <property name="spacing">
+             <number>12</number>
+            </property>
+            <property name="sizeConstraint">
+             <enum>QLayout::SetMinAndMaxSize</enum>
+            </property>
+            <item>
+             <widget class="QGroupBox" name="preferencesOverview">
+              <property name="title">
+               <string>Preferences</string>
+              </property>
+              <layout class="QVBoxLayout" name="preferencesOverviewLayout">
+               <item>
+                <widget class="QLabel" name="preferencesHint">
+                 <property name="text">
+                  <string>Change encryption, startup, language, logging and service options. Restart a running connection to apply connection changes.</string>
+                 </property>
+                 <property name="textFormat">
+                  <enum>Qt::PlainText</enum>
+                 </property>
+                 <property name="wordWrap">
+                  <bool>true</bool>
+                 </property>
+                </widget>
+               </item>
+               <item alignment="Qt::AlignLeft">
+                <widget class="QPushButton" name="openPreferences">
+                 <property name="text">
+                  <string>Open &amp;preferences…</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <widget class="QGroupBox" name="diagnosticsOverview">
+              <property name="title">
+               <string>Diagnostics</string>
+              </property>
+              <layout class="QVBoxLayout" name="diagnosticsOverviewLayout">
+               <item>
+                <widget class="QLabel" name="diagnosticsHint">
+                 <property name="text">
+                  <string>Read connection and identity errors in the log. Private keys are not needed for troubleshooting.</string>
+                 </property>
+                 <property name="textFormat">
+                  <enum>Qt::PlainText</enum>
+                 </property>
+                 <property name="wordWrap">
+                  <bool>true</bool>
+                 </property>
+                </widget>
+               </item>
+               <item alignment="Qt::AlignLeft">
+                <widget class="QPushButton" name="openDashboardLog">
+                 <property name="text">
+                  <string>Open &amp;log</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="dashboardVersion">
+              <property name="text">
+               <string />
+              </property>
+              <property name="textFormat">
+               <enum>Qt::PlainText</enum>
+              </property>
+              <property name="wordWrap">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="settingsStretch">
+              <property name="orientation">
+               <enum>Qt::Vertical</enum>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </widget>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </widget>
     </item>
    </layout>
   </widget>
@@ -369,7 +826,7 @@
     <string>&amp;About Barrier...</string>
    </property>
    <property name="shortcut">
-    <string notr="true"/>
+    <string notr="true" />
    </property>
   </action>
   <action name="m_pActionQuit">
@@ -427,7 +884,7 @@
     <string>Show</string>
    </property>
    <property name="shortcut">
-    <string notr="true"/>
+    <string notr="true" />
    </property>
   </action>
   <action name="m_pActionSave">
@@ -463,9 +920,46 @@
     <string notr="true">F2</string>
    </property>
   </action>
+  <property name="windowTitle">
+   <string>barrier-x</string>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>640</width>
+    <height>480</height>
+   </size>
+  </property>
  </widget>
+ <tabstops>
+  <tabstop>m_pButtonToggleStart</tabstop>
+  <tabstop>m_pButtonReload</tabstop>
+  <tabstop>reviewIdentity</tabstop>
+  <tabstop>dashboardTabs</tabstop>
+  <tabstop>m_pLabelScreenName</tabstop>
+  <tabstop>m_pLabelIpAddresses</tabstop>
+  <tabstop>copyAddresses</tabstop>
+  <tabstop>m_pGroupServer</tabstop>
+  <tabstop>goToLayout</tabstop>
+  <tabstop>m_pGroupClient</tabstop>
+  <tabstop>m_pLineEditHostname</tabstop>
+  <tabstop>m_pCheckBoxAutoConfig</tabstop>
+  <tabstop>m_pComboServerList</tabstop>
+  <tabstop>retryIdentity</tabstop>
+  <tabstop>copyFingerprint</tabstop>
+  <tabstop>toolbutton_show_fingerprint</tabstop>
+  <tabstop>label_sha256_fingerprint_full</tabstop>
+  <tabstop>label_sha1_fingerprint_full</tabstop>
+  <tabstop>goToConnection</tabstop>
+  <tabstop>m_pRadioInternalConfig</tabstop>
+  <tabstop>m_pButtonConfigureServer</tabstop>
+  <tabstop>m_pRadioExternalConfig</tabstop>
+  <tabstop>m_pLineEditConfigFile</tabstop>
+  <tabstop>m_pButtonBrowseConfigFile</tabstop>
+  <tabstop>openPreferences</tabstop>
+  <tabstop>openDashboardLog</tabstop>
+ </tabstops>
  <resources>
-  <include location="../res/Barrier.qrc"/>
+  <include location="../res/Barrier.qrc" />
  </resources>
  <connections>
   <connection>

@@ -1,6 +1,6 @@
 # Working plan
 
-6 November 2026. I built this change from the verified 2.4.16 snapshot. The detailed backlog
+8 November 2026. Local development is 2.4.22-snapshot, based on verified 2.4.18. The detailed backlog
 and landed versions live in [roadmap.md](roadmap.md); build evidence stays in
 [build.md](build.md). This is the order I'd work through, rather than another
 list of things I'd quite like to finish eventually.
@@ -52,3 +52,62 @@ imported their source or run their scripts.
 - I make discovery optional in 2.4.18, with a manual-connection fallback. A replacement backend remains a proposal. Input Leap still requires Bonjour in the reviewed Windows GUI build. [Native Windows browsing](https://learn.microsoft.com/en-us/windows/win32/api/windns/nf-windns-dnsservicebrowse) is worth investigating, with Windows 10+ capability checks, bounded records and safe callback cancellation. A discovered address still needs peer approval.
 
 I wouldn't copy Input Leap's [2019 Bonjour download](https://github.com/input-leap/input-leap/blob/34a34fb20b93113a6b26052cb5a54f9be2327775/.github/workflows/builds.yml) or [historical WiX DLL list](https://github.com/input-leap/input-leap/blob/34a34fb20b93113a6b26052cb5a54f9be2327775/dist/wix/Product.wxs) unchanged. The download has no pinned digest, and that list still names the old OpenSSL DLLs. Its Qt 6 discovery code also casts narrow strings to wide pointers; that's no encoding conversion. These bits need separate review, rather than inheriting their problems along with their useful ideas.
+
+
+## Control panel, 2.4.19
+
+I keep the existing server/client layout and move status and Start/Stop above
+it. Role-specific wording distinguishes a listening server from a connected
+client. A role edited during a connection takes effect after stop/start; the
+status keeps the role captured for the current attempt. I add visible discovery
+guidance, plain address copying and a full public SHA-256 copy action.
+
+Keyboard labels, explicit tab order, selectable identifiers and a resizable
+window land in this step. I retain the platform's widget colours and fonts.
+This isn't a screen-reader or contrast compliance claim. Explicit peer/focus
+events, platform accessibility review and Windows GUI validation remain BX-007.
+
+
+## Peer approval, 2.4.20
+
+I replace Yes/No with Trust server/client and Reject. Rejection keeps the
+default focus; copying the full public SHA-256 value leaves the decision open.
+Missing or malformed SHA-256 values cannot be approved. The existing engine
+still owns certificate verification and the trust store.
+
+Next I want clearer trust/storage errors and peer identity supplied by the
+engine. A discovered name is still just an address-book suggestion. Native
+Windows/macOS and screen-reader review remain open.
+
+
+## Identity errors, 2.4.21
+
+I show setup failures beside the fingerprint and offer Retry. A failed identity
+read hides stale copy values. Missing public fingerprints can be rebuilt from
+the retained identity. Unsupported existing keys now stay in place for deliberate
+repair instead of being silently replaced.
+
+I publish the local public fingerprint file through checked QSaveFile writes,
+with direct overwrite fallback disabled. Symlink and non-regular destinations
+are rejected. Checked peer-trust saves are next; parent traversal and concurrent
+path changes still need review. Retry remains synchronous.
+
+
+## Dashboard, 2.4.22
+
+I split the interface into Connection, Screen layout and Settings. Status and
+Start/Stop stay above the pages. Inactive role controls collapse, the computer's
+identifiers stay available, and a persistent identity notice links back to
+recovery. Screen layout retains its existing editor and configuration-file mode.
+Settings opens the existing preferences dialog and log.
+
+Pages scroll at smaller sizes and keep their selected tab and window geometry.
+The engine doesn't need to know which tab I've opened. Native desktop and
+screen-reader checks remain open.
+
+| Iteration | Changed area |
+| --- | --- |
+| 2.4.19 | Clearer control panel and copy actions |
+| 2.4.20 | Explicit peer approval and rejection defaults |
+| 2.4.21 | Identity errors, Retry and checked public fingerprint saves |
+| 2.4.22 | Three-page dashboard and navigation |

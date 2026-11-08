@@ -9,6 +9,11 @@
 #include <QObject>
 #include <fstream>
 #include <iterator>
+#include <openssl/evp.h>
+#include <openssl/rsa.h>
+#include <openssl/pem.h>
+#include <openssl/x509.h>
+#include <memory>
 #if SYSAPI_UNIX
 #include <sys/stat.h>
 
@@ -83,5 +88,72 @@ TEST_F(SslCertificateTests, RefusesSymlinkWithoutChangingTheVictim)
     struct stat info{};
     ASSERT_EQ(0, stat(victim.c_str(), &info));
     EXPECT_EQ(0644, info.st_mode & 07777);
+}
+
+TEST_F(SslCertificateTests, PublicFingerprintWriteFailureIsReportedAndCanBeRetried)
+{
+    barrier::generate_pem_self_signed_cert(path.u8string());
+    const auto bytes = read(path);
+    const auto publicPath = barrier::DataDirectories::local_ssl_fingerprints_path();
+    barrier::fs::create_directories(publicPath);
+    { std::ofstream marker((publicPath / "keep").c_str()); marker << "existing directory"; }
+    run();
+    EXPECT_EQ(0, finished);
+    EXPECT_EQ(1, errors);
+    EXPECT_TRUE(bytes == read(path));
+    EXPECT_EQ("existing directory", read(publicPath / "keep"));
+    barrier::fs::remove(publicPath / "keep");
+    barrier::fs::remove(publicPath);
+    run();
+    EXPECT_EQ(1, finished);
+    EXPECT_EQ(1, errors);
+    EXPECT_TRUE(bytes == read(path));
+    barrier::FingerprintDatabase database;
+    database.read(publicPath);
+    EXPECT_TRUE(database.is_trusted(barrier::get_pem_file_cert_fingerprint(path.u8string(), barrier::SHA256)));
+}
+TEST_F(SslCertificateTests, WeakExistingIdentityIsReportedWithoutReplacingIt)
+{
+    std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)> generator(
+        EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, nullptr), EVP_PKEY_CTX_free);
+    ASSERT_NE(nullptr, generator);
+    ASSERT_EQ(1, EVP_PKEY_keygen_init(generator.get()));
+    ASSERT_EQ(1, EVP_PKEY_CTX_set_rsa_keygen_bits(generator.get(), 1024));
+    EVP_PKEY* raw = nullptr;
+    ASSERT_EQ(1, EVP_PKEY_keygen(generator.get(), &raw));
+    std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)> key(raw, EVP_PKEY_free);
+    std::unique_ptr<X509, decltype(&X509_free)> cert(X509_new(), X509_free);
+    ASSERT_NE(nullptr, cert);
+    ASSERT_EQ(1, X509_set_version(cert.get(), 2));
+    ASSERT_EQ(1, ASN1_INTEGER_set(X509_get_serialNumber(cert.get()), 1));
+    ASSERT_NE(nullptr, X509_gmtime_adj(X509_getm_notBefore(cert.get()), 0));
+    ASSERT_NE(nullptr, X509_gmtime_adj(X509_getm_notAfter(cert.get()), 3600));
+    ASSERT_EQ(1, X509_set_pubkey(cert.get(), key.get()));
+    ASSERT_GT(X509_sign(cert.get(), key.get(), EVP_sha256()), 0);
+    std::unique_ptr<BIO, decltype(&BIO_free)> output(BIO_new_file(path.c_str(), "w"), BIO_free);
+    ASSERT_NE(nullptr, output);
+    ASSERT_EQ(1, PEM_write_bio_PrivateKey(output.get(), key.get(), nullptr, nullptr, 0, nullptr, nullptr));
+    ASSERT_EQ(1, PEM_write_bio_X509(output.get(), cert.get()));
+    output.reset();
+    ASSERT_NO_THROW(barrier::read_pem_identity(path.u8string()));
+    const auto bytes = read(path);
+    run();
+    EXPECT_EQ(0, finished);
+    EXPECT_EQ(1, errors);
+    EXPECT_TRUE(bytes == read(path));
+}
+
+TEST_F(SslCertificateTests, PublicFingerprintSymlinkCannotReplaceTheIdentity)
+{
+    barrier::generate_pem_self_signed_cert(path.u8string());
+    const auto bytes = read(path);
+    const auto publicPath = barrier::DataDirectories::local_ssl_fingerprints_path();
+    barrier::fs::create_directories(publicPath.parent_path());
+    barrier::fs::create_symlink(path, publicPath);
+    run();
+    EXPECT_EQ(0, finished);
+    EXPECT_EQ(1, errors);
+    EXPECT_TRUE(bytes == read(path));
+    EXPECT_TRUE(barrier::fs::is_symlink(publicPath));
 }
 #endif

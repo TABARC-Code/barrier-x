@@ -33,6 +33,7 @@
 #include "base/String.h"
 #include "base/finally.h"
 #include "common/DataDirectories.h"
+#include "common/Version.h"
 #include "net/FingerprintDatabase.h"
 #include "net/SecureUtils.h"
 
@@ -41,6 +42,10 @@
 #include <QtNetwork>
 #include <QNetworkAccessManager>
 #include <QMenu>
+#include <QClipboard>
+#include <QStatusBar>
+#include <QScrollArea>
+#include <QTabWidget>
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QFileDialog>
@@ -125,9 +130,35 @@ MainWindow::MainWindow(QSettings& settings, AppConfig& appConfig) :
     createMenuBar();
     loadSettings();
     initConnections();
+    // 2.4.22: I keep page navigation separate from connection actions.
+    connect(goToLayout, &QPushButton::clicked, this, [this] { dashboardTabs->setCurrentWidget(layoutPage); });
+    connect(goToConnection, &QPushButton::clicked, this, [this] {
+        dashboardTabs->setCurrentWidget(connectionPage);
+        m_pGroupServer->setFocus();
+    });
+    connect(openPreferences, &QPushButton::clicked, m_pActionSettings, &QAction::trigger);
+    connect(openDashboardLog, &QPushButton::clicked, m_pActionShowLog, &QAction::trigger);
+    connect(reviewIdentity, &QPushButton::clicked, this, [this] {
+        dashboardTabs->setCurrentWidget(connectionPage);
+        connectionPageScroll->ensureWidgetVisible(retryIdentity);
+        retryIdentity->setFocus();
+    });
 
     m_pLabelScreenName->setText(getScreenName());
     m_pLabelIpAddresses->setText(getIPAddresses());
+    copyAddresses->setEnabled(!m_CopyableAddresses.isEmpty());
+    connect(copyAddresses, &QToolButton::clicked, this, [this] {
+        if (m_CopyableAddresses.isEmpty()) { return; }
+        QApplication::clipboard()->setText(m_CopyableAddresses);
+        statusBar()->showMessage(tr("IP addresses copied."), 3000);
+    });
+    connect(retryIdentity, &QToolButton::clicked, this, [this] { updateSSLFingerprint(true); });
+    connect(copyFingerprint, &QToolButton::clicked, this, [this] {
+        if (m_CopyableFingerprint.isEmpty()) { return; }
+        // I copy the public SHA-256 value, never the shortened label or the key file.
+        QApplication::clipboard()->setText(m_CopyableFingerprint);
+        statusBar()->showMessage(tr("Full SHA-256 fingerprint copied."), 3000);
+    });
 
 #if defined(Q_OS_WIN)
     // ipc must always be enabled, so that we can disable command when switching to desktop mode.
@@ -137,15 +168,6 @@ MainWindow::MainWindow(QSettings& settings, AppConfig& appConfig) :
     m_IpcClient.connectToHost();
 #endif
 
-    // change default size based on os
-#if defined(Q_OS_MAC)
-    resize(720, 550);
-    setMinimumSize(720, 0);
-#elif defined(Q_OS_LINUX)
-    resize(700, 530);
-    setMinimumSize(700, 0);
-#endif
-
     updateDiscoveryControls();
 
     m_pComboServerList->hide();
@@ -153,10 +175,11 @@ MainWindow::MainWindow(QSettings& settings, AppConfig& appConfig) :
     frame_fingerprint_details->hide();
 
     updateSSLFingerprint();
+    updateConnectionPresentation();
 
     connect(toolbutton_show_fingerprint, &QToolButton::clicked, [this](bool checked)
     {
-        m_fingerprint_expanded = !m_fingerprint_expanded;
+        m_fingerprint_expanded = checked;
         if (m_fingerprint_expanded) {
             frame_fingerprint_details->show();
             toolbutton_show_fingerprint->setArrowType(Qt::ArrowType::UpArrow);
@@ -166,8 +189,10 @@ MainWindow::MainWindow(QSettings& settings, AppConfig& appConfig) :
         }
     });
 
-    // resize window to smallest reasonable size
-    resize(0, 0);
+    // 2.4.22: I let long pages scroll, including expanded fingerprints.
+    resize(820, 700);
+    const auto geometry = settings.value("dashboardGeometry").toByteArray();
+    if (!geometry.isEmpty()) { restoreGeometry(geometry); }
 }
 
 MainWindow::~MainWindow()
@@ -217,6 +242,62 @@ void MainWindow::open()
 void MainWindow::setStatus(const QString &status)
 {
     m_pStatusLabel->setText(status);
+}
+
+void MainWindow::updateConnectionPresentation()
+{
+    const bool active = barrierState() != barrierDisconnected;
+    const bool server = (active ? m_ActiveRole : barrier_type()) == BarrierType::Server;
+    m_pButtonToggleStart->setText(barrierState() == barrierDisconnected ? tr("&Start") : tr("&Stop"));
+    switch (barrierState()) {
+    case barrierConnected:
+        setStatus(server ? tr("Server running") : tr("Connected to server"));
+        connectionHint->setText(server ?
+            tr("Use this computer's address and name when setting up your clients.") :
+            tr("This computer is using the server's keyboard and mouse."));
+        break;
+    case barrierConnecting:
+        setStatus(server ? tr("Starting server") : tr("Connecting to server"));
+        connectionHint->setText(tr("Open the log with F2 for connection details. You can stop this attempt."));
+        break;
+    case barrierTransfering:
+        setStatus(tr("Transfer in progress"));
+        connectionHint->setText(tr("The connection is active. Open the log with F2 for details."));
+        break;
+    case barrierDisconnected:
+        setStatus(tr("Stopped"));
+        connectionHint->setText(server ?
+            tr("Arrange your client screens, then start sharing this computer's keyboard and mouse.") :
+            tr("Choose the server you want to use, then start the connection."));
+        break;
+    }
+    if (active && barrier_type() != m_ActiveRole) {
+        connectionHint->setText(connectionHint->text() + QLatin1Char(' ') +
+            tr("Stop and start again to apply the new computer role."));
+    }
+    updateDashboard();
+    // FUTURE(BX-007): report peer approval and input focus from explicit engine events.
+    // A listening server still isn't proof that anyone has turned up.
+}
+
+void MainWindow::updateDashboard()
+{
+    const bool server = barrier_type() == BarrierType::Server;
+    layoutTools->setEnabled(server);
+    m_pGroupServer->setFlat(!server);
+    m_pGroupClient->setFlat(server);
+    serverRoleHint->setVisible(server);
+    goToLayout->setVisible(server);
+    m_pLabelServerName->setVisible(!server);
+    m_pLineEditHostname->setVisible(!server);
+    m_pCheckBoxAutoConfig->setVisible(!server);
+    discoveryHint->setVisible(!server);
+    m_pComboServerList->setVisible(!server && m_pCheckBoxAutoConfig->isChecked() && m_pComboServerList->count() > 1);
+    goToConnection->setVisible(!server);
+    layoutHint->setText(server ?
+        tr("Arrange the client screens to match your desk. Each screen name must match its client computer.") :
+        tr("Screen layout is configured on the server. Choose Server on Connection to edit it here."));
+    dashboardVersion->setText(tr("Development version: %1").arg(QString::fromLatin1(kVersion)));
 }
 
 void MainWindow::createTrayIcon()
@@ -284,6 +365,7 @@ void MainWindow::loadSettings()
     m_pLineEditConfigFile->setText(settings().value("configFile", QDir::homePath() + "/" + barrierConfigName).toString());
     m_pGroupClient->setChecked(settings().value("groupClientChecked", true).toBool());
     m_pLineEditHostname->setText(settings().value("serverHostname").toString());
+    dashboardTabs->setCurrentIndex(qBound(0, settings().value("dashboardTab", 0).toInt(), dashboardTabs->count() - 1));
 }
 
 void MainWindow::initConnections()
@@ -298,6 +380,8 @@ void MainWindow::initConnections()
 
 void MainWindow::saveSettings()
 {
+    settings().setValue("dashboardGeometry", saveGeometry());
+    settings().setValue("dashboardTab", dashboardTabs->currentIndex());
     // program settings
     settings().setValue("groupServerChecked", m_pGroupServer->isChecked());
     settings().setValue("useExternalConfig", m_pRadioExternalConfig->isChecked());
@@ -432,7 +516,8 @@ void MainWindow::checkFingerprint(const QString& line)
         barrier::string::from_hex(fingerprintRegex.cap(2).toStdString())
     };
 
-    bool is_client = barrier_type() == BarrierType::Client;
+    const BarrierType role = barrierState() == barrierDisconnected ? barrier_type() : m_ActiveRole;
+    const bool is_client = role == BarrierType::Client;
 
     auto db_path = is_client
             ? barrier::DataDirectories::trusted_servers_ssl_fingerprints_path()
@@ -460,7 +545,7 @@ void MainWindow::checkFingerprint(const QString& line)
         }
 
         messageBoxAlreadyShown = true;
-        FingerprintAcceptDialog dialog{this, barrier_type(), fingerprint_sha1, fingerprint_sha256};
+        FingerprintAcceptDialog dialog{this, role, fingerprint_sha1, fingerprint_sha256};
         if (dialog.exec() == QDialog::Accepted) {
             // restart core process after trusting fingerprint.
             db.add_trusted(fingerprint_sha256);
@@ -482,9 +567,8 @@ void MainWindow::restartBarrier()
 
 void MainWindow::proofreadInfo()
 {
-    int oldState = m_BarrierState;
-    m_BarrierState = barrierDisconnected;
-    setBarrierState((qBarrierState)oldState);
+    m_pLabelPadlock->setVisible(barrierState() == barrierConnected && appConfig().getCryptoEnabled());
+    updateConnectionPresentation();
 }
 
 void MainWindow::startBarrier()
@@ -807,28 +891,28 @@ void MainWindow::setBarrierState(qBarrierState state)
     if (barrierState() == state)
         return;
 
-    if (state == barrierConnected || state == barrierConnecting)
+    if (barrierState() == barrierDisconnected && state != barrierDisconnected) {
+        // Configuration can change while the engine runs. Its role cannot follow a checkbox.
+        m_ActiveRole = barrier_type();
+    }
+    if (state != barrierDisconnected)
     {
         disconnect (m_pButtonToggleStart, SIGNAL(clicked()), m_pActionStartBarrier, SLOT(trigger()));
-        connect (m_pButtonToggleStart, SIGNAL(clicked()), m_pActionStopBarrier, SLOT(trigger()));
+        connect (m_pButtonToggleStart, SIGNAL(clicked()), m_pActionStopBarrier, SLOT(trigger()), Qt::UniqueConnection);
         m_pButtonToggleStart->setText(tr("&Stop"));
         m_pButtonReload->setEnabled(true);
     }
     else if (state == barrierDisconnected)
     {
         disconnect (m_pButtonToggleStart, SIGNAL(clicked()), m_pActionStopBarrier, SLOT(trigger()));
-        connect (m_pButtonToggleStart, SIGNAL(clicked()), m_pActionStartBarrier, SLOT(trigger()));
+        connect (m_pButtonToggleStart, SIGNAL(clicked()), m_pActionStartBarrier, SLOT(trigger()), Qt::UniqueConnection);
         m_pButtonToggleStart->setText(tr("&Start"));
         m_pButtonReload->setEnabled(false);
     }
 
-    bool connected = false;
-    if (state == barrierConnected || state == barrierTransfering) {
-        connected = true;
-    }
-
-    m_pActionStartBarrier->setEnabled(!connected);
-    m_pActionStopBarrier->setEnabled(connected);
+    const bool active = state != barrierDisconnected;
+    m_pActionStartBarrier->setEnabled(!active);
+    m_pActionStopBarrier->setEnabled(active);
 
     switch (state)
     {
@@ -839,18 +923,13 @@ void MainWindow::setBarrierState(qBarrierState state)
         else {
             m_pLabelPadlock->hide();
         }
-
-        setStatus(tr("Barrier is running."));
-
         break;
     }
     case barrierConnecting:
         m_pLabelPadlock->hide();
-        setStatus(tr("Barrier is starting."));
         break;
     case barrierDisconnected:
         m_pLabelPadlock->hide();
-        setStatus(tr("Barrier is not running."));
         break;
     case barrierTransfering:
         break;
@@ -859,6 +938,7 @@ void MainWindow::setBarrierState(qBarrierState state)
     setIcon(state);
 
     m_BarrierState = state;
+    updateConnectionPresentation();
 }
 
 void MainWindow::setVisible(bool visible)
@@ -883,36 +963,15 @@ void MainWindow::setVisible(bool visible)
 
 QString MainWindow::getIPAddresses()
 {
-    QList<QHostAddress> addresses = QNetworkInterface::allAddresses();
-
-    bool hinted = false;
-    QString result;
-    for (int i = 0; i < addresses.size(); i++) {
-        if (addresses[i].protocol() == QAbstractSocket::IPv4Protocol &&
-            addresses[i] != QHostAddress(QHostAddress::LocalHost)) {
-
-            QString address = addresses[i].toString();
-            QString format = "%1, ";
-
-            // usually 192.168.x.x is a useful ip for the user, so indicate
-            // this by making it bold.
-            if (!hinted && address.startsWith("192.168")) {
-                hinted = true;
-                format = "<b>%1</b>, ";
-            }
-
-            result += format.arg(address);
+    QStringList addresses;
+    for (const auto& address : QNetworkInterface::allAddresses()) {
+        if (address.protocol() == QAbstractSocket::IPv4Protocol && !address.isLoopback()) {
+            addresses.append(address.toString());
         }
     }
-
-    if (result == "") {
-        return tr("Unknown");
-    }
-
-    // remove trailing comma.
-    result.chop(2);
-
-    return result;
+    addresses.removeDuplicates();
+    m_CopyableAddresses = addresses.join(QStringLiteral(", "));
+    return addresses.isEmpty() ? tr("No IPv4 address available") : m_CopyableAddresses;
 }
 
 QString MainWindow::getScreenName()
@@ -933,11 +992,22 @@ void MainWindow::changeEvent(QEvent* event)
         {
         case QEvent::LanguageChange:
         {
+            const bool expanded = m_fingerprint_expanded;
             retranslateUi(this);
+            m_pLabelScreenName->setText(getScreenName());
+            m_pLabelIpAddresses->setText(getIPAddresses());
+            copyAddresses->setEnabled(!m_CopyableAddresses.isEmpty());
+            updateSSLFingerprint();
+            if (expanded && toolbutton_show_fingerprint->isEnabled()) {
+                toolbutton_show_fingerprint->setChecked(true);
+                frame_fingerprint_details->show();
+                toolbutton_show_fingerprint->setArrowType(Qt::UpArrow);
+                m_fingerprint_expanded = true;
+            }
             retranslateMenuBar();
             updateDiscoveryControls();
 
-            proofreadInfo();
+            updateConnectionPresentation();
 
             break;
         }
@@ -954,14 +1024,6 @@ void MainWindow::changeEvent(QEvent* event)
     }
     // all that do not return are allowing the event to propagate
     QMainWindow::changeEvent(event);
-}
-
-bool MainWindow::event(QEvent* event)
-{
-    if (event->type() == QEvent::LayoutRequest) {
-        setFixedSize(sizeHint());
-    }
-    return QMainWindow::event(event);
 }
 
 void MainWindow::updateZeroconfService()
@@ -993,7 +1055,7 @@ void MainWindow::serverDetected(const QString name)
     }
 }
 
-void MainWindow::updateSSLFingerprint()
+void MainWindow::updateSSLFingerprint(bool retry)
 {
     if (m_AppConfig->getCryptoEnabled() && m_pSslCertificate == nullptr) {
         m_pSslCertificate = new SslCertificate(this);
@@ -1001,36 +1063,74 @@ void MainWindow::updateSSLFingerprint()
         {
             appendLogInfo(info);
         });
+        connect(m_pSslCertificate, &SslCertificate::error, this, [this](const QString& message) {
+            m_IdentityError = message;
+            appendLogError(message);
+        });
+        retry = true;
+    }
+    if (m_AppConfig->getCryptoEnabled() && retry) {
+        m_IdentityError.clear();
         m_pSslCertificate->generateCertificate();
     }
 
     toolbutton_show_fingerprint->setEnabled(false);
-    m_pLabelLocalFingerprint->setText("Disabled");
+    toolbutton_show_fingerprint->setChecked(false);
+    toolbutton_show_fingerprint->setArrowType(Qt::DownArrow);
+    frame_fingerprint_details->hide();
+    m_fingerprint_expanded = false;
+    copyFingerprint->setEnabled(false);
+    m_CopyableFingerprint.clear();
+    label_sha1_fingerprint_full->clear();
+    label_sha256_fingerprint_full->clear();
+    label_sha256_randomart->clear();
+    m_pLabelLocalFingerprint->setText(m_AppConfig->getCryptoEnabled() ?
+        tr("Unavailable") : tr("Encryption is off"));
 
-    if (!m_AppConfig->getCryptoEnabled()) {
+    identityError->hide();
+    retryIdentity->hide();
+    identityAlert->hide();
+    reviewIdentity->hide();
+    const auto report = [this](const QString& reason) {
+        identityError->setText(tr("Secure identity unavailable. Check access to your profile folder, then retry. "
+                                  "Open the log with F2 for details.\n%1").arg(reason));
+        identityError->show();
+        retryIdentity->show();
+        identityAlert->show();
+        reviewIdentity->show();
+    };
+    if (!m_AppConfig->getCryptoEnabled()) { return; }
+    if (!m_IdentityError.isEmpty()) {
+        report(m_IdentityError);
         return;
     }
-
-    auto local_path = barrier::DataDirectories::local_ssl_fingerprints_path();
-    if (!barrier::fs::exists(local_path)) {
-        return;
-    }
-
     barrier::FingerprintDatabase db;
-    db.read(local_path);
-    if (db.fingerprints().size() != 2) {
+    try {
+        const auto local_path = barrier::DataDirectories::local_ssl_fingerprints_path();
+        if (!barrier::fs::exists(local_path)) {
+            report(tr("Public fingerprints are missing. Retry to rebuild them from the existing identity."));
+            return;
+        }
+        db.read(local_path);
+        if (db.fingerprints().size() != 2) {
+            report(tr("Public fingerprints could not be read. Retry to rebuild them from the existing identity."));
+            return;
+        }
+    } catch (const std::exception& error) {
+        report(QString::fromUtf8(error.what()));
         return;
     }
 
     for (const auto& fingerprint : db.fingerprints()) {
-        if (fingerprint.algorithm == "sha1") {
+        if (fingerprint.algorithm == "sha1" && fingerprint.data.size() == 20) {
             auto fingerprint_str = barrier::format_ssl_fingerprint(fingerprint.data);
             label_sha1_fingerprint_full->setText(QString::fromStdString(fingerprint_str));
             continue;
         }
 
-        if (fingerprint.algorithm == "sha256") {
+        if (fingerprint.algorithm == "sha256" && fingerprint.data.size() == 32) {
             auto fingerprint_str = barrier::format_ssl_fingerprint(fingerprint.data);
+            m_CopyableFingerprint = QString::fromStdString(fingerprint_str);
             fingerprint_str.resize(40);
             fingerprint_str += " ...";
 
@@ -1043,12 +1143,17 @@ void MainWindow::updateSSLFingerprint()
         }
     }
 
-    toolbutton_show_fingerprint->setEnabled(true);
+    if (m_CopyableFingerprint.isEmpty()) {
+        report(tr("The public SHA-256 fingerprint is invalid. Retry to rebuild it from the existing identity."));
+    }
+    toolbutton_show_fingerprint->setEnabled(!m_CopyableFingerprint.isEmpty());
+    copyFingerprint->setEnabled(!m_CopyableFingerprint.isEmpty());
 }
 
 void MainWindow::on_m_pGroupClient_toggled(bool on)
 {
     m_pGroupServer->setChecked(!on);
+    updateConnectionPresentation();
     if (on) {
         updateZeroconfService();
     }
@@ -1057,6 +1162,7 @@ void MainWindow::on_m_pGroupClient_toggled(bool on)
 void MainWindow::on_m_pGroupServer_toggled(bool on)
 {
     m_pGroupClient->setChecked(!on);
+    updateConnectionPresentation();
     if (on) {
         updateZeroconfService();
     }
@@ -1095,8 +1201,13 @@ void MainWindow::on_m_pActionAbout_triggered()
 
 void MainWindow::on_m_pActionSettings_triggered()
 {
-    if (SettingsDialog(this, appConfig()).exec() == QDialog::Accepted)
+    if (SettingsDialog(this, appConfig()).exec() == QDialog::Accepted) {
+        m_pLabelScreenName->setText(getScreenName());
+        m_pLabelIpAddresses->setText(getIPAddresses());
+        copyAddresses->setEnabled(!m_CopyableAddresses.isEmpty());
         updateSSLFingerprint();
+        updateConnectionPresentation();
+    }
 }
 
 void MainWindow::autoAddScreen(const QString name)
@@ -1182,8 +1293,12 @@ void MainWindow::updateDiscoveryControls()
     const QSignalBlocker blocker(m_pCheckBoxAutoConfig);
     m_pCheckBoxAutoConfig->setChecked(automatic);
     m_pCheckBoxAutoConfig->setEnabled(BARRIER_WITH_DISCOVERY);
-    m_pCheckBoxAutoConfig->setToolTip(available ? QString() :
-        tr("Automatic discovery is unavailable. Enter a server name or IP address."));
+    const QString guidance = !available ?
+        tr("Automatic discovery is unavailable. Enter a server name or IP address.") :
+        automatic ? tr("Automatic discovery is enabled. Turn it off to enter a server address.") :
+        tr("Enter the server's name or IP address. Discovery is optional.");
+    m_pCheckBoxAutoConfig->setToolTip(guidance);
+    discoveryHint->setText(guidance);
     m_pLineEditHostname->setEnabled(!automatic);
     if (!automatic) {
         const QSignalBlocker list_blocker(m_pComboServerList);

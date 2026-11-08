@@ -355,3 +355,65 @@ doesn't start or stop Bonjour. Linux availability still means compiled DNS-SD
 support, not a live Avahi probe. Live daemon failure, modal provider errors,
 Windows GUI execution and Qt migration remain open. Availability is refreshed
 when opening or retranslating the window, not polled in the background.
+
+
+## Control panel, 2.4.19
+
+I move status and Start/Stop above configuration and make the server/client
+wording explicit. Stop stays available while connecting, and repeated state
+changes no longer add duplicate button connections. Language refreshes retain
+current status, identifiers and the expanded fingerprint details. The displayed
+running role stays separate from a newly selected role until the next attempt.
+The fingerprint prompt and trust-database selection also retain that running
+role, rather than following an edited checkbox.
+
+The address copy action uses plain network addresses. The fingerprint action
+uses a full 32-byte public SHA-256 value, separately from the shortened display.
+Missing or disabled fingerprints clear the stored copy value and old details.
+No private-key data is copied. These actions deliberately replace the clipboard
+only when clicked; existing clipboard-sharing policy still applies.
+
+The engine still reports state through existing log messages. I haven't added
+peer counts, focus detection or new trust policy, and role changes while running
+still need stop/start. Live session changes, screen readers and native Windows
+and macOS layouts remain to check.
+
+
+## Peer approval, 2.4.20
+
+I make the approval decision explicit, default to Reject and separate copying
+from accepting. Trust remains an explicit button action. The dialog checks
+the SHA-256 algorithm and 32-byte length before enabling Trust or Copy; its
+accept handler also refuses malformed values. SHA-1 stays a legacy reference.
+
+This changes presentation and invalid-input handling. It doesn't introduce
+a new pairing protocol or claim that discovery proves identity. Native
+platform focus behaviour and accessibility still need outside review.
+
+
+## Identity errors, 2.4.21
+
+I connect certificate errors to a plain-text notice and Retry in the control
+panel. Failed identity setup clears stale fingerprint controls. Missing or bad
+public snapshots can be rebuilt on request. Existing unreadable, malformed and
+unsupported identities are preserved. Initial setup can still create an identity
+when no file exists.
+
+Local public fingerprints now use checked temporary-file publication through
+Qt's QSaveFile, without direct overwrite fallback. Non-regular destinations and
+symlinks are refused. This is the local snapshot only; peer trust stores still
+need checked publication. Trusted parent directories, race testing and native
+Windows/macOS review remain outstanding.
+
+
+## Dashboard, 2.4.22
+
+I move configuration behind three pages while keeping connection actions and
+status visible. Page navigation doesn't issue engine commands. The existing
+editor, preferences dialog, configuration values and trust controls stay wired
+to their current handlers. Identity failures remain visible above every page
+and link back to Retry on Connection.
+
+I add scrolling, saved page/geometry and compact inactive roles. These are
+local Qt interface changes. Native Windows/macOS, screen readers and live
+engine/discovery transitions still need desktop validation.

@@ -1,5 +1,34 @@
 # barrier-x changes
 
+## 2.4.22-snapshot - 8 November 2026
+
+- I organise the dashboard into Connection, Screen layout and Settings.
+- I keep status and connection actions visible on every page.
+- I add scrollable pages and a persistent identity-recovery shortcut.
+- I retain the selected page, window size and existing connection settings.
+
+## 2.4.21-snapshot - 8 November 2026
+
+- I show identity setup failures in the control panel with a Retry action.
+- I clear stale fingerprints and rebuild missing public fingerprints on request.
+- I check public fingerprint writes and publish them through a temporary file.
+- I preserve unsupported existing identities and reject fingerprint-file symlinks.
+
+## 2.4.20-snapshot - 8 November 2026
+
+- I replace peer approval's Yes/No buttons with explicit Trust and Reject actions.
+- I make rejection the default and add full public SHA-256 copying.
+- I refuse approval when the SHA-256 fingerprint is missing or malformed.
+
+## 2.4.19-snapshot - 7 November 2026
+
+- I put connection status and Start/Stop above the configuration controls.
+- I clarify server/client roles, address entry and discovery guidance.
+- I add plain address and full public SHA-256 copy controls.
+- I keep Stop available during connection attempts and preserve status on language changes.
+- I retain the running role for status and fingerprint approval while editing configuration.
+- I improve keyboard access and let the control panel resize.
+
 ## 2.4.18-snapshot - 7 November 2026
 
 - I remove the GUI's HTTP Bonjour download and installer execution path.

@@ -579,3 +579,77 @@ and the three native suites in
 These Windows jobs don't build the GUI. Windows/macOS GUI execution, a
 supported Qt SDK, live daemon failure handling and installer deployment remain
 open. No dependency was upgraded or imported in this change.
+
+
+## Local control-panel checks, 2.4.19
+
+I build the updated Qt GUI on Ubuntu 24.04 with Qt 5.15.13 and CMake 3.28.3.
+The eleven GUI discovery/control-panel cases pass with DNS-SD enabled and disabled.
+Six new cases cover visible guidance, connection/language/role changes, single
+Stop dispatch, running-role trust context, copy controls, fingerprint clearing, keyboard traversal and
+window growth. I render the actual Qt window offscreen at 100% and 150% scaling;
+this is a layout check, not an interactive desktop accessibility assessment.
+
+The broader Debug run passes twelve of thirteen CTest entries. The IPC binary
+initially lacks its executable bit; after repairing that local build artefact,
+its local Unix-socket listener is denied with `QLocalServer::listen: Unknown
+error 1`. An independent Unix-socket probe also fails with errno 1, Operation not permitted.
+Its other thirty-nine QtTest cases pass. I don't count that suite as
+a pass or alter the transport to accommodate the environment.
+
+The host also denies AF_NETLINK interface enumeration. The address-copy test
+therefore checks the unavailable/disabled path here; copying a real populated
+interface list still needs desktop validation. Actual public SHA-256 copying
+and clearing are exercised against a temporary generated identity. No Windows
+or macOS build, release build or sanitiser run is claimed for this change.
+
+
+## Local peer-approval checks, 2.4.20
+
+I build the GUI and pass all fifteen control-panel/approval cases in both
+discovery modes on Linux Qt 5.15.13. Four new cases cover Return/Escape rejection,
+explicit approval, full public fingerprint copying without a decision, malformed
+SHA-256 refusal and server/client wording. Return also rejects after focus moves
+to Trust. The actual dialog renders without clipping at 100% and 150% scaling.
+
+A restored client object was unreadable in the enabled-discovery build. I remove
+that generated object/archive and rebuild before counting the successful run.
+The earlier Unix-socket restriction remains documented above; I don't rerun or
+claim a clean full-engine, sanitiser or native Windows/macOS check for this step.
+
+
+## Local identity recovery, 2.4.21
+
+I build the GUI and pass 64 GUI unit tests plus 17 control-panel/approval tests
+in each discovery mode on Linux Qt 5.15.13. New checks cover failed public-file
+publication and retry, weak-key preservation, a public-file symlink to the
+identity, stale-value clearing and rebuilding a missing public snapshot without
+changing the key. An actual offscreen window shows the error and Retry action.
+
+One generated object was empty and caused a link failure. I remove that object
+and rebuild before counting the manual-only run. No native Windows/macOS, full
+engine or sanitiser pass is claimed for this step. Short writes, commit failures
+and parent-path races have not been injected. The earlier IPC/environment
+restrictions remain recorded above.
+
+
+## Local dashboard checks, 2.4.22
+
+I build both discovery variants and pass 64 GUI unit tests plus 22 dashboard
+and approval tests in each. New checks cover navigation without engine actions,
+retained configuration modes and saved page/geometry, preferences acceptance
+and cancellation, global identity recovery, keyboard traversal and small-window
+scrolling. A renamed computer refreshes after preferences are accepted.
+
+I check actual Qt renders at normal and 150% scaling. The default connection
+page needs no sideways scrolling, and expanded identity details remain reachable
+in a 640×480 window. Platform fonts and colours are retained. The screen editor
+and preferences still use their existing dialogs.
+
+Generated build artefacts again needed repair: empty objects and lost execute
+permissions produced link/start failures. One empty test object registered zero
+cases; I don't count that apparent pass. The final runs verify actual case
+counts. The reload fixture also needed its unfinished-wizard state restored so
+it stayed offline instead of entering a live Avahi error dialog. These checks
+don't validate real provider startup. Native Windows/macOS, screen readers,
+full-engine and sanitiser checks remain open for this iteration.

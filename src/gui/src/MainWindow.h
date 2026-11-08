@@ -145,12 +145,13 @@ public slots:
         bool clientArgs(QStringList& args, QString& app);
         bool serverArgs(QStringList& args, QString& app);
         void setStatus(const QString& status);
+        void updateConnectionPresentation();
+        void updateDashboard();
         void updateFromLogLine(const QString& line);
         QString getIPAddresses();
         void stopService();
         void stopDesktop();
         void changeEvent(QEvent* event);
-        bool event(QEvent* event);
         void retranslateMenuBar();
 #if defined(Q_OS_WIN)
         bool isServiceRunning(QString name);
@@ -162,9 +163,10 @@ public slots:
         void restartBarrier();
         void proofreadInfo();
         void windowStateChanged();
-        void updateSSLFingerprint();
+        void updateSSLFingerprint(bool retry = false);
 
     private:
+        BarrierType m_ActiveRole = BarrierType::Client;
         bool m_DiscoveryWasAvailable = false;
         QSettings& m_Settings;
         AppConfig* m_AppConfig;
@@ -190,6 +192,9 @@ public slots:
         LogWindow *m_pLogWindow;
 
         bool m_fingerprint_expanded = false;
+        QString m_CopyableAddresses;
+        QString m_CopyableFingerprint;
+        QString m_IdentityError;
 
 private slots:
     void on_m_pCheckBoxAutoConfig_toggled(bool checked);

@@ -1,8 +1,8 @@
 # barrier-x development plan
 
-Updated 7 November 2026. Starting point: upstream-derived commit
+Updated 8 November 2026. Starting point: upstream-derived commit
 `653e4badeb88f61de901581667d4465d7b1e2d52` on `master`.
-Current development version: **2.4.18-snapshot**.
+Current development version: **2.4.22-snapshot**.
 
 The aim is dependable control across several computers, with a clear account
 of which device receives input and what it may share. Security, recovery and
@@ -34,7 +34,7 @@ planning update. A snapshot is not a tested release.
 | BX-004 | In progress, 2.4.5-snapshot | EVP RSA-3072 generation, checked certificate construction and sibling-file publication implemented; new POSIX files use mode 0600 | Twenty-five storage tests, three engine-loader regressions and three GUI identity tests cover generation, existing POSIX mode migration, ownership/links, checked-handle loading and failure preservation (2.4.14). Windows protected owner/LocalSystem ACL creation and handle-based migration added in 2.4.15; fourteen native storage checks passed in run 41719122150, covering another local user, links and failed migration. Five LocalSystem service scenarios passed in run 42149125814 (2.4.16), including the actual console user and failed token/permission checks; live console switching, full Windows/macOS storage integration and parent traversal remain open |
 | BX-005 | In progress, 2.4.2-snapshot | GCC 13 header fixes, optional test dependencies, CTest registration and pinned Linux CI workflow implemented | Ubuntu CLI and unit build established; Debug/Release CI added; Qt GUI and Qt IPC checks added in 2.4.10; Windows x64 Release engine builds and ten CTest entries established with checksum-pinned OpenSSL 3.5.9 in 2.4.17; CMake baseline 3.20, imported test targets and obsolete Windows helper/installer refusal added. Optional DNS-SD and manual-only GUI builds added in 2.4.18, with saved-preference fallback and removal of the HTTP installer path; Linux Debug/Release, manual-only widgets and selected sanitisers passed in run 42336093923. Windows GUI/Debug, macOS and packaging remain outstanding |
 | BX-006 | Investigate | Bound protocol, clipboard and transfer accumulation; retain input responsiveness | Follow receive paths, fuzz malformed lengths/sequences, test queued-byte limits and cancellation; distinguish measured limits from assumptions |
-| BX-007 | Planned | Connection and pairing UX: discovered, approved, connected, focused, paused, failed | Status comes from engine state; distinct trust-rejection and network-loss errors; accessible controls; tested local-return path and key release on disconnect |
+| BX-007 | In progress, 2.4.19-snapshot | Connection and pairing UX: discovered, approved, connected, focused, paused, failed | Local control-panel improvements: prominent role-specific status, visible discovery guidance, plain address/full SHA-256 copy actions, keyboard names/order and resizable layout. Peer approval gains explicit Trust/Reject, reject-by-default focus, full SHA-256 copying and malformed-value guards in 2.4.20. Identity errors gain a visible Retry action, stale-value clearing and local public fingerprint publication checks in 2.4.21. A three-page dashboard, persistent connection actions, scrolling and identity-recovery navigation follow in 2.4.22. State still comes from existing engine log messages; explicit focus/trust events, accessible desktop validation and key release remain open. See build.md for local evidence |
 
 The Linux harness and a Windows SDK management-channel job are established.
 The Windows transport now checks caller credentials and passed its native SDK

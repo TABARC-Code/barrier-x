@@ -38,7 +38,11 @@ public:
                                      const barrier::FingerprintData& fingerprint_sha256);
     ~FingerprintAcceptDialog() override;
 
+public slots:
+    void accept() override;
+
 private:
+    bool valid_fingerprint_ = false;
     std::unique_ptr<Ui::FingerprintAcceptDialog> ui_;
 };
 

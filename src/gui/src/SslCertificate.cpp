@@ -27,6 +27,9 @@
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/x509.h>
+#include <QSaveFile>
+#include <sstream>
+#include <stdexcept>
 
 SslCertificate::SslCertificate(QObject *parent) :
     QObject(parent)
@@ -39,13 +42,19 @@ SslCertificate::SslCertificate(QObject *parent) :
 void SslCertificate::generateCertificate()
 {
     try {
+        if (barrier::DataDirectories::profile().empty()) {
+            throw std::runtime_error("No profile directory is available.");
+        }
         const auto cert_path = barrier::DataDirectories::ssl_certificate_path();
         barrier::PemIdentity identity;
         if (barrier::fs::exists(barrier::fs::symlink_status(cert_path))) {
             // I preserve files rejected by the reader; a new key would hide the fault.
             identity = barrier::read_pem_identity(cert_path.u8string());
+            if (!is_certificate_valid(identity.certificate.get())) {
+                throw std::runtime_error("The existing certificate does not meet the key requirements. It has not been replaced.");
+            }
         }
-        if (!identity.certificate || !is_certificate_valid(identity.certificate.get())) {
+        if (!identity.certificate) {
             barrier::fs::create_directories(cert_path.parent_path());
             barrier::generate_pem_self_signed_cert(cert_path.u8string());
             identity = barrier::read_pem_identity(cert_path.u8string());
@@ -65,11 +74,23 @@ void SslCertificate::generate_fingerprint(X509* certificate)
 {
     const auto local_path = barrier::DataDirectories::local_ssl_fingerprints_path();
     barrier::fs::create_directories(local_path.parent_path());
+    const auto status = barrier::fs::symlink_status(local_path);
+    if (barrier::fs::exists(status) && !barrier::fs::is_regular_file(status)) {
+        throw std::runtime_error("The public fingerprint path is not a regular file.");
+    }
     barrier::FingerprintDatabase db;
     db.add_trusted(barrier::get_ssl_cert_fingerprint(certificate, barrier::FingerprintType::SHA1));
     db.add_trusted(barrier::get_ssl_cert_fingerprint(certificate, barrier::FingerprintType::SHA256));
-    // FUTURE(BX-002): I still need checked, atomic fingerprint-store publication.
-    db.write(local_path);
+    std::ostringstream encoded;
+    db.write_stream(encoded);
+    const auto bytes = encoded.str();
+    QSaveFile output(QString::fromStdString(local_path.u8string()));
+    output.setDirectWriteFallback(false);
+    if (!output.open(QIODevice::WriteOnly) ||
+        output.write(bytes.data(), static_cast<qint64>(bytes.size())) != static_cast<qint64>(bytes.size()) ||
+        !output.commit()) {
+        throw std::runtime_error("Cannot save the public fingerprints: " + output.errorString().toStdString());
+    }
     emit info(tr("SSL fingerprint generated."));
 }
 

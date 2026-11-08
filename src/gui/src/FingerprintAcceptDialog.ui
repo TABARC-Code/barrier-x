@@ -11,25 +11,25 @@
    </rect>
   </property>
   <property name="sizePolicy">
-   <sizepolicy hsizetype="Ignored" vsizetype="Preferred">
+   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
     <horstretch>0</horstretch>
     <verstretch>0</verstretch>
    </sizepolicy>
   </property>
   <property name="windowTitle">
-   <string>Security question</string>
+   <string>Verify peer fingerprint</string>
   </property>
   <layout class="QGridLayout" name="gridLayout">
    <property name="sizeConstraint">
-    <enum>QLayout::SetFixedSize</enum>
+    <enum>QLayout::SetMinimumSize</enum>
    </property>
-   <item row="6" column="0" colspan="2">
+   <item row="7" column="0" colspan="2">
     <widget class="QDialogButtonBox" name="buttonBox">
      <property name="orientation">
       <enum>Qt::Horizontal</enum>
      </property>
      <property name="standardButtons">
-      <set>QDialogButtonBox::No|QDialogButtonBox::Yes</set>
+      <set>QDialogButtonBox::NoButton</set>
      </property>
     </widget>
    </item>
@@ -42,7 +42,10 @@
       </sizepolicy>
      </property>
      <property name="text">
-      <string>SHA1 (deprecated, compare to old servers only)</string>
+      <string>SHA-1 (legacy reference only)</string>
+     </property>
+     <property name="textFormat">
+      <enum>Qt::PlainText</enum>
      </property>
     </widget>
    </item>
@@ -55,13 +58,16 @@
       </sizepolicy>
      </property>
      <property name="text">
-      <string/>
+      <string />
      </property>
      <property name="wordWrap">
       <bool>true</bool>
      </property>
      <property name="margin">
       <number>10</number>
+     </property>
+     <property name="textFormat">
+      <enum>Qt::PlainText</enum>
      </property>
     </widget>
    </item>
@@ -74,10 +80,13 @@
       </sizepolicy>
      </property>
      <property name="text">
-      <string/>
+      <string />
      </property>
      <property name="textInteractionFlags">
-      <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
+      <set>Qt::TextSelectableByMouse|Qt::TextSelectableByKeyboard</set>
+     </property>
+     <property name="textFormat">
+      <enum>Qt::PlainText</enum>
      </property>
     </widget>
    </item>
@@ -85,6 +94,9 @@
     <widget class="QLabel" name="label_title">
      <property name="text">
       <string>Do you trust this fingerprint?</string>
+     </property>
+     <property name="textFormat">
+      <enum>Qt::PlainText</enum>
      </property>
     </widget>
    </item>
@@ -104,39 +116,58 @@
       </font>
      </property>
      <property name="text">
-      <string/>
+      <string />
      </property>
      <property name="alignment">
       <set>Qt::AlignCenter</set>
      </property>
      <property name="textInteractionFlags">
-      <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
+      <set>Qt::TextSelectableByMouse|Qt::TextSelectableByKeyboard</set>
+     </property>
+     <property name="textFormat">
+      <enum>Qt::PlainText</enum>
      </property>
     </widget>
    </item>
    <item row="2" column="0">
     <widget class="QLabel" name="label_sha256_fingerprint_full">
      <property name="text">
-      <string/>
+      <string />
      </property>
      <property name="alignment">
       <set>Qt::AlignCenter</set>
      </property>
      <property name="textInteractionFlags">
-      <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
+      <set>Qt::TextSelectableByMouse|Qt::TextSelectableByKeyboard</set>
+     </property>
+     <property name="textFormat">
+      <enum>Qt::PlainText</enum>
      </property>
     </widget>
    </item>
    <item row="1" column="0" colspan="2">
     <widget class="QLabel" name="label_sha256">
      <property name="text">
-      <string>SHA256:</string>
+      <string>SHA-256:</string>
+     </property>
+     <property name="textFormat">
+      <enum>Qt::PlainText</enum>
+     </property>
+    </widget>
+   </item>
+   <item row="6" column="0" colspan="2">
+    <widget class="QLabel" name="copyFeedback">
+     <property name="text">
+      <string />
+     </property>
+     <property name="textFormat">
+      <enum>Qt::PlainText</enum>
      </property>
     </widget>
    </item>
   </layout>
  </widget>
- <resources/>
+ <resources />
  <connections>
   <connection>
    <sender>buttonBox</sender>
