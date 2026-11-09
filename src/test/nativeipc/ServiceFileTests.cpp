@@ -102,6 +102,7 @@ DWORD exercise_service() {
     require(CreateWellKnownSid(WinLocalSystemSid, nullptr, system, &size) && EqualSid(sid(process_user), system), "service is not LocalSystem");
     DWORD result = result_marker;
     write_identity(directory + L"\\system.pem");
+    barrier::replace_private_file(directory + L"\\system.pem", "test identity");
     read_identity(directory + L"\\system.pem");
     result |= own_pass;
 
@@ -116,7 +117,17 @@ DWORD exercise_service() {
         auto console_user = user(console.get());
         matches_console = EqualSid(owner, sid(console_user)) != FALSE;
     }
-    if (matches_console) { read_identity(directory + L"\\console.pem"); result |= console_accepted; }
+    if (matches_console) {
+        read_identity(directory + L"\\console.pem");
+        if (!EqualSid(owner, system)) {
+            bool refused = false;
+            try { barrier::replace_private_file(directory + L"\\console.pem", "replacement"); }
+            catch (const std::runtime_error&) { refused = true; }
+            require(refused, "service replaced a console-owned file");
+            read_identity(directory + L"\\console.pem");
+        }
+        result |= console_accepted;
+    }
     else { ownership_refused(directory + L"\\console.pem"); }
     result |= console_pass;
 

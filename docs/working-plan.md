@@ -1,6 +1,6 @@
 # Working plan
 
-8 November 2026. Local development is 2.4.22-snapshot, based on verified 2.4.18. The detailed backlog
+9 November 2026. Local development is 2.4.24-snapshot, based on verified 2.4.22. The detailed backlog
 and landed versions live in [roadmap.md](roadmap.md); build evidence stays in
 [build.md](build.md). This is the order I'd work through, rather than another
 list of things I'd quite like to finish eventually.
@@ -111,3 +111,43 @@ screen-reader checks remain open.
 | 2.4.20 | Explicit peer approval and rejection defaults |
 | 2.4.21 | Identity errors, Retry and checked public fingerprint saves |
 | 2.4.22 | Three-page dashboard and navigation |
+| 2.4.23 | Checked peer trust reads, merged saves and visible failures |
+| 2.4.24 | Windows protected trust replacement, awaiting native checks |
+
+
+## Peer approvals, 2.4.23
+
+I re-read approvals under a non-blocking lock after confirmation, merge the new
+SHA-256 pin and check atomic publication before restarting the client. Invalid
+or unreadable stores stop the attempt with a visible error. Legacy SHA-1 entries
+stay in the file; new approvals require a complete SHA-256 fingerprint.
+
+The next storage work is parent-directory anchoring and native Windows trust-file
+creation permissions. The lock coordinates cooperating GUI writers only. I also
+need injected short-write and commit-failure checks, then clearer permission
+repair guidance without replacing the user's approvals.
+
+## Reviewed actions, BX-031
+
+I keep four named, reviewed actions as a separate proposal. The target must
+check each action ID and grant; elevated commands need their own permission.
+A one-off script editor needs deliberate unlocking and approval of the exact
+script and target. Clipboard input stays input. I won't call a pile of warning
+buttons a security model. Scheduler integration, timeouts, cancellation,
+revocation and redacted results need a design before any execution code lands.
+
+
+## Windows trust replacement, 2.4.24
+
+I route Windows peer approvals through a protected owner/System sibling file.
+The helper checks the old target, bounds writes to 1 MiB, flushes the new file
+and renames it through its retained handle. Temporary names use exclusive
+creation with bounded retries. I attempt handle-based deletion on failure.
+The GUI still holds its update lock around the read, merge and replacement.
+
+I add native checks for creation ACLs, replacement bytes, read-only publication
+failure and cleanup, size limits and unsafe targets. I also extend service
+checks: System may replace its own file, but mustn't turn a console user's file
+into a System-owned one. These changes need a Windows SDK build and native run
+before merging to master. Parent-directory anchoring and injected I/O failures remain
+open; POSIX publication still uses QSaveFile.

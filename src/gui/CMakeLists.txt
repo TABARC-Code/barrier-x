@@ -35,6 +35,7 @@ set(GUI_SOURCE_FILES
     src/IpcReader.cpp
     src/KeySequenceWidget.cpp
     src/LogWindow.cpp
+    src/PeerTrustStore.cpp
     src/MainWindow.cpp
     src/NewScreenWidget.cpp
     src/QBarrierApplication.cpp
@@ -68,6 +69,7 @@ set(GUI_HEADER_FILES
     src/IpcReader.h
     src/KeySequenceWidget.h
     src/LogWindow.h
+    src/PeerTrustStore.h
     src/MainWindow.h
     src/NewScreenWidget.h
     src/ProcessorArch.h
@@ -175,6 +177,9 @@ if (BARRIER_BUILD_TESTS)
         test/KeySequenceTests.cpp
         test/HotkeyTests.cpp
         test/SslCertificateTests.cpp
+        test/PeerTrustStoreTests.cpp
+        src/PeerTrustStore.cpp
+        src/PeerTrustStore.h
         src/SslCertificate.cpp
         src/SslCertificate.h
         test/main.cpp

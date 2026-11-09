@@ -122,6 +122,14 @@
      </widget>
     </item>
     <item>
+     <widget class="QLabel" name="peerTrustError">
+      <property name="text"><string/></property>
+      <property name="wordWrap"><bool>true</bool></property>
+      <property name="textFormat"><enum>Qt::PlainText</enum></property>
+      <property name="accessibleName"><string>Peer trust error</string></property>
+     </widget>
+    </item>
+    <item>
      <layout class="QHBoxLayout" name="identityAlertRow">
       <item>
        <widget class="QLabel" name="identityAlert">

@@ -417,3 +417,38 @@ and link back to Retry on Connection.
 I add scrolling, saved page/geometry and compact inactive roles. These are
 local Qt interface changes. Native Windows/macOS, screen readers and live
 engine/discovery transitions still need desktop validation.
+
+
+## Checked GUI peer approvals, 2.4.23
+
+I replace the GUI's unchecked peer database read/write with a bounded checked
+reader and locked atomic save. Confirmation re-reads the current file before
+merging, so approvals saved while the dialog is open survive. Read, validation,
+lock and publication failures stop the attempt and reach a plain-text dashboard
+error. This deliberately refuses malformed or unknown records instead of
+silently dropping them. Existing legacy SHA-1 records are retained.
+
+POSIX reads check the open descriptor's owner, regular-file type, single link
+and absence of group/world write access; new files use mode 0600. Windows reads
+reuse the checked file helper. Native Qt Windows creation ACLs remain unverified:
+Qt permission flags aren't evidence of a protected Windows ACL. Parent paths
+are still assumed trusted, and the GUI lock cannot coordinate unrelated writers.
+The engine's existing database reader is unchanged. This isn't a complete trust
+migration or storage audit.
+
+
+## Windows trust replacement, 2.4.24
+
+I remove the Windows peer-save dependency on Qt permission flags. The new
+replacement helper reuses protected owner/System creation, validates an existing
+target and retains the new handle through writes, flushing and rename. Existing
+foreign owners, links, streams and non-regular files are refused. A System
+caller cannot replace a console-owned file with a System-owned sibling.
+
+This is local implementation awaiting native validation, not a verified Windows
+fix. The workspace has no Windows SDK compiler or Windows execution environment.
+Parent traversal and changes by non-cooperating writers remain unresolved.
+Deletion after failure is attempted through the retained handle; failure of that
+cleanup can leave a protected temporary file. Flushing the data before rename
+doesn't establish crash durability of directory metadata. Existing permissions
+may migrate during target validation even if replacement later fails.

@@ -1,6 +1,8 @@
 /* Copyright (C) 2026 barrier-x contributors
  * Distributed under the GNU General Public License; see LICENSE. */
 #include "../src/MainWindow.h"
+#include "../src/PeerTrustStore.h"
+#include <QLockFile>
 #include "../src/FingerprintAcceptDialog.h"
 #include "common/DataDirectories.h"
 #include "common/Version.h"
@@ -39,6 +41,8 @@
 class DiscoveryWindow : public MainWindow {
 public:
     using MainWindow::MainWindow;
+    int startRequests = 0;
+    void startBarrier() override { ++startRequests; }
     using MainWindow::clientArgs;
     using MainWindow::setBarrierState;
     using MainWindow::updateSSLFingerprint;
@@ -611,4 +615,98 @@ TEST_F(DiscoveryTests, DashboardPreferencesRefreshTheDisplayedComputerName)
     EXPECT_TRUE(opened);
     EXPECT_EQ(QString("Workshop-Display"), config->screenName());
     EXPECT_EQ(QString("Workshop-Display"), window->findChild<QLabel*>("m_pLabelScreenName")->text());
+}
+
+TEST_F(DiscoveryTests, FailedPeerSaveDoesNotReconnectAndApprovalCanBeRetried)
+{
+    create(false);
+    window->show();
+    window->setBarrierState(MainWindow::barrierConnecting);
+    const auto path = barrier::DataDirectories::trusted_servers_ssl_fingerprints_path();
+    barrier::fs::create_directories(path.parent_path());
+    QLockFile lock(QString::fromStdString(path.u8string()) + ".lock");
+    lock.setStaleLockTime(0);
+    ASSERT_TRUE(lock.tryLock(0));
+    const barrier::FingerprintData peer{"sha256", std::vector<std::uint8_t>(32, 0x42)};
+    const auto line = QString("peer fingerprint (SHA1): %1 (SHA256): %2")
+        .arg(QString::fromStdString(barrier::format_ssl_fingerprint(std::vector<std::uint8_t>(20, 0x11))))
+        .arg(QString::fromStdString(barrier::format_ssl_fingerprint(peer.data)));
+    QTimer approve;
+    approve.setSingleShot(true);
+    int prompts = 0;
+    QObject::connect(&approve, &QTimer::timeout, [&] {
+        auto* dialog = qobject_cast<FingerprintAcceptDialog*>(QApplication::activeModalWidget());
+        if (dialog) { ++prompts; dialog->findChild<QPushButton*>("trustPeer")->click(); }
+        else if (auto* active = qobject_cast<QDialog*>(QApplication::activeModalWidget())) { active->reject(); }
+    });
+    approve.start(0);
+    window->checkFingerprint(line);
+    EXPECT_EQ(1, prompts);
+    EXPECT_EQ(0, window->startRequests);
+    EXPECT_EQ(MainWindow::barrierDisconnected, window->barrierState());
+    auto* error = window->findChild<QLabel*>("peerTrustError");
+    EXPECT_TRUE(error->isVisible());
+    EXPECT_EQ(Qt::PlainText, error->textFormat());
+    EXPECT_FALSE(barrier::fs::exists(path));
+    lock.unlock();
+    approve.start(0);
+    window->checkFingerprint(line);
+    EXPECT_EQ(2, prompts);
+    EXPECT_EQ(1, window->startRequests);
+    EXPECT_TRUE(error->isHidden());
+    EXPECT_TRUE(PeerTrustStore::read(path).is_trusted(peer));
+}
+TEST_F(DiscoveryTests, ApprovalMergesChangesMadeWhileTheDialogIsOpen)
+{
+    create(false);
+    const auto path = barrier::DataDirectories::trusted_servers_ssl_fingerprints_path();
+    const barrier::FingerprintData first{"sha256", std::vector<std::uint8_t>(32, 0x11)};
+    const barrier::FingerprintData concurrent{"sha256", std::vector<std::uint8_t>(32, 0x22)};
+    const barrier::FingerprintData incoming{"sha256", std::vector<std::uint8_t>(32, 0x33)};
+    PeerTrustStore::approve(path, first);
+    QTimer approve;
+    approve.setSingleShot(true);
+    bool prompted = false;
+    QObject::connect(&approve, &QTimer::timeout, [&] {
+        auto* dialog = qobject_cast<FingerprintAcceptDialog*>(QApplication::activeModalWidget());
+        if (dialog) {
+            prompted = true;
+            // Another window saves its approval while this one is still asking.
+            try { PeerTrustStore::approve(path, concurrent); }
+            catch (const std::exception& error) { ADD_FAILURE() << error.what(); dialog->reject(); return; }
+            dialog->findChild<QPushButton*>("trustPeer")->click();
+        } else if (auto* active = qobject_cast<QDialog*>(QApplication::activeModalWidget())) { active->reject(); }
+    });
+    approve.start(0);
+    window->checkFingerprint(QString("peer fingerprint (SHA1): %1 (SHA256): %2")
+        .arg(QString::fromStdString(barrier::format_ssl_fingerprint(std::vector<std::uint8_t>(20, 0x11))))
+        .arg(QString::fromStdString(barrier::format_ssl_fingerprint(incoming.data))));
+    EXPECT_TRUE(prompted);
+    auto saved = PeerTrustStore::read(path);
+    EXPECT_EQ(3u, saved.fingerprints().size());
+    EXPECT_TRUE(saved.is_trusted(first));
+    EXPECT_TRUE(saved.is_trusted(concurrent));
+    EXPECT_TRUE(saved.is_trusted(incoming));
+    EXPECT_EQ(1, window->startRequests);
+}
+
+TEST_F(DiscoveryTests, MalformedTrustFileStopsTheAttemptWithoutAnApprovalPrompt)
+{
+    create(false);
+    window->show();
+    window->setBarrierState(MainWindow::barrierConnecting);
+    const auto path = barrier::DataDirectories::trusted_servers_ssl_fingerprints_path();
+    barrier::fs::create_directories(path.parent_path());
+    QFile existing(QString::fromStdString(path.u8string()));
+    ASSERT_TRUE(existing.open(QIODevice::WriteOnly));
+    existing.write("existing malformed approvals");
+    existing.close();
+    window->checkFingerprint(QString("peer fingerprint (SHA1): %1 (SHA256): %2")
+        .arg(QString::fromStdString(barrier::format_ssl_fingerprint(std::vector<std::uint8_t>(20, 0x11))))
+        .arg(QString::fromStdString(barrier::format_ssl_fingerprint(std::vector<std::uint8_t>(32, 0x42)))));
+    EXPECT_EQ(MainWindow::barrierDisconnected, window->barrierState());
+    EXPECT_EQ(0, window->startRequests);
+    EXPECT_TRUE(window->findChild<QLabel*>("peerTrustError")->isVisible());
+    ASSERT_TRUE(existing.open(QIODevice::ReadOnly));
+    EXPECT_EQ(QByteArray("existing malformed approvals"), existing.readAll());
 }

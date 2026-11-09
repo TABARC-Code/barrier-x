@@ -653,3 +653,54 @@ counts. The reload fixture also needed its unfinished-wizard state restored so
 it stayed offline instead of entering a live Avahi error dialog. These checks
 don't validate real provider startup. Native Windows/macOS, screen readers,
 full-engine and sanitiser checks remain open for this iteration.
+
+
+## Local peer trust checks, 2.4.23
+
+9 November 2026. I build the GUI with discovery both disabled and enabled on
+Linux Qt 5.15.13. In each build I pass 75 GUI unit tests and 25 dashboard/approval
+tests, checking actual case counts rather than CTest's summary alone.
+
+Eleven new storage checks cover missing files, merged and duplicate approvals,
+legacy records and CRLF, malformed/unknown entries, the 1 MiB limit, lock failure
+and retry, invalid approval data, directories, links, writable permissions and
+FIFOs. Three dashboard checks cover failed-save recovery without reconnecting,
+malformed-file rejection and another approval saved while the dialog is open.
+The reconnect seam counts requests without launching an engine.
+
+I review the final source diff and pass the whitespace check. Parent-directory
+races, non-cooperating writers, injected short-write/commit failures, native
+Windows/macOS GUI and Windows trust-file creation ACLs remain unverified. I
+haven't run the full engine or sanitiser suites for this change. The first build
+of the additional modal-dialog regression exposed a const mismatch in its test;
+I fix that before the final runs.
+
+The published 2.4.22 Linux, Windows engine and Windows native jobs succeeded
+(runs 42444844127, 42444844092 and 42444844071). Those results belong to the
+published head, not this local update. No new platform CI run is claimed.
+
+
+## Local Windows replacement checks, 2.4.24
+
+9 November 2026. I rebuild both Linux GUI discovery variants and pass 75 GUI
+unit tests plus 25 dashboard tests in each. These runs exercise the retained
+POSIX path and the integration around approval; the Windows replacement helper
+is excluded by preprocessing and is not validated by these passes.
+
+The Windows harness now registers seventeen file scenarios, including three
+new replacement scenarios. Existing cases also exercise refusal of linked,
+foreign, busy, denied and alternate-stream targets. Service cases additionally
+check System-owned replacement and refusal to replace a console-owned file.
+None of these changed native checks has been compiled or run here.
+
+I attempt to configure `src/test/nativeipc`; CMake stops with
+`These checks require Windows tokens and named pipes`. This Linux workspace has
+no Windows SDK compiler or runtime. Native compilation, ACL/rename behaviour,
+Qt integration and failure injection must pass before merging this update to master.
+Parent-directory anchoring remains open. No native, full-engine or sanitiser
+pass is claimed for 2.4.24.
+
+The manual-only build again contains empty generated objects, first for
+ActionDialog and then NewScreenWidget. I remove those stopped-build artefacts
+and rebuild before the final runs. Both suites register their expected case
+counts, and the final whitespace check passes.

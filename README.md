@@ -1,6 +1,6 @@
 # barrier-x
 
-Development version: **2.4.22-snapshot**, based on Barrier 2.4.
+Development version: **2.4.24-snapshot**, based on Barrier 2.4.
 
 I can build the GUI without DNS-SD using `-DBARRIER_BUILD_DISCOVERY=OFF`.
 Manual connections stay available; the GUI no longer downloads Bonjour installers.

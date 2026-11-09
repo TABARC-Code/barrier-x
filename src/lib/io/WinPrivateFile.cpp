@@ -12,6 +12,8 @@
 #include <stdexcept>
 #include <system_error>
 #include <vector>
+#include <atomic>
+#include <cstring>
 
 namespace barrier {
 namespace {
@@ -179,6 +181,76 @@ int read_private_file(const std::wstring& path) {
     verify_acl(file.value, owner, system.data());
     check_file(file.value);
     return descriptor(file, _O_RDONLY);
+}
+
+void replace_private_file(const std::wstring& path, const std::string& bytes) {
+    check_path(path);
+    if (path.empty() || bytes.size() > 1024 * 1024) {
+        throw std::runtime_error("Private file replacement needs a path and at most 1 MiB");
+    }
+    DWORD needed = GetFullPathNameW(path.c_str(), 0, nullptr, nullptr);
+    if (!needed) { fail(GetLastError(), "Could not resolve private file path"); }
+    if (needed > 32768) { throw std::runtime_error("Private file path is too long"); }
+    std::vector<wchar_t> full(needed);
+    DWORD length = GetFullPathNameW(path.c_str(), needed, full.data(), nullptr);
+    if (!length || length >= needed) { throw std::runtime_error("Private file path could not be resolved consistently"); }
+    const std::wstring target(full.data(), length);
+    check_path(target);
+    // I refuse unsafe existing files before making a replacement, not after it.
+    try {
+        int fd = read_private_file(target);
+        struct Reader { int value; ~Reader() { _close(value); } } reader{fd};
+        auto user = process_user();
+        auto system = system_sid();
+        // A service mustn't replace a console user's file with a System-owned one.
+        verify_acl(reinterpret_cast<HANDLE>(_get_osfhandle(fd)), sid(user), system.data());
+    }
+    catch (const std::system_error& error) {
+        if (error.code().value() != ERROR_FILE_NOT_FOUND) { throw; }
+    }
+    std::vector<BYTE> rename_bytes(sizeof(FILE_RENAME_INFO) + target.size() * sizeof(wchar_t), 0);
+    auto* rename = reinterpret_cast<FILE_RENAME_INFO*>(rename_bytes.data());
+    rename->ReplaceIfExists = TRUE;
+    rename->FileNameLength = static_cast<DWORD>(target.size() * sizeof(wchar_t));
+    std::memcpy(rename->FileName, target.data(), rename->FileNameLength);
+
+    static std::atomic<unsigned long long> sequence{0};
+    int fd = -1;
+    for (int attempt = 0; attempt < 64; ++attempt) {
+        const auto temporary = target + L".pending-" + std::to_wstring(GetCurrentProcessId()) +
+            L"-" + std::to_wstring(sequence.fetch_add(1, std::memory_order_relaxed));
+        try { fd = create_private_file(temporary); break; }
+        catch (const std::system_error& error) {
+            if (error.code() != std::errc::file_exists) { throw; }
+        }
+    }
+    if (fd < 0) { throw std::runtime_error("Could not reserve a private replacement file"); }
+    struct Pending {
+        int descriptor;
+        HANDLE handle;
+        bool published = false;
+        ~Pending() {
+            if (!published) {
+                FILE_DISPOSITION_INFO disposition{TRUE};
+                SetFileInformationByHandle(handle, FileDispositionInfo, &disposition, sizeof(disposition));
+            }
+            _close(descriptor);
+        }
+    } file{fd, reinterpret_cast<HANDLE>(_get_osfhandle(fd))};
+    std::size_t offset = 0;
+    while (offset < bytes.size()) {
+        DWORD written = 0;
+        check(WriteFile(file.handle, bytes.data() + offset, static_cast<DWORD>(bytes.size() - offset),
+                        &written, nullptr), "Could not write private replacement file");
+        if (!written) { throw std::runtime_error("Private replacement write made no progress"); }
+        offset += written;
+    }
+    check(FlushFileBuffers(file.handle), "Could not flush private replacement file");
+    check_file(file.handle);
+    // 2.4.24: I keep the protected replacement handle open through publication.
+    check(SetFileInformationByHandle(file.handle, FileRenameInfo, rename, static_cast<DWORD>(rename_bytes.size())),
+          "Could not publish private replacement file");
+    file.published = true;
 }
 }
 #endif

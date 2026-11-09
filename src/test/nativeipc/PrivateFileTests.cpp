@@ -105,14 +105,20 @@ void hardlink() {
     Fixture f; auto path = f.path(L"key.pem"), link = f.path(L"hard.pem"); write_key(path);
     require(CreateHardLinkW(link.c_str(), path.c_str(), nullptr), "hardlink fixture");
     rejected([&] { Descriptor file(barrier::read_private_file(link)); });
+    rejected([&] { barrier::replace_private_file(link, "replacement"); });
 }
 void symlink() {
     Fixture f; auto path = f.path(L"key.pem"), link = f.path(L"symbolic.pem"); write_key(path);
     require(CreateSymbolicLinkW(link.c_str(), path.c_str(), 2) || CreateSymbolicLinkW(link.c_str(), path.c_str(), 0), "symlink fixture");
     rejected([&] { Descriptor file(barrier::read_private_file(link)); });
+    rejected([&] { barrier::replace_private_file(link, "replacement"); });
     Descriptor file(barrier::read_private_file(path)); check_private(reinterpret_cast<HANDLE>(_get_osfhandle(file.value)));
 }
-void directory() { Fixture f; rejected([&] { Descriptor file(barrier::read_private_file(f.directory)); }); }
+void directory() {
+    Fixture f;
+    rejected([&] { Descriptor file(barrier::read_private_file(f.directory)); });
+    rejected([&] { barrier::replace_private_file(f.directory, "replacement"); });
+}
 void size_limit() {
     Fixture f; auto path = f.path(L"large.pem");
     { Descriptor file(barrier::create_private_file(path)); require(_chsize_s(file.value, 1024 * 1024 + 1) == 0, "large fixture"); }
@@ -122,6 +128,7 @@ void sharing() {
     Fixture f; auto path = f.path(L"locked.pem"), moved = f.path(L"moved.pem"); write_key(path);
     Descriptor file(barrier::read_private_file(path));
     require(!MoveFileW(path.c_str(), moved.c_str()), "identity renamed while being read");
+    rejected([&] { barrier::replace_private_file(path, "replacement"); });
     Handle writer(CreateFileW(path.c_str(), GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                               nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
     require(!writer, "identity modified while being read");
@@ -129,13 +136,63 @@ void sharing() {
 void replacement() {
     Fixture f; auto old = f.path(L"old.pem"), fresh = f.path(L"fresh.pem"); write_key(old); public_acl(old); write_key(fresh);
     require(MoveFileExW(fresh.c_str(), old.c_str(), MOVEFILE_REPLACE_EXISTING), "replace identity");
+    {
+        Handle file(CreateFileW(old.c_str(), READ_CONTROL, 0, nullptr, OPEN_EXISTING, 0, nullptr));
+        require(static_cast<bool>(file), "open moved identity"); check_private(file.get());
+    }
+    public_acl(old);
+    barrier::replace_private_file(old, "replacement");
     Handle file(CreateFileW(old.c_str(), READ_CONTROL, 0, nullptr, OPEN_EXISTING, 0, nullptr));
     require(static_cast<bool>(file), "open replaced identity"); check_private(file.get());
+}
+std::string read_bytes(const std::wstring& path) {
+    Descriptor file(barrier::read_private_file(path));
+    std::string result;
+    char bytes[4096];
+    int count;
+    while ((count = _read(file.value, bytes, sizeof(bytes))) > 0) { result.append(bytes, count); }
+    require(count == 0, "read replacement bytes");
+    return result;
+}
+void replacement_creation() {
+    Fixture f; auto path = f.path(L"trust.txt");
+    barrier::replace_private_file(path, "first approval");
+    // Query without the reader's ACL migration, or the check would repair its own fixture.
+    {
+        Handle file(CreateFileW(path.c_str(), READ_CONTROL, 0, nullptr, OPEN_EXISTING, 0, nullptr));
+        require(static_cast<bool>(file), "open new trust ACL"); check_private(file.get());
+    }
+    require(read_bytes(path) == "first approval", "new approval bytes");
+    barrier::replace_private_file(path, "second approval");
+    require(read_bytes(path) == "second approval", "replaced approval bytes");
+}
+void replacement_failure() {
+    Fixture f; auto path = f.path(L"readonly.txt"); write_key(path);
+    struct Restore { std::wstring path; ~Restore() { SetFileAttributesW(path.c_str(), FILE_ATTRIBUTE_NORMAL); } } restore{path};
+    require(SetFileAttributesW(path.c_str(), FILE_ATTRIBUTE_READONLY), "make target read-only");
+    rejected([&] { barrier::replace_private_file(path, "must not publish"); });
+    require(read_bytes(path) == "test identity", "failed replacement changed approvals");
+    WIN32_FIND_DATAW info{};
+    HANDLE pending = FindFirstFileW((path + L".pending-*").c_str(), &info);
+    const DWORD error = GetLastError();
+    if (pending != INVALID_HANDLE_VALUE) { FindClose(pending); }
+    require(pending == INVALID_HANDLE_VALUE && error == ERROR_FILE_NOT_FOUND, "failed replacement left a temporary file");
+}
+void replacement_limit() {
+    Fixture f; auto path = f.path(L"bounded.txt"); write_key(path);
+    rejected([&] { barrier::replace_private_file(path, std::string(1024 * 1024 + 1, 'x')); });
+    require(read_bytes(path) == "test identity", "oversized replacement changed approvals");
+    const std::string maximum(1024 * 1024, 'x');
+    barrier::replace_private_file(path, maximum);
+    require(read_bytes(path) == maximum, "exact size limit");
+    barrier::replace_private_file(path, "");
+    require(read_bytes(path).empty(), "empty replacement");
 }
 void streams() {
     Fixture f; auto path = f.path(L"stream.pem"); write_key(path);
     rejected([&] { Descriptor file(barrier::read_private_file(path + L":hidden")); });
     rejected([&] { Descriptor file(barrier::create_private_file(path + L":hidden")); });
+    rejected([&] { barrier::replace_private_file(path + L":hidden", "replacement"); });
 }
 void permission_failure() {
     Fixture f; auto path = f.path(L"denied.pem"); write_key(path);
@@ -154,6 +211,7 @@ void permission_failure() {
     Handle denied(CreateFileW(path.c_str(), GENERIC_READ | WRITE_DAC, 0, nullptr, OPEN_EXISTING, 0, nullptr));
     require(!denied && GetLastError() == ERROR_ACCESS_DENIED, "deny fixture did not refuse WRITE_DAC");
     rejected([&] { Descriptor file(barrier::read_private_file(path)); });
+    rejected([&] { barrier::replace_private_file(path, "replacement"); });
     Handle reader(CreateFileW(path.c_str(), GENERIC_READ, 0, nullptr, OPEN_EXISTING, 0, nullptr));
     require(static_cast<bool>(reader), "read denied fixture bytes");
     char bytes[13]; DWORD count = 0;
@@ -165,11 +223,13 @@ void busy_writer() {
     Handle writer(CreateFileW(path.c_str(), GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, 0, nullptr));
     require(static_cast<bool>(writer), "existing writer fixture");
     rejected([&] { Descriptor file(barrier::read_private_file(path)); });
+    rejected([&] { barrier::replace_private_file(path, "replacement"); });
 }
 void extended_path() {
     Fixture f; auto path = f.path(L"extended.pem");
     auto extended = std::wstring(L"\\\\?\\") + path;
     { Descriptor file(barrier::create_private_file(extended)); }
+    barrier::replace_private_file(extended, "extended approval");
     Descriptor file(barrier::read_private_file(extended));
     check_private(reinterpret_cast<HANDLE>(_get_osfhandle(file.value)));
 }
@@ -204,6 +264,7 @@ void other_user() {
     try { Descriptor file(barrier::read_private_file(foreign)); }
     catch (const std::runtime_error& error) { ownership = std::string(error.what()).find("another owner") != std::string::npos; }
     require(ownership, "foreign owner was not checked");
+    rejected([&] { barrier::replace_private_file(foreign, "replacement"); });
     require(NetUserDel(nullptr, account.name.c_str()) == NERR_Success, "remove test account"); account.created = false;
 }
 int main() {
@@ -211,7 +272,9 @@ int main() {
         {"creation", creation}, {"migration", migration}, {"collision", collision}, {"hardlink", hardlink},
         {"symlink", symlink}, {"directory", directory}, {"size limit", size_limit}, {"sharing", sharing},
         {"replacement", replacement}, {"streams", streams}, {"permission failure", permission_failure},
-        {"busy writer", busy_writer}, {"extended path", extended_path}, {"other user", other_user}};
+        {"busy writer", busy_writer}, {"extended path", extended_path}, {"other user", other_user},
+        {"replacement creation", replacement_creation}, {"replacement failure", replacement_failure},
+        {"replacement limit", replacement_limit}};
     int failed = 0;
     for (auto& test : tests) { try { test.run(); std::cout << "PASS " << test.name << '\n'; }
         catch (const std::exception& error) { ++failed; std::cerr << "FAIL " << test.name << ": " << error.what() << '\n'; } }

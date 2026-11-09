@@ -1,5 +1,18 @@
 # barrier-x changes
 
+## 2.4.24-snapshot - 9 November 2026
+
+- I create Windows peer-trust replacements with protected owner/System permissions.
+- I check writes and flushing, then publish through the retained file handle.
+- I refuse replacements which would take ownership of another user's file.
+
+## 2.4.23-snapshot - 9 November 2026
+
+- I check peer approvals are saved before reconnecting.
+- I merge existing approvals under a lock and replace the file atomically.
+- I refuse malformed, oversized or unsafe trust files without discarding them.
+- I show trust-store failures on every dashboard page and allow a fresh attempt.
+
 ## 2.4.22-snapshot - 8 November 2026
 
 - I organise the dashboard into Connection, Screen layout and Settings.

@@ -113,7 +113,7 @@ public slots:
         void appendLogInfo(const QString& text);
         void appendLogDebug(const QString& text);
         void appendLogError(const QString& text);
-        void startBarrier();
+        virtual void startBarrier();
 
     protected slots:
         void on_m_pGroupClient_toggled(bool on);
@@ -168,6 +168,7 @@ public slots:
     private:
         BarrierType m_ActiveRole = BarrierType::Client;
         bool m_DiscoveryWasAvailable = false;
+        bool m_PeerApprovalOpen = false;
         QSettings& m_Settings;
         AppConfig* m_AppConfig;
         QProcess* m_pBarrier;

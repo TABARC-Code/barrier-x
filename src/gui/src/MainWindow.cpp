@@ -27,6 +27,7 @@
 #include "ZeroconfService.h"
 #endif
 #include "FingerprintAcceptDialog.h"
+#include "PeerTrustStore.h"
 #include "QUtility.h"
 #include "SslCertificate.h"
 #include "ShutdownCh.h"
@@ -126,6 +127,7 @@ MainWindow::MainWindow(QSettings& settings, AppConfig& appConfig) :
     setAttribute(Qt::WA_X11NetWmWindowTypeDialog, true);
 
     setupUi(this);
+    peerTrustError->hide();
     setWindowIcon(QIcon(barrierLargeIcon));
     createMenuBar();
     loadSettings();
@@ -523,39 +525,29 @@ void MainWindow::checkFingerprint(const QString& line)
             ? barrier::DataDirectories::trusted_servers_ssl_fingerprints_path()
             : barrier::DataDirectories::trusted_clients_ssl_fingerprints_path();
 
-    auto db_dir = db_path.parent_path();
-    if (!barrier::fs::exists(db_dir)) {
-        barrier::fs::create_directories(db_dir);
-    }
-
-    // We compare only SHA256 fingerprints, but show both SHA1 and SHA256 so that the users can
-    // still verify fingerprints on old Barrier servers. This way the only time when we are exposed
-    // to SHA1 vulnerabilities is when the user is reconnecting again.
-    barrier::FingerprintDatabase db;
-    db.read(db_path);
-    if (db.is_trusted(fingerprint_sha256)) {
-        return;
-    }
-
-    static bool messageBoxAlreadyShown = false;
-
-    if (!messageBoxAlreadyShown) {
-        if (is_client) {
-            stopBarrier();
+    if (m_PeerApprovalOpen) { return; }
+    m_PeerApprovalOpen = true;
+    auto release = barrier::finally([this] { m_PeerApprovalOpen = false; });
+    try {
+        if (fingerprint_sha256.data.size() != 32) {
+            throw std::runtime_error("The peer did not provide a complete SHA-256 fingerprint.");
         }
-
-        messageBoxAlreadyShown = true;
+        auto database = PeerTrustStore::read(db_path);
+        peerTrustError->hide();
+        if (database.is_trusted(fingerprint_sha256)) { return; }
+        if (is_client) { stopBarrier(); }
         FingerprintAcceptDialog dialog{this, role, fingerprint_sha1, fingerprint_sha256};
         if (dialog.exec() == QDialog::Accepted) {
-            // restart core process after trusting fingerprint.
-            db.add_trusted(fingerprint_sha256);
-            db.write(db_path);
-            if (is_client) {
-                startBarrier();
-            }
+            PeerTrustStore::approve(db_path, fingerprint_sha256);
+            appendLogInfo(tr("Peer approval saved."));
+            if (is_client && barrier_type() == role) { startBarrier(); }
         }
-
-        messageBoxAlreadyShown = false;
+    } catch (const std::exception& error) {
+        stopBarrier();
+        const auto reason = QString::fromUtf8(error.what());
+        peerTrustError->setText(tr("Peer trust update failed. Check the profile folder and retry the connection.\n%1").arg(reason));
+        peerTrustError->show();
+        appendLogError(tr("Peer trust update failed: %1").arg(reason));
     }
 }
 
