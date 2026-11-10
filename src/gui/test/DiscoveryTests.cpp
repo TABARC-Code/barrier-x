@@ -2,6 +2,9 @@
  * Distributed under the GNU General Public License; see LICENSE. */
 #include "../src/MainWindow.h"
 #include "../src/PeerTrustStore.h"
+#include "../src/ScreenSetupModel.h"
+#include <QDataStream>
+#include <QMimeData>
 #include <QLockFile>
 #include "../src/FingerprintAcceptDialog.h"
 #include "common/DataDirectories.h"
@@ -709,4 +712,101 @@ TEST_F(DiscoveryTests, MalformedTrustFileStopsTheAttemptWithoutAnApprovalPrompt)
     EXPECT_TRUE(window->findChild<QLabel*>("peerTrustError")->isVisible());
     ASSERT_TRUE(existing.open(QIODevice::ReadOnly));
     EXPECT_EQ(QByteArray("existing malformed approvals"), existing.readAll());
+}
+
+
+TEST_F(DiscoveryTests, ScreenDragPreservesModifierOverrides)
+{
+    class EditableScreen : public Screen {
+    public:
+        EditableScreen() : Screen("Edited") { setModifier(Modifier::Ctrl, Modifier::Alt); }
+    } original;
+    QByteArray bytes;
+    QDataStream out(&bytes, QIODevice::WriteOnly);
+    out << -1 << -1 << original;
+    std::vector<Screen> screens(2);
+    ScreenSetupModel model(screens, 2, 1);
+    QMimeData mime;
+    mime.setData(ScreenSetupModel::mimeType(), bytes);
+    ASSERT_TRUE(static_cast<QAbstractItemModel&>(model).dropMimeData(&mime, Qt::CopyAction, -1, -1, model.index(0, 1)));
+    EXPECT_EQ(BaseConfig::Modifier::Alt, screens[1].modifier(BaseConfig::Modifier::Ctrl));
+}
+TEST_F(DiscoveryTests, CorruptScreenDragCannotChangeTheLayout)
+{
+    std::vector<Screen> screens{Screen("Left"), Screen("Right")};
+    ScreenSetupModel model(screens, 2, 1);
+    for (int source : {-2, 2000000}) {
+        QByteArray bytes;
+        QDataStream out(&bytes, QIODevice::WriteOnly);
+        out << source << 0 << Screen("Incoming");
+        QMimeData mime;
+        mime.setData(ScreenSetupModel::mimeType(), bytes);
+        EXPECT_FALSE(static_cast<QAbstractItemModel&>(model).dropMimeData(&mime, Qt::MoveAction, -1, -1, model.index(0, 1)));
+    }
+    for (const auto& bytes : {QByteArray("short"), QByteArray(32769, 'x')}) {
+        QMimeData mime;
+        mime.setData(ScreenSetupModel::mimeType(), bytes);
+        EXPECT_FALSE(static_cast<QAbstractItemModel&>(model).dropMimeData(&mime, Qt::CopyAction, -1, -1, model.index(0, 1)));
+    }
+    QByteArray forged;
+    QDataStream out(&forged, QIODevice::WriteOnly);
+    out.setVersion(QDataStream::Qt_5_15);
+    out << -1 << -1 << QString("Incoming") << 0 << quint32(0xffffffffu);
+    QMimeData mime;
+    mime.setData(ScreenSetupModel::mimeType(), forged);
+    EXPECT_FALSE(static_cast<QAbstractItemModel&>(model).dropMimeData(&mime, Qt::CopyAction, -1, -1, model.index(0, 1)));
+    EXPECT_EQ(QString("Left"), screens[0].name());
+    EXPECT_EQ(QString("Right"), screens[1].name());
+}
+
+TEST_F(DiscoveryTests, ScreenDragCannotInjectConfigurationThroughNamesOrAliases)
+{
+    class AliasedScreen : public Screen {
+    public:
+        explicit AliasedScreen(const QString& alias) : Screen("Incoming") { aliases() << alias; }
+    };
+    std::vector<Screen> screens{Screen("Left"), Screen("Right")};
+    ScreenSetupModel model(screens, 2, 1);
+    for (const auto& text : {QString("name\nend\nsection: options"), QString("name:other"),
+                            QString("name\rnext"), QString("name\tvalue"), QString(256, 'a')}) {
+        for (const auto& incoming : {Screen(text), static_cast<Screen>(AliasedScreen(text))}) {
+            QByteArray bytes;
+            QDataStream out(&bytes, QIODevice::WriteOnly);
+            out << -1 << -1 << incoming;
+            QMimeData mime;
+            mime.setData(ScreenSetupModel::mimeType(), bytes);
+            EXPECT_FALSE(static_cast<QAbstractItemModel&>(model).dropMimeData(
+                &mime, Qt::CopyAction, -1, -1, model.index(0, 1)));
+            EXPECT_EQ(QString("Left"), screens[0].name());
+            EXPECT_EQ(QString("Right"), screens[1].name());
+        }
+    }
+}
+
+TEST_F(DiscoveryTests, ScreenDropKeepsCopyAndMoveBoundaries)
+{
+    std::vector<Screen> screens{Screen("Left"), Screen("Right"), Screen()};
+    ScreenSetupModel model(screens, 3, 1);
+    auto drop = [&](int source, const Screen& incoming, Qt::DropAction action, int target) {
+        QByteArray bytes;
+        QDataStream out(&bytes, QIODevice::WriteOnly);
+        out << source << (source == -1 ? -1 : 0) << incoming;
+        QMimeData mime;
+        mime.setData(ScreenSetupModel::mimeType(), bytes);
+        return static_cast<QAbstractItemModel&>(model).dropMimeData(
+            &mime, action, -1, -1, model.index(0, target));
+    };
+    EXPECT_FALSE(drop(0, screens[0], Qt::CopyAction, 1));
+    EXPECT_FALSE(drop(-1, Screen("Incoming"), Qt::CopyAction, 1));
+    EXPECT_FALSE(drop(0, Screen("Forged"), Qt::MoveAction, 1));
+    EXPECT_FALSE(drop(-1, Screen("Incoming"), Qt::MoveAction, 2));
+    EXPECT_EQ(QString("Left"), screens[0].name());
+    EXPECT_EQ(QString("Right"), screens[1].name());
+    EXPECT_TRUE(screens[2].isNull());
+    EXPECT_TRUE(drop(-1, Screen("Incoming"), Qt::CopyAction, 2));
+    EXPECT_EQ(QString("Incoming"), screens[2].name());
+    EXPECT_TRUE(drop(0, screens[0], Qt::MoveAction, 1));
+    EXPECT_EQ(QString("Right"), screens[0].name());
+    EXPECT_EQ(QString("Left"), screens[1].name());
+    EXPECT_TRUE(screens[0].swapped());
 }

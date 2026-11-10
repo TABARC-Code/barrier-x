@@ -11,7 +11,7 @@ concurrency:
 jobs:
   engine:
     runs-on: windows-2025
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -67,3 +67,30 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'OpenSSL runtime failed' }
           ctest --test-dir build -C Release --output-on-failure
           if ($LASTEXITCODE -ne 0) { throw 'Engine checks failed' }
+
+      - name: Build reviewed Qt SDK
+        shell: pwsh
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $visualStudio = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if ($LASTEXITCODE -ne 0 -or !$visualStudio) { throw 'Visual C++ tools were not found' }
+          & (Join-Path $visualStudio 'Common7\Tools\Launch-VsDevShell.ps1') -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
+          python ci/qt-sdk.py --prefix "$env:RUNNER_TEMP/qt-sdk" --jobs 4
+          if ($LASTEXITCODE -ne 0) { throw 'Qt SDK build failed' }
+          "$env:RUNNER_TEMP/qt-sdk/bin" >> $env:GITHUB_PATH
+          "QT_ROOT_DIR=$env:RUNNER_TEMP/qt-sdk" >> $env:GITHUB_ENV
+      - name: Configure and build Qt GUI
+        shell: pwsh
+        run: |
+          cmake -S . -B build -A x64 -DBARRIER_BUILD_GUI=ON -DBARRIER_BUILD_GUI_IPC_TESTS=ON -DBARRIER_BUILD_DISCOVERY=OFF -DBARRIER_QT_MAJOR=6 "-DCMAKE_PREFIX_PATH=$env:RUNNER_TEMP/barrier-deps/gtest;$env:RUNNER_TEMP/qt-sdk"
+          if ($LASTEXITCODE -ne 0) { throw 'GUI configuration failed' }
+          cmake --build build --config Release --target barrier guiunittests guiipctests guidiscoverytests --parallel 2
+          if ($LASTEXITCODE -ne 0) { throw 'GUI compilation failed' }
+      - name: Check Qt identity, approval and service reader
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          $env:PATH = "$env:RUNNER_TEMP\barrier-deps\openssl\bin;$env:PATH"
+          ctest --test-dir build -C Release -R '^(guiunittests|gui-discovery|gui-ipc)$' --output-on-failure -V
+          if ($LASTEXITCODE -ne 0) { throw 'GUI checks failed' }

@@ -1,0 +1,41 @@
+name: macOS GUI and engine
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: macos-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  native:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Initialise filesystem headers
+        run: git submodule update --init ext/gulrak-filesystem
+      - name: Install native build libraries
+        run: brew install openssl@3 googletest
+      - name: Build reviewed Qt SDK
+        run: |
+          python3 ci/qt-sdk.py --prefix "$RUNNER_TEMP/qt-sdk" --jobs 4
+          echo "$RUNNER_TEMP/qt-sdk/bin" >> "$GITHUB_PATH"
+          echo "QT_ROOT_DIR=$RUNNER_TEMP/qt-sdk" >> "$GITHUB_ENV"
+      - name: Configure native GUI and engine
+        run: >-
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          -DBARRIER_BUILD_INSTALLER=OFF -DBARRIER_BUILD_DISCOVERY=OFF
+          -DBARRIER_BUILD_GUI=ON -DBARRIER_BUILD_GUI_IPC_TESTS=ON -DBARRIER_QT_MAJOR=6 -DBARRIER_BUILD_TESTS=ON
+          -DBARRIER_USE_EXTERNAL_GTEST=ON -DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3)
+          -DCMAKE_PREFIX_PATH="$RUNNER_TEMP/qt-sdk;$(brew --prefix googletest)"
+          -DCMAKE_OSX_DEPLOYMENT_TARGET=14.4
+      - name: Build GUI, engine and tests
+        run: cmake --build build --target barrier barrierc barriers guiunittests guiipctests guidiscoverytests unittests --parallel 3
+      - name: Check native identity, approval and reader
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: ctest --test-dir build -R '^(guiunittests|gui-discovery|gui-ipc|ssl-lifecycle|certificate-storage)$' --output-on-failure -V

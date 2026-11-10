@@ -51,7 +51,7 @@
 #include <QMessageBox>
 #include <QFileDialog>
 #include <QDesktopServices>
-#include <QDesktopWidget>
+#include <QRegularExpression>
 
 #if defined(Q_OS_MAC)
 #include <ApplicationServices/ApplicationServices.h>
@@ -427,7 +427,7 @@ void MainWindow::logOutput()
     if (m_pBarrier)
     {
         QString text(m_pBarrier->readAllStandardOutput());
-        for (QString line : text.split(QRegExp("\r|\n|\r\n"))) {
+        for (QString line : text.split(QRegularExpression("\r\n|\r|\n"))) {
             if (!line.isEmpty())
             {
                 appendLogRaw(line);
@@ -464,7 +464,7 @@ void MainWindow::appendLogError(const QString& text)
 
 void MainWindow::appendLogRaw(const QString& text)
 {
-    for (QString line : text.split(QRegExp("\r|\n|\r\n"))) {
+    for (QString line : text.split(QRegularExpression("\r\n|\r|\n"))) {
         if (!line.isEmpty()) {
             m_pLogWindow->appendRaw(line);
             updateFromLogLine(line);
@@ -503,19 +503,20 @@ void MainWindow::checkConnected(const QString& line)
 
 void MainWindow::checkFingerprint(const QString& line)
 {
-    QRegExp fingerprintRegex(".*peer fingerprint \\(SHA1\\): ([A-F0-9:]+) \\(SHA256\\): ([A-F0-9:]+)");
-    if (!fingerprintRegex.exactMatch(line)) {
+    QRegularExpression fingerprintRegex(".*peer fingerprint \\(SHA1\\): ([A-F0-9:]+) \\(SHA256\\): ([A-F0-9:]+)");
+    const auto fingerprintMatch = fingerprintRegex.match(line);
+    if (!fingerprintMatch.hasMatch() || fingerprintMatch.capturedLength() != line.size()) {
         return;
     }
 
     barrier::FingerprintData fingerprint_sha1 = {
         barrier::fingerprint_type_to_string(barrier::FingerprintType::SHA1),
-        barrier::string::from_hex(fingerprintRegex.cap(1).toStdString())
+        barrier::string::from_hex(fingerprintMatch.captured(1).toStdString())
     };
 
     barrier::FingerprintData fingerprint_sha256 = {
         barrier::fingerprint_type_to_string(barrier::FingerprintType::SHA256),
-        barrier::string::from_hex(fingerprintRegex.cap(2).toStdString())
+        barrier::string::from_hex(fingerprintMatch.captured(2).toStdString())
     };
 
     const BarrierType role = barrierState() == barrierDisconnected ? barrier_type() : m_ActiveRole;

@@ -315,7 +315,7 @@ ClientProxy1_0::setClipboardDirty(ClipboardID id, bool dirty)
 void
 ClientProxy1_0::keyDown(KeyID key, KeyModifierMask mask, KeyButton)
 {
-    LOG((CLOG_DEBUG1 "send key down to \"%s\" id=%d, mask=0x%04x", getName().c_str(), key, mask));
+    LOG((CLOG_DEBUG1 "send key down"));
     ProtocolUtil::writef(getStream(), kMsgDKeyDown1_0, key, mask);
 }
 
@@ -323,14 +323,14 @@ void
 ClientProxy1_0::keyRepeat(KeyID key, KeyModifierMask mask,
                 SInt32 count, KeyButton)
 {
-    LOG((CLOG_DEBUG1 "send key repeat to \"%s\" id=%d, mask=0x%04x, count=%d", getName().c_str(), key, mask, count));
+    LOG((CLOG_DEBUG1 "send key repeat"));
     ProtocolUtil::writef(getStream(), kMsgDKeyRepeat1_0, key, mask, count);
 }
 
 void
 ClientProxy1_0::keyUp(KeyID key, KeyModifierMask mask, KeyButton)
 {
-    LOG((CLOG_DEBUG1 "send key up to \"%s\" id=%d, mask=0x%04x", getName().c_str(), key, mask));
+    LOG((CLOG_DEBUG1 "send key up"));
     ProtocolUtil::writef(getStream(), kMsgDKeyUp1_0, key, mask);
 }
 

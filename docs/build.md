@@ -691,16 +691,98 @@ The Windows harness now registers seventeen file scenarios, including three
 new replacement scenarios. Existing cases also exercise refusal of linked,
 foreign, busy, denied and alternate-stream targets. Service cases additionally
 check System-owned replacement and refusal to replace a console-owned file.
-None of these changed native checks has been compiled or run here.
+These changed native checks cannot run in the local Linux workspace; the
+hosted results below supersede that platform blocker.
 
 I attempt to configure `src/test/nativeipc`; CMake stops with
 `These checks require Windows tokens and named pipes`. This Linux workspace has
-no Windows SDK compiler or runtime. Native compilation, ACL/rename behaviour,
-Qt integration and failure injection must pass before merging this update to master.
-Parent-directory anchoring remains open. No native, full-engine or sanitiser
-pass is claimed for 2.4.24.
+no Windows SDK compiler or runtime. Native validation runs on the Windows runner instead. Windows Qt integration
+and injected I/O failures still need checking before merging this update to master.
+Parent-directory anchoring remains open.
 
 The manual-only build again contains empty generated objects, first for
 ActionDialog and then NewScreenWidget. I remove those stopped-build artefacts
 and rebuild before the final runs. Both suites register their expected case
 counts, and the final whitespace check passes.
+
+
+## Hosted Windows storage checks, 2.4.24
+
+9 November 2026. On test commit `1f21f179f4b9d920e49b813cc223b662c27fb43e`,
+[Windows native run 42564987233](https://github.com/TABARC-Code/barrier-x/actions/runs/42564987233)
+compiles the SDK adapters and passes all three CTest entries: ten pipe checks,
+seventeen storage scenarios and five temporary-service scenarios. I inspect the
+individual case output, including replacement creation, failed publication and
+cleanup, exact/over size limits and the active console user's key. No new native
+failure needs a source fix.
+
+This validates the helper with actual Windows file permissions and rename
+behaviour. It doesn't build the Qt GUI or prove parent-directory anchoring,
+arbitrary I/O failure handling, crash durability or installed-service session
+transitions. The test branch leaves master unchanged.
+
+
+## Hosted engine and Linux checks, 2.4.24
+
+On source commit `1f21f179f4b9d920e49b813cc223b662c27fb43e`, Windows engine
+run 42564987082 builds x64 Release and passes all ten CTest entries with
+OpenSSL 3.5.9. Linux run 42564987085 passes all thirteen CTest entries in both
+Debug and Release, the manual-only dashboard's twenty-five cases, and the four
+selected ASan/UBSan entries for SSL lifecycle, certificate storage, IPC framing
+and Qt IPC. I read the individual job results and logs. These results belong
+to 2.4.24; they don't validate later source changes.
+
+
+## POSIX trust-directory checks, 2.4.25
+
+9 November 2026. I build the GUI in both discovery modes on Linux Qt 5.15.13
+and pass 84 GUI unit tests plus 25 dashboard tests in each. The trust suite now
+contains twenty cases, nine added for this iteration. I verify actual registered
+counts, not just CTest's exit code.
+
+The added cases cover a linked folder, group-write refusal and deliberate repair,
+a missing folder, embedded NUL, simulated foreign ownership, and injected write,
+zero-write, permission, flush and rename failures. Short writes and EINTR retry
+successfully; replacement descriptors carry close-on-exec. Failure cases keep
+the old approval bytes and remove their pending files.
+
+A deterministic rename during flushing is detected before publication. Another
+rename injected immediately at renameat proves that publication stays in the
+held folder while an independently approved replacement folder remains intact.
+The moved folder can retain Qt's old lock file. These tests deliberately don't
+claim that every concurrent directory rename is detected.
+
+I correct the test link flags after adding fstat wrapping while the initial
+build is already running, then rebuild before counting the final passes. The
+wrappers are linked only into Linux GUI unit tests, not the application or
+other platforms. Windows Qt/macOS builds, earlier ancestor traversal, directory
+crash durability and non-cooperating writers remain unverified. I don't claim
+new hosted or sanitiser results for 2.4.25.
+
+
+## Qt portability and input diagnostics, 2.4.26
+
+10 November 2026. I configure and compile the complete manual-only GUI, engine
+and tests with GCC 14.2, Qt 5.15.15 and Google Test 1.15 on Debian 13. The SDK
+headers and tools are extracted into a user-owned prefix from signed Debian
+package indexes; I don't install them over the system runtime.
+
+The GUI passes 84 unit cases and 29 dashboard cases, including retained modifier
+overrides and rejection of forged drag coordinates, oversized/truncated frames
+and hostile collection lengths. Names/aliases containing configuration syntax
+are refused; external copies cannot replace occupied tiles, and internal moves
+require the current source payload. The engine unit suite has 225 cases, including
+a check that two different characters produce identical mapping diagnostics
+with character values absent. This doesn't promise that event timing or failure
+metadata carries no information. Native Windows/macOS input capture still needs
+validation.
+
+The first full CTest run passes twelve entries and fails the Unix transport case
+because this workspace refuses AF_UNIX socket creation with EPERM. The reader
+suite passes 39 cases with that one environment-limited case explicitly skipped
+using its existing test switch. The hosted jobs must exercise it without that
+switch. No new sanitiser result or Qt 6/native platform pass is claimed here.
+
+The native jobs build pinned Qt source with the recorded upstream security
+fixes rather than fetching an SDK through the rejected archive extractor. They
+remain unverified until their actual results are recorded. Master stays unchanged.

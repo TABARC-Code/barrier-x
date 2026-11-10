@@ -66,7 +66,7 @@ QVariant ScreenSetupModel::data(const QModelIndex& index, int role) const
 Qt::ItemFlags ScreenSetupModel::flags(const QModelIndex& index) const
 {
     if (!index.isValid() || index.row() >= m_NumRows || index.column() >= m_NumColumns)
-        return 0;
+        return {};
 
     if (!screen(index).isNull())
         return Qt::ItemIsEnabled | Qt::ItemIsDragEnabled | Qt::ItemIsSelectable | Qt::ItemIsDropEnabled;
@@ -103,17 +103,20 @@ QMimeData* ScreenSetupModel::mimeData(const QModelIndexList& indexes) const
 
 bool ScreenSetupModel::dropMimeData(const QMimeData* data, Qt::DropAction action, int row, int column, const QModelIndex& parent)
 {
-    if (action == Qt::IgnoreAction)
-        return true;
+    if (action == Qt::IgnoreAction) { return true; }
+    if (action != Qt::MoveAction && action != Qt::CopyAction) { return false; }
 
     if (!data->hasFormat(m_MimeType))
         return false;
 
-     if (!parent.isValid() || row != -1 || column != -1)
+     if (!parent.isValid() || parent.model() != this || parent.row() < 0 || parent.column() < 0 ||
+         parent.row() >= m_NumRows || parent.column() >= m_NumColumns || row != -1 || column != -1)
         return false;
 
     QByteArray encodedData = data->data(m_MimeType);
+    if (encodedData.isEmpty() || encodedData.size() > 32768) { return false; }
     QDataStream stream(&encodedData, QIODevice::ReadOnly);
+    stream.setVersion(QDataStream::Qt_5_15);
 
     int sourceColumn = -1;
     int sourceRow = -1;
@@ -121,15 +124,32 @@ bool ScreenSetupModel::dropMimeData(const QMimeData* data, Qt::DropAction action
     stream >> sourceColumn;
     stream >> sourceRow;
 
+    const bool external = sourceColumn == -1 && sourceRow == -1;
+    if (!external && (sourceColumn < 0 || sourceRow < 0 || sourceColumn >= m_NumColumns || sourceRow >= m_NumRows)) {
+        return false;
+    }
     // don't drop screen onto itself
     if (sourceColumn == parent.column() && sourceRow == parent.row())
         return false;
 
     Screen droppedScreen;
     stream >> droppedScreen;
+    if (stream.status() != QDataStream::Ok || droppedScreen.isNull() || !stream.atEnd()) { return false; }
 
     Screen oldScreen = screen(parent.column(), parent.row());
-    if (!oldScreen.isNull() && sourceColumn != -1 && sourceRow != -1)
+    // I enforce the view's rules here as well; MIME coordinates aren't authority.
+    if (external) {
+        if (action != Qt::CopyAction || !oldScreen.isNull()) { return false; }
+    } else {
+        if (action != Qt::MoveAction || screen(sourceColumn, sourceRow).isNull()) { return false; }
+        QByteArray actual, supplied;
+        QDataStream actualStream(&actual, QIODevice::WriteOnly);
+        QDataStream suppliedStream(&supplied, QIODevice::WriteOnly);
+        actualStream << screen(sourceColumn, sourceRow);
+        suppliedStream << droppedScreen;
+        if (actual != supplied) { return false; }
+    }
+    if (!oldScreen.isNull() && !external)
     {
         // mark the screen so it isn't deleted after the dragndrop succeeded
         // see ScreenSetupView::startDrag()

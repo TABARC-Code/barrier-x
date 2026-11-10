@@ -198,7 +198,7 @@ OSXKeyState::mapModifiersFromOSX(UInt32 mask) const
         outMask |= KeyModifierNumLock;
     }
 
-    LOG((CLOG_DEBUG1 "mask=%04x outMask=%04x", mask, outMask));
+    LOG((CLOG_DEBUG1 "keyboard modifier state checked"));
     return outMask;
 }
 
@@ -307,7 +307,7 @@ OSXKeyState::mapKeyFromEvent(KeyIDs& ids,
         // translate key
         UniCharCount count;
         UniChar chars[2];
-        LOG((CLOG_DEBUG2 "modifiers: %08x", modifiers & 0xffu));
+        LOG((CLOG_DEBUG2 "keyboard modifier state checked"));
         OSStatus status = UCKeyTranslate(layout,
                             vkCode & 0xffu, action,
                             (modifiers >> 8) & 0xffu,
@@ -400,7 +400,7 @@ OSXKeyState::pollActiveModifiers() const
         outMask |= KeyModifierNumLock;
     }
 
-    LOG((CLOG_DEBUG1 "mask=%04x outMask=%04x", mask, outMask));
+    LOG((CLOG_DEBUG1 "keyboard modifier state checked"));
     return outMask;
 }
 
@@ -590,9 +590,7 @@ OSXKeyState::fakeKey(const Keystroke& keystroke)
         bool keyDown = keystroke.m_data.m_button.m_press;
         CGKeyCode virtualKey = mapKeyButtonToVirtualKey(button);
 
-        LOG((CLOG_DEBUG1
-            "  button=0x%04x virtualKey=0x%04x keyDown=%s",
-            button, virtualKey, keyDown ? "down" : "up"));
+        LOG((CLOG_DEBUG1 "keyboard stroke"));
 
         postHIDVirtualKey(virtualKey, keyDown);
 
@@ -602,11 +600,11 @@ OSXKeyState::fakeKey(const Keystroke& keystroke)
     case Keystroke::kGroup: {
         SInt32 group = keystroke.m_data.m_group.m_group;
         if (keystroke.m_data.m_group.m_absolute) {
-            LOG((CLOG_DEBUG1 "  group %d", group));
+            LOG((CLOG_DEBUG1 "keyboard group updated"));
             setGroup(group);
         }
         else {
-            LOG((CLOG_DEBUG1 "  group %+d", group));
+            LOG((CLOG_DEBUG1 "keyboard group updated"));
             setGroup(getEffectiveGroup(pollActiveGroup(), group));
         }
         break;

@@ -1,6 +1,7 @@
+include(${CMAKE_SOURCE_DIR}/cmake/Qt.cmake)
 cmake_minimum_required (VERSION 3.20)
 
-find_package (Qt5 REQUIRED COMPONENTS Core Widgets Network)
+find_package (${BARRIER_QT_PACKAGE} ${BARRIER_QT_MINIMUM} REQUIRED COMPONENTS Core Widgets Network)
 set (CMAKE_AUTOMOC ON)
 set (CMAKE_AUTORCC ON)
 set (CMAKE_AUTOUIC ON)
@@ -142,7 +143,7 @@ elseif (NOT APPLE AND BARRIER_BUILD_DISCOVERY)
 endif()
 
 function(barrier_gui_support target)
-    target_link_libraries(${target} net base io common Qt5::Core Qt5::Widgets Qt5::Network ${OPENSSL_LIBS})
+    target_link_libraries(${target} net base io common ${BARRIER_QT_PACKAGE}::Core ${BARRIER_QT_PACKAGE}::Widgets ${BARRIER_QT_PACKAGE}::Network ${OPENSSL_LIBS})
     target_compile_definitions(${target} PRIVATE
         BARRIER_WITH_DISCOVERY=$<BOOL:${BARRIER_BUILD_DISCOVERY}>
         BARRIER_VERSION_STAGE="${BARRIER_VERSION_STAGE}" BARRIER_REVISION="${BARRIER_REVISION}")
@@ -195,7 +196,11 @@ if (BARRIER_BUILD_TESTS)
     set_tests_properties(guiunittests PROPERTIES TIMEOUT 60 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
     target_include_directories(guiunittests PUBLIC ../../ext)
-    target_link_libraries(guiunittests ${GTEST_LIBRARIES} ${GMOCK_LIBRARIES} Qt5::Core Qt5::Widgets Qt5::Network ${libs} net base io common ${OPENSSL_LIBS})
+    target_link_libraries(guiunittests ${GTEST_LIBRARIES} ${GMOCK_LIBRARIES} ${BARRIER_QT_PACKAGE}::Core ${BARRIER_QT_PACKAGE}::Widgets ${BARRIER_QT_PACKAGE}::Network ${libs} net base io common ${OPENSSL_LIBS})
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_definitions(guiunittests PRIVATE BARRIER_TEST_WRAP_PEER_IO)
+        target_link_options(guiunittests PRIVATE -Wl,--wrap=write -Wl,--wrap=fsync -Wl,--wrap=fchmod -Wl,--wrap=fstat -Wl,--wrap=renameat)
+    endif()
 endif()
 
 if (BARRIER_BUILD_TESTS)

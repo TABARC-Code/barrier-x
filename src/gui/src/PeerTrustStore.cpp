@@ -5,12 +5,14 @@
 #include "io/WinPrivateFile.h"
 #include <QFile>
 #include <QLockFile>
-#include <QSaveFile>
 #include <sstream>
 #include <stdexcept>
 #ifdef _WIN32
 #include <io.h>
 #else
+#include <atomic>
+#include <cerrno>
+#include <cstdio>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -23,25 +25,100 @@ bool valid(const barrier::FingerprintData& peer)
     return (peer.algorithm == "sha256" && peer.data.size() == 32) ||
            (peer.algorithm == "sha1" && peer.data.size() == 20);
 }
+#ifndef _WIN32
+std::string file_name(const barrier::fs::path& path)
+{
+    const auto name = path.filename().native();
+    if (path.native().find('\0') != std::string::npos || name.empty() || name == "." || name == "..") {
+        throw std::runtime_error("The peer trust path needs a file name.");
+    }
+    return name;
 }
+class TrustDirectory {
+public:
+    explicit TrustDirectory(const barrier::fs::path& path, bool allow_missing = false) :
+        path_(path.empty() ? barrier::fs::path(".") : path)
+    {
+        while (path_ != path_.root_path() && path_.filename().empty()) { path_ = path_.parent_path(); }
+        const int fd = ::open(path_.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK);
+        if (fd < 0) {
+            if (allow_missing && errno == ENOENT) { return; }
+            throw std::runtime_error("Cannot open the peer trust folder. Links are unsupported.");
+        }
+        struct stat info{};
+        if (::fstat(fd, &info) != 0 || !S_ISDIR(info.st_mode) || info.st_uid != geteuid() ||
+            (info.st_mode & (S_IWGRP | S_IWOTH)) != 0) {
+            ::close(fd);
+            throw std::runtime_error("The peer trust folder must belong to this user and refuse other users' writes.");
+        }
+        descriptor_ = fd;
+    }
+    ~TrustDirectory() { if (descriptor_ >= 0) { ::close(descriptor_); } }
+    TrustDirectory(const TrustDirectory&) = delete;
+    TrustDirectory& operator=(const TrustDirectory&) = delete;
+    int descriptor() const { return descriptor_; }
+    void check_current() const
+    {
+        struct stat held{}, current{};
+        if (::fstat(descriptor_, &held) != 0 || ::lstat(path_.c_str(), &current) != 0 ||
+            !S_ISDIR(current.st_mode) || held.st_dev != current.st_dev || held.st_ino != current.st_ino ||
+            current.st_uid != geteuid() || (current.st_mode & (S_IWGRP | S_IWOTH)) != 0) {
+            throw std::runtime_error("The peer trust folder changed during approval. Retry the connection.");
+        }
+    }
+    void publish(const std::string& name, const std::string& bytes) const
+    {
+        static std::atomic<unsigned long long> sequence{0};
+        int fd = -1;
+        std::string temporary;
+        bool published = false;
+        auto cleanup = barrier::finally([&] {
+            if (fd >= 0) {
+                if (!published) { ::unlinkat(descriptor_, temporary.c_str(), 0); }
+                ::close(fd);
+            }
+        });
+        for (int attempt = 0; attempt < 64; ++attempt) {
+            temporary = name + ".pending-" + std::to_string(getpid()) + "-" +
+                std::to_string(sequence.fetch_add(1, std::memory_order_relaxed));
+            fd = ::openat(descriptor_, temporary.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, 0600);
+            if (fd >= 0) { break; }
+            if (errno != EEXIST) { throw std::runtime_error("Cannot create a private peer trust replacement."); }
+        }
+        if (fd < 0 || ::fchmod(fd, 0600) != 0) {
+            throw std::runtime_error("Cannot reserve a private peer trust replacement.");
+        }
+        std::size_t offset = 0;
+        while (offset < bytes.size()) {
+            const auto written = ::write(fd, bytes.data() + offset, bytes.size() - offset);
+            if (written < 0 && errno == EINTR) { continue; }
+            if (written <= 0) { throw std::runtime_error("Cannot write the peer trust replacement."); }
+            offset += static_cast<std::size_t>(written);
+        }
+        int synced;
+        do { synced = ::fsync(fd); } while (synced < 0 && errno == EINTR);
+        if (synced != 0) { throw std::runtime_error("Cannot flush the peer trust replacement."); }
+        check_current();
+        // 2.4.25: I keep publication and cleanup tied to the folder I actually opened.
+        if (::renameat(descriptor_, temporary.c_str(), descriptor_, name.c_str()) != 0) {
+            throw std::runtime_error("Cannot publish the peer trust replacement.");
+        }
+        published = true;
+    }
+private:
+    barrier::fs::path path_;
+    int descriptor_ = -1;
+};
+#endif
 
-barrier::FingerprintDatabase PeerTrustStore::read(const barrier::fs::path& path)
+barrier::FingerprintDatabase read_descriptor(int descriptor)
 {
     barrier::FingerprintDatabase result;
-    // FUTURE(BX-004): anchor the parent directory as well as checking the final file.
-    const auto status = barrier::fs::symlink_status(path);
-    if (!barrier::fs::exists(status)) { return result; }
-    if (!barrier::fs::is_regular_file(status)) {
-        throw std::runtime_error("The peer trust path must be a regular file, not a link or directory.");
-    }
 #ifdef _WIN32
-    int descriptor = barrier::read_private_file(path.native());
     const auto close = [](int fd) { _close(fd); };
 #else
-    int descriptor = ::open(path.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK);
     const auto close = [](int fd) { ::close(fd); };
 #endif
-    if (descriptor < 0) { throw std::runtime_error("Cannot open the peer trust file."); }
     auto cleanup = barrier::finally([&] { if (descriptor >= 0) { close(descriptor); } });
 #ifndef _WIN32
     struct stat info{};
@@ -75,13 +152,50 @@ barrier::FingerprintDatabase PeerTrustStore::read(const barrier::fs::path& path)
     }
     return result;
 }
+#ifndef _WIN32
+barrier::FingerprintDatabase read_entry(const TrustDirectory& directory, const std::string& name)
+{
+    const int fd = ::openat(directory.descriptor(), name.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK);
+    if (fd < 0) {
+        if (errno == ENOENT) { return {}; }
+        throw std::runtime_error("Cannot open the peer trust file.");
+    }
+    return read_descriptor(fd);
+}
+#endif
+}
+
+barrier::FingerprintDatabase PeerTrustStore::read(const barrier::fs::path& path)
+{
+#ifdef _WIN32
+    // FUTURE(BX-004): check and anchor Windows parent directories too.
+    const auto status = barrier::fs::symlink_status(path);
+    if (!barrier::fs::exists(status)) { return {}; }
+    if (!barrier::fs::is_regular_file(status)) {
+        throw std::runtime_error("The peer trust path must be a regular file, not a link or directory.");
+    }
+    return read_descriptor(barrier::read_private_file(path.native()));
+#else
+    const auto name = file_name(path);
+    // FUTURE(BX-004): validate traversal through earlier ancestors; only the final folder is anchored.
+    TrustDirectory directory(path.parent_path(), true);
+    if (directory.descriptor() < 0) { return {}; }
+    return read_entry(directory, name);
+#endif
+}
 
 void PeerTrustStore::approve(const barrier::fs::path& path, const barrier::FingerprintData& peer)
 {
     if (peer.algorithm != "sha256" || peer.data.size() != 32) {
         throw std::runtime_error("Only a complete SHA-256 fingerprint can be approved.");
     }
-    barrier::fs::create_directories(path.parent_path());
+#ifndef _WIN32
+    const auto entry = file_name(path);
+#endif
+    if (!path.parent_path().empty()) { barrier::fs::create_directories(path.parent_path()); }
+#ifndef _WIN32
+    TrustDirectory directory(path.parent_path());
+#endif
     const auto name = QString::fromStdString(path.u8string());
     QLockFile lock(name + QStringLiteral(".lock"));
     lock.setStaleLockTime(0);
@@ -89,7 +203,12 @@ void PeerTrustStore::approve(const barrier::fs::path& path, const barrier::Finge
         throw std::runtime_error("The peer trust file could not be locked. Another update may be running; check folder access and retry.");
     }
     // 2.4.23: I merge after approval, under the lock. A dialog isn't a file lock.
+#ifdef _WIN32
     auto database = read(path);
+#else
+    directory.check_current();
+    auto database = read_entry(directory, entry);
+#endif
     database.add_trusted(peer);
     std::ostringstream encoded;
     database.write_stream(encoded);
@@ -100,13 +219,6 @@ void PeerTrustStore::approve(const barrier::fs::path& path, const barrier::Finge
 #ifdef _WIN32
     barrier::replace_private_file(path.native(), bytes);
 #else
-    QSaveFile output(name);
-    output.setDirectWriteFallback(false);
-    if (!output.open(QIODevice::WriteOnly) ||
-        !output.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner) ||
-        output.write(bytes.data(), static_cast<qint64>(bytes.size())) != static_cast<qint64>(bytes.size()) ||
-        !output.commit()) {
-        throw std::runtime_error("Cannot save the peer approval: " + output.errorString().toStdString());
-    }
+    directory.publish(entry, bytes);
 #endif
 }

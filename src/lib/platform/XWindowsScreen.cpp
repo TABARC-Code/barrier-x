@@ -529,7 +529,7 @@ XWindowsScreen::registerHotKey(KeyID key, KeyModifierMask mask)
 	// only allow certain modifiers
 	if ((mask & ~(KeyModifierShift | KeyModifierControl |
 				  KeyModifierAlt   | KeyModifierSuper)) != 0) {
-		LOG((CLOG_DEBUG "could not map hotkey id=%04x mask=%04x", key, mask));
+		LOG((CLOG_DEBUG "could not map hotkey"));
 		return 0;
 	}
 
@@ -542,14 +542,14 @@ XWindowsScreen::registerHotKey(KeyID key, KeyModifierMask mask)
 	unsigned int modifiers;
 	if (!m_keyState->mapModifiersToX(mask, modifiers)) {
 		// can't map all modifiers
-		LOG((CLOG_DEBUG "could not map hotkey id=%04x mask=%04x", key, mask));
+		LOG((CLOG_DEBUG "could not map hotkey"));
 		return 0;
 	}
 	XWindowsKeyState::KeycodeList keycodes;
 	m_keyState->mapKeyToKeycodes(key, keycodes);
 	if (key != kKeyNone && keycodes.empty()) {
 		// can't map key
-		LOG((CLOG_DEBUG "could not map hotkey id=%04x mask=%04x", key, mask));
+		LOG((CLOG_DEBUG "could not map hotkey"));
 		return 0;
 	}
 
@@ -1409,7 +1409,7 @@ XWindowsScreen::handleSystemEvent(const Event& event, void*)
 void
 XWindowsScreen::onKeyPress(XKeyEvent& xkey)
 {
-	LOG((CLOG_DEBUG1 "event: KeyPress code=%d, state=0x%04x", xkey.keycode, xkey.state));
+	LOG((CLOG_DEBUG1 "event: KeyPress"));
 	const KeyModifierMask mask = m_keyState->mapModifiersFromX(xkey.state);
 	KeyID key                  = mapKeyFromX(&xkey);
 	if (key != kKeyNone) {
@@ -1470,7 +1470,7 @@ XWindowsScreen::onKeyRelease(XKeyEvent& xkey, bool isRepeat)
 		KeyButton keycode = static_cast<KeyButton>(xkey.keycode);
 		if (!isRepeat) {
 			// no press event follows so it's a plain release
-			LOG((CLOG_DEBUG1 "event: KeyRelease code=%d, state=0x%04x", keycode, xkey.state));
+			LOG((CLOG_DEBUG1 "event: KeyRelease"));
 			m_keyState->sendKeyEvent(getEventTarget(),
 							false, false, key, mask, 1, keycode);
 		}
@@ -1479,7 +1479,7 @@ XWindowsScreen::onKeyRelease(XKeyEvent& xkey, bool isRepeat)
 			// we could attempt to count the already queued
 			// repeats but we'll just send a repeat of 1.
 			// note that we discard the press event.
-			LOG((CLOG_DEBUG1 "event: repeat code=%d, state=0x%04x", keycode, xkey.state));
+			LOG((CLOG_DEBUG1 "event: repeat"));
 			m_keyState->sendKeyEvent(getEventTarget(),
 							false, true, key, mask, 1, keycode);
 		}
@@ -1847,11 +1847,11 @@ XWindowsScreen::mapKeyFromX(XKeyEvent* event) const
         m_impl->XLookupString(event, dummy, 0, &keysym, NULL);
 	}
 
-	LOG((CLOG_DEBUG2 "mapped code=%d to keysym=0x%04x", event->keycode, keysym));
+	LOG((CLOG_DEBUG2 "keyboard symbol mapped"));
 
 	// convert key
 	KeyID result = XWindowsUtil::mapKeySymToKeyID(keysym);
-	LOG((CLOG_DEBUG2 "mapped keysym=0x%04x to keyID=%d", keysym, result));
+	LOG((CLOG_DEBUG2 "keyboard symbol converted"));
 	return result;
 }
 

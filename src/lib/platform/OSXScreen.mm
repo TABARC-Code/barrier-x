@@ -1236,7 +1236,7 @@ OSXScreen::onKey(CGEventRef event)
 	// get the key and active modifiers
 	UInt32 virtualKey = CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
 	CGEventFlags macMask = CGEventGetFlags(event);
-	LOG((CLOG_DEBUG1 "event: Key event kind: %d, keycode=%d", eventKind, virtualKey));
+	LOG((CLOG_DEBUG1 "event: keyboard input"));
 
 	// Special handling to track state of modifiers
 	if (eventKind == kCGEventFlagsChanged) {

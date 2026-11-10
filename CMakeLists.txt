@@ -317,50 +317,11 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
         message(FATAL_ERROR "The legacy Windows installer packages obsolete OpenSSL DLLs. Set BARRIER_BUILD_INSTALLER=OFF until packaging is updated.")
     endif()
 elseif (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    find_program(APT_PROGRAM "apt")
-    find_program(BREW_PROGRAM "brew")
-    find_program(PORT_PROGRAM "port")
-
-    if (IS_DIRECTORY /opt/procursus AND APT_PROGRAM)
-        # procursus/apt
-        set (OPENSSL_ROOT /opt/procursus)
-
-        include_directories (BEFORE SYSTEM ${OPENSSL_ROOT}/include)
-
-        set (OPENSSL_LIBS
-            ${OPENSSL_ROOT}/lib/libssl.a
-            ${OPENSSL_ROOT}/lib/libcrypto.a
-        )
-    elseif (IS_DIRECTORY /opt/local AND PORT_PROGRAM)
-        # macports
-        set (OPENSSL_ROOT /opt/local)
-
-        set (OPENSSL_LIBS
-            ${OPENSSL_ROOT}/lib/libssl.a
-            ${OPENSSL_ROOT}/lib/libcrypto.a
-            z
-        )
-    elseif (IS_DIRECTORY /usr/local/opt/openssl AND BREW_PROGRAM)
-        # brew
-        set (OPENSSL_ROOT /usr/local/opt/openssl)
-
-        include_directories (BEFORE SYSTEM ${OPENSSL_ROOT}/include)
-
-        set (OPENSSL_LIBS
-            ${OPENSSL_ROOT}/lib/libssl.a
-            ${OPENSSL_ROOT}/lib/libcrypto.a
-        )
-    elseif (IS_DIRECTORY /opt/homebrew/opt/openssl AND BREW_PROGRAM)
-        # brew
-        set (OPENSSL_ROOT /opt/homebrew/opt/openssl)
-
-        include_directories (BEFORE SYSTEM ${OPENSSL_ROOT}/include)
-
-        set (OPENSSL_LIBS
-            ${OPENSSL_ROOT}/lib/libssl.a
-            ${OPENSSL_ROOT}/lib/libcrypto.a
-        )
-    endif()
+    # I honour the selected SDK prefix on both Intel and Apple Silicon.
+    find_package(OpenSSL 3 REQUIRED COMPONENTS SSL Crypto)
+    set(OPENSSL_ROOT ${OPENSSL_ROOT_DIR})
+    include_directories(BEFORE SYSTEM ${OPENSSL_INCLUDE_DIR})
+    set(OPENSSL_LIBS OpenSSL::SSL OpenSSL::Crypto)
 
 elseif (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     set (OPENSSL_LIBS ssl crypto)

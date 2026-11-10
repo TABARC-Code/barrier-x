@@ -423,7 +423,7 @@ KeyState::onKey(KeyButton button, bool down, KeyModifierMask newState)
 {
     // update modifier state
     m_mask = newState;
-    LOG((CLOG_DEBUG1 "new mask: 0x%04x", m_mask));
+    LOG((CLOG_DEBUG1 "new mask: 0x"));
 
     // ignore bogus buttons
     button &= kButtonMask;
@@ -516,7 +516,7 @@ KeyState::updateKeyState()
                                                 m_activeModifiers);
     m_keyMap.foreachKey(&KeyState::addActiveModifierCB, &addModifierContext);
 
-    LOG((CLOG_DEBUG1 "modifiers on update: 0x%04x", m_mask));
+    LOG((CLOG_DEBUG1 "modifiers on update: 0x"));
 }
 
 void
@@ -560,7 +560,7 @@ KeyState::fakeKeyDown(KeyID id, KeyModifierMask mask, KeyButton serverID)
 
     // ignore certain keys
     if (isIgnoredKey(id, mask)) {
-        LOG((CLOG_DEBUG1 "ignored key %04x %04x", id, mask));
+        LOG((CLOG_DEBUG1 "ignored key"));
         return;
     }
 
@@ -693,7 +693,7 @@ KeyState::fakeKeyUp(KeyButton serverID)
             if (m_activeModifiers.count(mask) == 0) {
                 // no key for modifier is down so deactivate modifier
                 m_mask &= ~mask;
-                LOG((CLOG_DEBUG1 "new state %04x", m_mask));
+                LOG((CLOG_DEBUG1 "keyboard modifier state checked"));
             }
         }
         else {

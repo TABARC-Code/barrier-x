@@ -9,12 +9,75 @@
 #ifndef _WIN32
 #include <sys/stat.h>
 #endif
+#ifdef BARRIER_TEST_WRAP_PEER_IO
+#include <cerrno>
+#include <fcntl.h>
+#include <functional>
+#include <unistd.h>
+#include <utility>
+namespace {
+thread_local bool fail_write = false, zero_write = false, short_write = false, interrupt_write = false;
+thread_local bool fail_sync = false, interrupt_sync = false, fail_mode = false, fail_rename = false;
+thread_local bool foreign_folder = false;
+thread_local int write_descriptor_flags = -1;
+thread_local std::function<void()> sync_hook, rename_hook;
+}
+extern "C" ssize_t __real_write(int, const void*, size_t);
+extern "C" ssize_t __wrap_write(int fd, const void* data, size_t size)
+{
+    write_descriptor_flags = fcntl(fd, F_GETFD);
+    if (std::exchange(interrupt_write, false)) { errno = EINTR; return -1; }
+    if (std::exchange(fail_write, false)) { errno = ENOSPC; return -1; }
+    if (std::exchange(zero_write, false)) { return 0; }
+    if (std::exchange(short_write, false) && size > 1) { size /= 2; }
+    return __real_write(fd, data, size);
+}
+extern "C" int __real_fsync(int);
+extern "C" int __wrap_fsync(int fd)
+{
+    if (sync_hook) { auto hook = std::move(sync_hook); sync_hook = {}; hook(); }
+    if (std::exchange(interrupt_sync, false)) { errno = EINTR; return -1; }
+    if (std::exchange(fail_sync, false)) { errno = EIO; return -1; }
+    return __real_fsync(fd);
+}
+extern "C" int __real_fchmod(int, mode_t);
+extern "C" int __real_fstat(int, struct stat*);
+extern "C" int __wrap_fstat(int fd, struct stat* info)
+{
+    const int result = __real_fstat(fd, info);
+    if (result == 0 && S_ISDIR(info->st_mode) && std::exchange(foreign_folder, false)) {
+        info->st_uid = geteuid() + 1;
+    }
+    return result;
+}
+extern "C" int __wrap_fchmod(int fd, mode_t mode)
+{
+    if (std::exchange(fail_mode, false)) { errno = EPERM; return -1; }
+    return __real_fchmod(fd, mode);
+}
+extern "C" int __real_renameat(int, const char*, int, const char*);
+extern "C" int __wrap_renameat(int from, const char* old_name, int to, const char* new_name)
+{
+    if (rename_hook) { auto hook = std::move(rename_hook); rename_hook = {}; hook(); }
+    if (std::exchange(fail_rename, false)) { errno = EIO; return -1; }
+    return __real_renameat(from, old_name, to, new_name);
+}
+#endif
 
 class PeerTrustStoreTests : public ::testing::Test {
 protected:
     void SetUp() override {
         ASSERT_TRUE(folder.isValid());
         path = barrier::fs::u8path(folder.filePath("trusted.txt").toStdString());
+    }
+    void TearDown() override {
+#ifdef BARRIER_TEST_WRAP_PEER_IO
+        fail_write = zero_write = short_write = interrupt_write = false;
+        fail_sync = interrupt_sync = fail_mode = fail_rename = false;
+        foreign_folder = false;
+        write_descriptor_flags = -1;
+        sync_hook = rename_hook = {};
+#endif
     }
     void write(const QByteArray& bytes) {
         QFile file(QString::fromStdString(path.u8string()));
@@ -135,5 +198,121 @@ TEST_F(PeerTrustStoreTests, FifoIsRefusedWithoutWaitingForAWriter)
     ASSERT_EQ(0, mkfifo(path.c_str(), 0600));
     EXPECT_THROW(PeerTrustStore::read(path), std::runtime_error);
     EXPECT_THROW(PeerTrustStore::approve(path, peer(2)), std::runtime_error);
+}
+TEST_F(PeerTrustStoreTests, SymlinkedFolderCannotRedirectApproval)
+{
+    const auto root = path.parent_path();
+    const auto real = root / "real";
+    const auto link = root / "link";
+    barrier::fs::create_directory(real);
+    barrier::fs::create_directory_symlink(real, link);
+    path = link / "trusted.txt";
+    EXPECT_THROW(PeerTrustStore::read(path), std::runtime_error);
+    EXPECT_THROW(PeerTrustStore::approve(path, peer(1)), std::runtime_error);
+    EXPECT_FALSE(barrier::fs::exists(real / "trusted.txt"));
+    EXPECT_TRUE(barrier::fs::is_empty(real));
+}
+TEST_F(PeerTrustStoreTests, WritableFolderMustBeRepairedBeforeReadingOrSaving)
+{
+    PeerTrustStore::approve(path, peer(1));
+    const auto original = bytes();
+    ASSERT_EQ(0, chmod(path.parent_path().c_str(), 0770));
+    EXPECT_THROW(PeerTrustStore::read(path), std::runtime_error);
+    EXPECT_THROW(PeerTrustStore::approve(path, peer(2)), std::runtime_error);
+    EXPECT_EQ(original, bytes());
+    ASSERT_EQ(0, chmod(path.parent_path().c_str(), 0700));
+    PeerTrustStore::approve(path, peer(2));
+    EXPECT_TRUE(PeerTrustStore::read(path).is_trusted(peer(2)));
+}
+TEST_F(PeerTrustStoreTests, MissingFolderIsEmptyUntilApprovalCreatesIt)
+{
+    path = path.parent_path() / "missing" / "trusted.txt";
+    EXPECT_TRUE(PeerTrustStore::read(path).fingerprints().empty());
+    EXPECT_FALSE(barrier::fs::exists(path.parent_path()));
+    PeerTrustStore::approve(path, peer(1));
+    EXPECT_TRUE(PeerTrustStore::read(path).is_trusted(peer(1)));
+}
+TEST_F(PeerTrustStoreTests, EmbeddedNullCannotSelectAnotherFile)
+{
+    PeerTrustStore::approve(path, peer(1));
+    const auto original = bytes();
+    const auto malformed = barrier::fs::path(path.native() + std::string("\0other", 6));
+    EXPECT_THROW(PeerTrustStore::read(malformed), std::runtime_error);
+    EXPECT_THROW(PeerTrustStore::approve(malformed, peer(2)), std::runtime_error);
+    EXPECT_EQ(original, bytes());
+}
+#endif
+#ifdef BARRIER_TEST_WRAP_PEER_IO
+TEST_F(PeerTrustStoreTests, FailedWritesFlushPermissionsAndRenamePreserveApprovals)
+{
+    PeerTrustStore::approve(path, peer(1));
+    const auto original = bytes();
+    for (bool* fault : {&fail_write, &zero_write, &fail_sync, &fail_mode, &fail_rename}) {
+        *fault = true;
+        EXPECT_THROW(PeerTrustStore::approve(path, peer(2)), std::runtime_error);
+        EXPECT_FALSE(*fault);
+        EXPECT_EQ(original, bytes());
+        for (const auto& entry : barrier::fs::directory_iterator(path.parent_path())) {
+            EXPECT_EQ(path, entry.path());
+        }
+    }
+}
+TEST_F(PeerTrustStoreTests, ShortAndInterruptedWritesAndInterruptedFlushAreRetried)
+{
+    short_write = interrupt_write = interrupt_sync = true;
+    PeerTrustStore::approve(path, peer(1));
+    EXPECT_FALSE(short_write);
+    EXPECT_FALSE(interrupt_write);
+    EXPECT_FALSE(interrupt_sync);
+    EXPECT_NE(0, write_descriptor_flags & FD_CLOEXEC);
+    EXPECT_TRUE(PeerTrustStore::read(path).is_trusted(peer(1)));
+}
+TEST_F(PeerTrustStoreTests, ForeignFolderOwnershipRefusesReadsAndUpdates)
+{
+    PeerTrustStore::approve(path, peer(1));
+    const auto original = bytes();
+    foreign_folder = true;
+    EXPECT_THROW(PeerTrustStore::read(path), std::runtime_error);
+    EXPECT_FALSE(foreign_folder);
+    foreign_folder = true;
+    EXPECT_THROW(PeerTrustStore::approve(path, peer(2)), std::runtime_error);
+    EXPECT_FALSE(foreign_folder);
+    EXPECT_EQ(original, bytes());
+}
+TEST_F(PeerTrustStoreTests, FolderReplacementBeforePublicationFailsWithoutRedirectingCleanup)
+{
+    const auto root = path.parent_path();
+    path = root / "active" / "trusted.txt";
+    PeerTrustStore::approve(path, peer(1));
+    const auto original = bytes();
+    sync_hook = [&] {
+        barrier::fs::rename(root / "active", root / "moved");
+        barrier::fs::create_directory(root / "active");
+    };
+    EXPECT_THROW(PeerTrustStore::approve(path, peer(2)), std::runtime_error);
+    EXPECT_TRUE(barrier::fs::is_empty(root / "active"));
+    path = root / "moved" / "trusted.txt";
+    EXPECT_EQ(original, bytes());
+    EXPECT_EQ(2, std::distance(barrier::fs::directory_iterator(path.parent_path()), barrier::fs::directory_iterator()));
+    // The old Qt lock may remain after its directory moves; it isn't approval data.
+    EXPECT_TRUE(barrier::fs::exists(path.native() + ".lock"));
+}
+TEST_F(PeerTrustStoreTests, LateFolderRenameDoesNotRedirectPublication)
+{
+    const auto root = path.parent_path();
+    path = root / "active" / "trusted.txt";
+    PeerTrustStore::approve(path, peer(1));
+    rename_hook = [&] {
+        barrier::fs::rename(root / "active", root / "moved");
+        barrier::fs::create_directory(root / "active");
+        PeerTrustStore::approve(path, peer(3));
+    };
+    PeerTrustStore::approve(path, peer(2));
+    auto current = PeerTrustStore::read(path);
+    EXPECT_TRUE(current.is_trusted(peer(3)));
+    EXPECT_FALSE(current.is_trusted(peer(2)));
+    auto held = PeerTrustStore::read(root / "moved" / "trusted.txt");
+    EXPECT_TRUE(held.is_trusted(peer(1)));
+    EXPECT_TRUE(held.is_trusted(peer(2)));
 }
 #endif

@@ -18,6 +18,8 @@
 #define BARRIER_TEST_ENV
 
 #include "barrier/KeyMap.h"
+#include "base/ILogOutputter.h"
+#include "base/Log.h"
 
 #include "test/global/gtest.h"
 #include "test/global/gmock.h"
@@ -215,4 +217,59 @@ TEST(KeyMapTests, isCommand_superMask_returnTrue)
     EXPECT_EQ(true, keyMap.isCommand(mask));
 }
 
+}
+
+namespace {
+class InputLogCapture : public ILogOutputter {
+public:
+    InputLogCapture() : previous(Log::getInstance()->getFilter()) {
+        Log::getInstance()->setFilter(kDEBUG5);
+        Log::getInstance()->insert(this, true);
+    }
+    ~InputLogCapture() override {
+        Log::getInstance()->remove(this);
+        Log::getInstance()->setFilter(previous);
+    }
+    void open(const char*) override {}
+    void close() override {}
+    void show(bool) override {}
+    bool write(ELevel, const char* message) override {
+        const std::string text(message);
+        const auto stamp = text.find("] ");
+        messages += stamp == std::string::npos ? text : text.substr(stamp + 2);
+        return true;
+    }
+    std::string messages;
+private:
+    int previous;
+};
+}
+
+TEST(KeyMapTests, DifferentCharactersKeepTheirValuesOutOfDiagnostics)
+{
+    barrier::KeyMap map;
+    for (auto key : {'a', 'z'}) {
+        barrier::KeyMap::KeyItem item{};
+        item.m_id = key;
+        item.m_button = key;
+        map.addKeyEntry(item);
+    }
+    map.finish();
+    InputLogCapture capture;
+    const auto exercise = [&](KeyID key) {
+        capture.messages.clear();
+        barrier::KeyMap::Keystrokes strokes;
+        barrier::KeyMap::ModifierToKeys modifiers;
+        KeyModifierMask state = 0;
+        const auto* result = map.mapKey(strokes, key, 0, modifiers, state, 0, false);
+        EXPECT_NE(nullptr, result);
+        EXPECT_FALSE(strokes.empty());
+        return capture.messages;
+    };
+    const auto first = exercise('a');
+    const auto second = exercise('z');
+    EXPECT_FALSE(first.empty());
+    EXPECT_EQ(first, second);
+    EXPECT_EQ(std::string::npos, first.find("0061"));
+    EXPECT_EQ(std::string::npos, second.find("007a"));
 }

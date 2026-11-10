@@ -342,7 +342,7 @@ MSWindowsScreen::leave()
         for (KeyButton i = 0; i < IKeyState::kNumButtons; ++i) {
             if (m_keyState->isKeyDown(i)) {
                 m_primaryKeyDownList.push_back(i);
-                LOG((CLOG_DEBUG1 "key button %d is down before leaving to another screen", i));
+                LOG((CLOG_DEBUG1 "held key recorded before leaving"));
             }
         }
     }
@@ -555,7 +555,7 @@ MSWindowsScreen::registerHotKey(KeyID key, KeyModifierMask mask)
                   KeyModifierAlt   | KeyModifierSuper)) != 0) {
         // this should be a warning, but this can confuse users,
         // as this warning happens almost always.
-        LOG((CLOG_DEBUG "could not map hotkey id=%04x mask=%04x", key, mask));
+        LOG((CLOG_DEBUG "could not map hotkey"));
         return 0;
     }
 
@@ -583,7 +583,7 @@ MSWindowsScreen::registerHotKey(KeyID key, KeyModifierMask mask)
         // can't map key
         // this should be a warning, but this can confuse users,
         // as this warning happens almost always.
-        LOG((CLOG_DEBUG "could not map hotkey id=%04x mask=%04x", key, mask));
+        LOG((CLOG_DEBUG "could not map hotkey"));
         return 0;
     }
 
@@ -1097,7 +1097,8 @@ MSWindowsScreen::onKey(WPARAM wParam, LPARAM lParam)
     static const KeyModifierMask s_ctrlAlt =
         KeyModifierControl | KeyModifierAlt;
 
-    LOG((CLOG_DEBUG1 "event: Key char=%d, vk=0x%02x, nagr=%d, lParam=0x%08x", wParam & 0xffffu, (wParam >> 16) & 0xffu, (wParam & 0x1000000u) ? 1 : 0, lParam));
+    // I keep input values out of diagnostics, even at the nosier log levels.
+    LOG((CLOG_DEBUG1 "event: keyboard input"));
 
     // get event info
     KeyButton button         = (KeyButton)((lParam & 0x01ff0000) >> 16);
@@ -1128,7 +1129,7 @@ MSWindowsScreen::onKey(WPARAM wParam, LPARAM lParam)
     if (!down && m_isPrimary && !m_isOnScreen) {
         PrimaryKeyDownList::iterator find = std::find(m_primaryKeyDownList.begin(), m_primaryKeyDownList.end(), button);
         if (find != m_primaryKeyDownList.end()) {
-            LOG((CLOG_DEBUG1 "release key button %d on primary", *find));
+            LOG((CLOG_DEBUG1 "release key"));
             m_hook.setMode(kHOOK_WATCH_JUMP_ZONE);
             fakeLocalKey(*find, false);
             m_primaryKeyDownList.erase(find);

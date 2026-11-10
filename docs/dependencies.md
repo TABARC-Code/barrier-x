@@ -45,3 +45,34 @@ I also retire the batch helpers and disable the old Azure Windows download job.
 [release policy](https://openssl-library.org/policies/releasestrat/),
 [Google Test source](https://github.com/google/googletest/tree/b514bdc898e2951020cbdca1304b75f5950d1f59)
 and the [working plan](working-plan.md).
+
+
+## Native Qt checks, 2.4.26
+
+I select Qt 6.12.0 for the new Windows and macOS jobs. The documented Windows
+configuration uses MSVC 2022; macOS needs Xcode 16/macOS 15 SDK or newer and a
+14.4+ deployment target. I use macos-15, not the retired macos-14 runner.
+Qt 5 remains explicitly selectable for comparison; this isn't a claim that an
+unpatched Qt 5 SDK is suitable for release.
+
+I review install-qt-action's manifests and source/compiled entry points, but do
+not execute it: its proposed py7zr 1.1.0 extractor is affected by an upstream
+arbitrary-write advisory. The native jobs instead use the standard-library
+builder in ci/qt-sdk.py, with Qt base commit
+025bdad181de241e81bf853c8a2d7bf3d19261a9 and production changes from
+these upstream fixes, in order:
+
+- a2cd9d2a70575c37153d43e9c5396a9144af1923, CVE-2026-105924.
+- aac1d303c0329241ac59c0c23cb5e4b82251fcfa, CVE-2026-116337 header limits.
+- f78a3740281d26af7116517a2b20df36f8deffd7, CVE-2026-116337 status limits.
+
+I read the Qt CMake/configure entry points and all three production fixes against
+the maintainer's advisory patches. The builder checks the source revision,
+checks patch application, records inputs and retains Qt's licence files. There
+is no Python archive installer or resolver in this path. This remains a limited
+entry-point review, not an audit of every Qt source file. Native toolchains and
+Homebrew package inputs remain hosted build inputs.
+
+Qt Core/Gui/Widgets/Network/Test licensing and deployment notices must accompany
+redistribution. Native build success alone doesn't settle downstream licensing,
+SDK advisories or a clean-machine installation.

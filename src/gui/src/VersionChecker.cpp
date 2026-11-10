@@ -17,6 +17,7 @@
  */
 
 #include "VersionChecker.h"
+#include <QRegularExpression>
 
 #include <QNetworkAccessManager>
 #include <QNetworkRequest>
@@ -67,11 +68,11 @@ int VersionChecker::compareVersions(const QString& left, const QString& right)
     if (left.compare(right) == 0)
         return 0; // versions are same.
 
-    QStringList leftSplit = left.split(QRegExp("\\."));
+    QStringList leftSplit = left.split('.');
     if (leftSplit.size() != 3)
         return 1; // assume right wins.
 
-    QStringList rightSplit = right.split(QRegExp("\\."));
+    QStringList rightSplit = right.split('.');
     if (rightSplit.size() != 3)
         return -1; // assume left wins.
 
@@ -99,11 +100,12 @@ QString VersionChecker::getVersion()
     process.setReadChannel(QProcess::StandardOutput);
     if (process.waitForStarted() && process.waitForFinished())
     {
-        QRegExp rx(VERSION_REGEX);
+        QRegularExpression rx(VERSION_REGEX);
         QString text = process.readLine();
-        if (rx.indexIn(text) != -1)
+        const auto match = rx.match(text);
+        if (match.hasMatch())
         {
-            return rx.cap(1);
+            return match.captured(1);
         }
     }
 

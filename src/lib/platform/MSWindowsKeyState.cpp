@@ -1214,7 +1214,7 @@ MSWindowsKeyState::fakeKey(const Keystroke& keystroke)
 {
 	switch (keystroke.m_type) {
 	case Keystroke::kButton: {
-		LOG((CLOG_DEBUG1 "  %03x (%08x) %s", keystroke.m_data.m_button.m_button, keystroke.m_data.m_button.m_client, keystroke.m_data.m_button.m_press ? "down" : "up"));
+		LOG((CLOG_DEBUG1 "keyboard stroke"));
 		KeyButton button = keystroke.m_data.m_button.m_button;
 
 		// windows doesn't send key ups for key repeats
@@ -1252,11 +1252,11 @@ MSWindowsKeyState::fakeKey(const Keystroke& keystroke)
 		// key events.
 		if (!keystroke.m_data.m_group.m_restore) {
 			if (keystroke.m_data.m_group.m_absolute) {
-				LOG((CLOG_DEBUG1 "  group %d", keystroke.m_data.m_group.m_group));
+				LOG((CLOG_DEBUG1 "  group"));
 				setWindowGroup(keystroke.m_data.m_group.m_group);
 			}
 			else {
-				LOG((CLOG_DEBUG1 "  group %+d", keystroke.m_data.m_group.m_group));
+				LOG((CLOG_DEBUG1 "  group"));
 				setWindowGroup(getEffectiveGroup(pollActiveGroup(),
 									keystroke.m_data.m_group.m_group));
 			}

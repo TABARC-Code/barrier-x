@@ -1,5 +1,22 @@
 # barrier-x changes
 
+## 2.4.26-snapshot - 10 November 2026
+
+- I add explicit Qt 5/6 selection and replace obsolete regular-expression APIs.
+- I update screen-editor rendering for Qt 6 and retain Qt 5 comparison builds.
+- I honour the selected OpenSSL SDK on Intel and Apple Silicon macOS.
+- I add native Windows GUI and macOS validation jobs.
+- I retain modifier overrides when dragging screens and reject malformed drag data.
+- I reject configuration syntax in dragged names and prevent copies overwriting tiles.
+- I remove typed key values and dynamic mapping details from input diagnostics.
+
+## 2.4.25-snapshot - 9 November 2026
+
+- I anchor POSIX peer-trust reads and replacement files to an open folder handle.
+- I refuse linked or foreign-owned trust folders, and folders writable by other users.
+- I retry interrupted writes, complete short writes and check flushing before publication.
+- I keep failed-save cleanup in the original folder if its path moves.
+
 ## 2.4.24-snapshot - 9 November 2026
 
 - I create Windows peer-trust replacements with protected owner/System permissions.

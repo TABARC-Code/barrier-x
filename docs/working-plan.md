@@ -1,6 +1,10 @@
 # Working plan
 
-9 November 2026. Local development is 2.4.24-snapshot, based on verified 2.4.22. The detailed backlog
+10 November 2026. The five-area completion programme is in
+[completion-plan.md](completion-plan.md). Local development is 2.4.26-snapshot;
+the published test branch remains 2.4.24 until the next verified checkpoint.
+
+The detailed backlog
 and landed versions live in [roadmap.md](roadmap.md); build evidence stays in
 [build.md](build.md). This is the order I'd work through, rather than another
 list of things I'd quite like to finish eventually.
@@ -112,7 +116,8 @@ screen-reader checks remain open.
 | 2.4.21 | Identity errors, Retry and checked public fingerprint saves |
 | 2.4.22 | Three-page dashboard and navigation |
 | 2.4.23 | Checked peer trust reads, merged saves and visible failures |
-| 2.4.24 | Windows protected trust replacement, awaiting native checks |
+| 2.4.24 | Windows protected trust replacement, native checks passed |
+| 2.4.25 | POSIX final-folder checks and anchored replacement |
 
 
 ## Peer approvals, 2.4.23
@@ -122,10 +127,10 @@ SHA-256 pin and check atomic publication before restarting the client. Invalid
 or unreadable stores stop the attempt with a visible error. Legacy SHA-1 entries
 stay in the file; new approvals require a complete SHA-256 fingerprint.
 
-The next storage work is parent-directory anchoring and native Windows trust-file
-creation permissions. The lock coordinates cooperating GUI writers only. I also
-need injected short-write and commit-failure checks, then clearer permission
-repair guidance without replacing the user's approvals.
+The Windows creation checks pass in 2.4.24. POSIX final-folder anchoring and
+injected write/publication checks follow in 2.4.25. The lock coordinates
+cooperating GUI writers only. Earlier ancestor traversal and clearer permission
+repair guidance remain open.
 
 ## Reviewed actions, BX-031
 
@@ -148,6 +153,31 @@ The GUI still holds its update lock around the read, merge and replacement.
 I add native checks for creation ACLs, replacement bytes, read-only publication
 failure and cleanup, size limits and unsafe targets. I also extend service
 checks: System may replace its own file, but mustn't turn a console user's file
-into a System-owned one. These changes need a Windows SDK build and native run
-before merging to master. Parent-directory anchoring and injected I/O failures remain
-open; POSIX publication still uses QSaveFile.
+into a System-owned one. Seventeen file scenarios and five service scenarios
+pass on the Windows runner in run 42564987233. Windows Qt integration still
+needs a native build and run. POSIX publication changes below.
+
+
+## POSIX trust folder, 2.4.25
+
+I open the final folder without following a link, check its owner and write
+permissions, and retain its descriptor for reads, temporary creation, rename
+and failed-save cleanup. Other users mustn't be able to replace its entries.
+The save completes short writes, retries interruptions and checks file flushing
+before publication. Shared profiles which allow group writes now require
+deliberate permission repair; I don't change directory owners or modes silently. I check that the folder path still matches before merging
+and immediately before rename.
+
+Earlier ancestors are still trusted. A same-user rename after the last path
+check can leave a successful save in the retained folder; it cannot redirect
+that save into the replacement folder. The Qt lock can remain in a moved folder.
+Directory metadata isn't synchronised for crash recovery. macOS and Windows Qt
+integration, hostile ancestor traversal and broader concurrent storage changes
+remain open. The engine's own trust reader is unchanged.
+
+## Before merging
+
+I still need native Windows Qt build/approval coverage and a review of earlier
+parent traversal. Full TLS shutdown concurrency remains BX-001; a storage patch
+doesn't close it. Runtime packaging and clean-machine install/upgrade/removal
+remain BX-005/BX-024. Four reviewed actions stay planned under BX-031.

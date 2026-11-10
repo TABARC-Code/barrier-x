@@ -244,7 +244,7 @@ XWindowsKeyState::fakeKey(const Keystroke& keystroke)
 {
     switch (keystroke.m_type) {
     case Keystroke::kButton:
-        LOG((CLOG_DEBUG1 "  %03x (%08x) %s", keystroke.m_data.m_button.m_button, keystroke.m_data.m_button.m_client, keystroke.m_data.m_button.m_press ? "down" : "up"));
+        LOG((CLOG_DEBUG1 "keyboard stroke"));
         if (keystroke.m_data.m_button.m_repeat) {
             int c = keystroke.m_data.m_button.m_button;
             int i = (c >> 3);
@@ -262,7 +262,7 @@ XWindowsKeyState::fakeKey(const Keystroke& keystroke)
 
     case Keystroke::kGroup:
         if (keystroke.m_data.m_group.m_absolute) {
-            LOG((CLOG_DEBUG1 "  group %d", keystroke.m_data.m_group.m_group));
+            LOG((CLOG_DEBUG1 "  group"));
 #if HAVE_XKB_EXTENSION
             if (m_xkb != NULL) {
                 if (m_impl->XkbLockGroup(m_display, XkbUseCoreKbd,
@@ -278,7 +278,7 @@ XWindowsKeyState::fakeKey(const Keystroke& keystroke)
             }
         }
         else {
-            LOG((CLOG_DEBUG1 "  group %+d", keystroke.m_data.m_group.m_group));
+            LOG((CLOG_DEBUG1 "  group"));
 #if HAVE_XKB_EXTENSION
             if (m_xkb != NULL) {
                 if (m_impl->XkbLockGroup(m_display, XkbUseCoreKbd,

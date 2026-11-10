@@ -1,4 +1,5 @@
-find_package(Qt5 REQUIRED COMPONENTS Core Network Test)
+include(${CMAKE_SOURCE_DIR}/cmake/Qt.cmake)
+find_package(${BARRIER_QT_PACKAGE} ${BARRIER_QT_MINIMUM} REQUIRED COMPONENTS Core Network Test)
 set(CMAKE_AUTOMOC ON)
 add_executable(guiipctests
     IpcReaderTests.cpp
@@ -9,7 +10,7 @@ add_executable(guiipctests
     ../../src/Ipc.cpp
 )
 target_include_directories(guiipctests PRIVATE ../../src)
-target_link_libraries(guiipctests Qt5::Core Qt5::Network Qt5::Test)
+target_link_libraries(guiipctests ${BARRIER_QT_PACKAGE}::Core ${BARRIER_QT_PACKAGE}::Network ${BARRIER_QT_PACKAGE}::Test)
 add_test(NAME gui-ipc COMMAND guiipctests)
 set_tests_properties(gui-ipc PROPERTIES TIMEOUT 60)
 

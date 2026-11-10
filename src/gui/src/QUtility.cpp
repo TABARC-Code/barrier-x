@@ -15,6 +15,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <QRegularExpression>
+
 #include "QUtility.h"
 
 #include "ProcessorArch.h"
@@ -102,9 +104,10 @@ QString getOSInformation()
         CommandProcess cp("/bin/cat", arguments);
         QString output = cp.run();
 
-        QRegExp resultRegex(".*PRETTY_NAME=\"([^\"]+)\".*");
-        if (resultRegex.exactMatch(output)) {
-            result = resultRegex.cap(1);
+        QRegularExpression resultRegex(".*PRETTY_NAME=\"([^\"]+)\".*");
+        const auto match = resultRegex.match(output);
+        if (match.hasMatch()) {
+            result = match.captured(1);
         }
     } catch (...) {
     }

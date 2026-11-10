@@ -445,10 +445,45 @@ target and retains the new handle through writes, flushing and rename. Existing
 foreign owners, links, streams and non-regular files are refused. A System
 caller cannot replace a console-owned file with a System-owned sibling.
 
-This is local implementation awaiting native validation, not a verified Windows
-fix. The workspace has no Windows SDK compiler or Windows execution environment.
+I compile the helper and pass seventeen storage scenarios plus five service
+scenarios on the Windows runner in run 42564987233. This verifies the native
+helper, including protected creation, read-only failure cleanup and size limits.
+The Linux workspace still has no Windows SDK compiler or Windows runtime; the
+runner provides that validation. Windows Qt integration remains unverified.
 Parent traversal and changes by non-cooperating writers remain unresolved.
 Deletion after failure is attempted through the retained handle; failure of that
 cleanup can leave a protected temporary file. Flushing the data before rename
 doesn't establish crash durability of directory metadata. Existing permissions
 may migrate during target validation even if replacement later fails.
+
+
+## POSIX final trust folder, 2.4.25
+
+I check the final peer-trust folder through an open descriptor: it must belong
+to the current user, be a directory and deny group/world writes. A final-folder
+symlink is refused. Reads and replacement publication use openat/renameat
+relative to that descriptor; failed-save cleanup uses unlinkat on the same
+folder. New files retain mode 0600 and close-on-exec. I complete short writes,
+retry EINTR and check fsync before publication.
+
+I don't anchor the earlier ancestor chain. The pre-publication path check
+catches a folder already moved or replaced, but a later same-user rename can
+still change which folder the engine sees afterwards. The retained descriptor
+prevents redirecting publication or cleanup into the new folder. Qt's path-based
+lock may remain in the moved folder and coordinates only cooperating writers.
+This isn't complete path-race protection or a change to engine trust loading.
+File flushing alone doesn't establish directory crash durability.
+
+
+## Screen dragging and diagnostic privacy, 2.4.26
+
+I bound drag frames and collection lengths before Qt allocates them, reject
+invalid source/destination coordinates and trailing bytes, and apply only a
+fully parsed screen. The old reader returned before restoring modifier
+overrides; dragging an edited screen now preserves them.
+
+Existing diagnostic levels could record character IDs, native key codes and
+dynamic mappings. I remove those values across the engine and native input
+paths, retaining event/failure descriptions. Static keyboard-map configuration
+and registered hotkey configuration remain visible. Timing and routing metadata
+remain; this isn't anonymous logging or a complete diagnostic export audit.

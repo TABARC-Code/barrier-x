@@ -1,0 +1,16 @@
+# I keep the selected major explicit so a second installed SDK can't change a build.
+set(BARRIER_QT_MAJOR "5" CACHE STRING "Qt major version used by GUI targets (5 or 6)")
+set_property(CACHE BARRIER_QT_MAJOR PROPERTY STRINGS 5 6)
+if(NOT BARRIER_QT_MAJOR MATCHES "^[56]$")
+    message(FATAL_ERROR "BARRIER_QT_MAJOR must be 5 or 6")
+endif()
+set(BARRIER_QT_PACKAGE "Qt${BARRIER_QT_MAJOR}")
+if(BARRIER_QT_MAJOR STREQUAL "6")
+    set(CMAKE_CXX_STANDARD 17)
+endif()
+
+if(BARRIER_QT_MAJOR STREQUAL "5")
+    set(BARRIER_QT_MINIMUM 5.15)
+else()
+    set(BARRIER_QT_MINIMUM 6.0)
+endif()

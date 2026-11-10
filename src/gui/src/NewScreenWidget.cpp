@@ -29,7 +29,8 @@ NewScreenWidget::NewScreenWidget(QWidget* parent) :
 
 void NewScreenWidget::mousePressEvent(QMouseEvent* event)
 {
-    Screen newScreen(tr("Unnamed"));
+    // I use a configuration identifier here; translated labels can contain invalid characters.
+    Screen newScreen(QStringLiteral("Unnamed"));
 
     QByteArray itemData;
     QDataStream dataStream(&itemData, QIODevice::WriteOnly);
@@ -40,7 +41,11 @@ void NewScreenWidget::mousePressEvent(QMouseEvent* event)
 
     QDrag* pDrag = new QDrag(this);
     pDrag->setMimeData(pMimeData);
-    pDrag->setPixmap(*pixmap());
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    pDrag->setPixmap(pixmap());
+#else
+    if (pixmap()) { pDrag->setPixmap(*pixmap()); }
+#endif
     pDrag->setHotSpot(event->pos());
 
     pDrag->exec(Qt::CopyAction, Qt::CopyAction);
