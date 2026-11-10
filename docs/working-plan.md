@@ -1,10 +1,10 @@
 # Working plan
 
 10 November 2026. The five-area completion programme is in
-[completion-plan.md](completion-plan.md). Local development is 2.4.27-snapshot;
-2.4.26 is the preceding published test checkpoint. Its Windows Qt/macOS SDK steps fail
-before application compilation; the corrected patch fetch and five new SSL
-shutdown cases pass locally, including ThreadSanitizer. Native validation follows.
+[completion-plan.md](completion-plan.md). Development is 2.4.28-snapshot. I add
+POSIX GUI trust-ancestor checks and correct the disposable Qt checkout's fetch
+policy. Linux and Windows helper checks pass for the preceding 2.4.27 checkpoint;
+macOS stops during a Qt fetch, with Windows Qt still unverified.
 
 The detailed backlog
 and landed versions live in [roadmap.md](roadmap.md); build evidence stays in
@@ -14,10 +14,10 @@ list of things I'd quite like to finish eventually.
 | Order | Work | State and finish point |
 | --- | --- | --- |
 | 1 | Windows TLS and engine build, BX-005 | Implemented in 2.4.17 for x64 Release: external OpenSSL 3.5.9, client/server/service builds and ten CTest entries passed. The legacy installer remains refused; GUI and packaging follow below. |
-| 2 | Qt and discovery libraries, BX-005 | Partial, 2.4.18. DNS-SD is optional; manual connection preserves its address and saved discovery preference. I remove HTTP installer downloads and idle listener threads. Windows Qt GUI builds, supported SDK/advisory selection and live discovery failure handling remain next. |
+| 2 | Qt and discovery libraries, BX-005 | Partial, 2.4.28. DNS-SD is optional and Qt 5/6 selection is explicit. The native jobs build a pinned, patched Qt SDK. Windows Qt/macOS compilation and live discovery failure handling remain unverified. |
 | 3 | Windows packaging, BX-005/BX-024 | Planned. Collect the actual runtime DLLs and notices, check libssl/libcrypto versions, provider modules and search paths, then test installation, upgrade and removal on a clean machine. No borrowed DLL pile. |
-| 4 | SSL shutdown, BX-001 | Open. Reproduce a read or write interrupted by close, then cover reconnect and repeated shutdown under concurrency checks. Keep ownership and cancellation explicit. |
-| 5 | Trust and key recovery, BX-002/BX-004/BX-007 | Partial. Preserve existing keys and pins during permission repair. Explain a missing console identity separately from foreign ownership. Replacement needs an explicit action and a warning about changed pins. |
+| 4 | SSL shutdown, BX-001 | Partial, 2.4.27. Atomic state and serial close pass five concurrent-shutdown cases, including real paired TLS application I/O and local ThreadSanitizer. Real network/multiplexer shutdown, reconnect and cancellation remain open. |
+| 5 | Trust and key recovery, BX-002/BX-004/BX-007 | Partial, 2.4.28. POSIX GUI trust checks now traverse ancestors and create private folders through checked handles. Windows/engine paths and macOS extended ACLs remain open. Preserve keys/pins during any explicit recovery operation. |
 | 6 | Protocol and sharing limits, BX-006/BX-010/BX-011 | Planned. Bound total queued bytes and simultaneous transfers, then add clipboard/file direction controls, acceptance, cancellation and honest progress. Check malformed lengths and unsafe destinations before adding formats. |
 | 7 | Input recovery, BX-007/BX-009/BX-019 | Planned. Release held keys on loss of connection. Show focus, pause and local-return controls; test sleep, lock and console switching. A process being alive doesn't tell me where my keyboard went. |
 | 8 | Monitor layout and Wayland, BX-008/BX-014 | Later. Add crossing previews and keyboard access to the existing layout editor. Design portal/libei capabilities from measured compositor behaviour before promising support. |
@@ -41,6 +41,10 @@ be labelled a complete security audit.
 I'd like another Windows maintainer to check the service token rules and the
 installer's DLL/CRT selection on a clean desktop, including UAC, logout and user
 switching. The source checks and hosted runner don't cover that whole path.
+
+I also need macOS review of inherited allow/deny ACLs on profile ancestors,
+including the standard /var and temporary-folder layout. The current POSIX
+mode checks cannot stand in for that ACL review.
 
 Before distributing new dependency bundles, I also want the OpenSSL linking
 exception and the selected Qt/discovery licences checked together. I retain the

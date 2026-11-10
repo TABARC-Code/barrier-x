@@ -505,3 +505,33 @@ finds shared localtime storage in the logger; I replace it with localtime_r on
 POSIX and localtime_s on Windows, then pass all five cases without suppressions.
 OpenSSL itself is the system library, not an instrumented build. Real network
 multiplexer shutdown, cancellation and native stress checks remain open.
+
+
+## POSIX GUI trust ancestors, 2.4.28
+
+I walk from an open filesystem root and check every directory's owner and
+write bits before using it. Intermediate folders must belong to root or this
+user. A root-owned sticky shared parent such as /tmp is allowed; the final
+folder must belong to this user and deny other users' writes. I don't change
+existing permissions on the user's behalf. Missing folders use mkdirat(0700)
+through the checked parent, before any approval or Qt lock file is created.
+
+I reject explicit parent traversal, final-folder links and untrusted link
+owners. Checked intermediate links resolve component by component, including
+relative targets, with limits of forty links, 256 queued components and 512
+steps. Every directory open uses O_NOFOLLOW. The checked target matters too;
+a link cannot make a writable ancestor acceptable. I rewalk the chain before
+merging and publication, comparing the retained leaf's device/inode. Publication
+and failure cleanup remain relative to the retained directory descriptor.
+
+This covers the GUI peer store. Windows and engine identity/trust readers are
+unchanged. POSIX ownership/mode checks don't inspect macOS extended ACLs. The
+Qt lock remains path-based, directory metadata isn't fsynced, and a same-user
+rename after the last check can still leave the published file in the held old
+folder. The root/ancestor opens require read access as well as traversal access.
+These constraints remain open; this isn't a completed storage audit.
+
+For recovery, I want the interface to identify the failing ancestor and explain
+which ownership or access check failed (BX-007). Any repair needs a deliberately
+selected folder. A blanket permission change would be a fairly efficient way
+to create the next problem. This is a proposal, not an implemented repair flow.

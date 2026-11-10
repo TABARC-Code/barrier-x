@@ -8,7 +8,7 @@ claim.
 | Order | Work | Implementation | Completion check |
 | --- | --- | --- | --- |
 | 1 | Windows Qt GUI and macOS, BX-005/BX-007 | Select Qt explicitly, remove obsolete GUI APIs, add native build and GUI/reader tests on both platforms | Windows and macOS compile the engine and GUI, exercise identity/approval/reconnect tests, and record exact SDK/toolchain inputs. Desktop permissions and interactive input need separate checks. |
-| 2 | Earlier parent directories, BX-004 | Traverse from a retained trusted root, validate each component and create missing folders relative to checked handles | Refuse unsafe owners, writable ancestors, links and traversal. Inject component replacement and failed directory creation. Keep files and cleanup anchored. Cover platform-specific path conventions. |
+| 2 | Earlier parent directories, BX-004 | Traverse from a retained trusted root, validate each component and create missing folders relative to checked handles | Refuse unsafe owners, writable ancestors, unsafe links and explicit parent traversal. Inject component replacement and failed directory creation. Keep files and cleanup anchored. Cover platform-specific path conventions. |
 | 3 | Concurrent SSL shutdown, BX-001 | Reproduce close during application I/O; make state and ownership changes race-safe and close idempotent | Deterministic read/write versus close, repeated close and failure tests; real paired sessions, timeout/reconnect and sanitiser evidence where available. |
 | 4 | Packaging and clean installation, BX-005/BX-024 | Collect actual runtime libraries, notices and manifests; build relocatable bundles and bounded installation/removal scripts | A separate clean runner installs, launches, upgrades and removes each package without build SDKs or developer PATH entries. Preserve identities/settings. Check dependency search paths and missing libraries. Signing needs a real signing identity. |
 | 5 | Reviewed actions and scheduling, BX-031 | Target-owned four-slot registry, authenticated requests, exact-content approval, separate elevation and scheduling grants, cancellation and bounded output | Deny unknown/changed scripts, wrong targets, expired/replayed approval and unauthorised scheduling. Exercise real benign actions, timeout/cancellation and restart. Clipboard input never executes. |
@@ -40,6 +40,7 @@ an address or discovered display name is not identity proof.
 | 2.4.25 POSIX trust folder | 84 GUI unit and 25 dashboard cases passed in each discovery mode locally | Earlier ancestors, native macOS and hosted checks for this version |
 | 2.4.26 GUI portability | Local Qt 5.15.15 build; 84 GUI unit and 29 dashboard cases | Windows Qt/macOS stop at SDK patch application; corrected in local 2.4.27, not yet a native pass |
 | 2.4.27 SSL shutdown | Five new local concurrency cases pass with ThreadSanitizer, including paired TLS application I/O | Real network/multiplexer shutdown and native concurrency |
+| 2.4.28 POSIX GUI trust ancestors | Eleven new regressions; root-relative checks and private creation implemented | Windows/engine paths, macOS extended ACLs, path-based lock and crash durability remain open |
 | Reviewed actions | Design only | Registry, target enforcement, transport, GUI, scheduling and negative tests |
 
 I update this table as evidence arrives. A workflow file or a successful compiler

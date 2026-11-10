@@ -89,3 +89,18 @@ patch-application evidence, not a successful SDK compilation.
 For SSL ownership I recheck the official [OpenSSL threading guidance](https://docs.openssl.org/3.5/man7/openssl-threads/):
 shared sessions need application synchronisation. The socket retains one lock
 for session access and release; atomic status flags do not replace that lock.
+
+
+In 2.4.27, macOS run 42755993808 applies the first actual Qt patch, then Git
+stops with `shallow file has changed since we read it` during the next fetch.
+This is consistent with the upstream [background-maintenance race](https://github.com/actions/checkout/issues/2437).
+In 2.4.28 I set maintenance.auto=false inside the disposable SDK repository
+and pass the documented [--no-auto-maintenance fetch option](https://git-scm.com/docs/git-fetch).
+I keep source pins and patch validation unchanged. This correction doesn't
+establish that the native SDK or application compiles successfully.
+
+I also use complete blob IDs for patch headers and disable external diff/text
+conversion drivers and colour. Git's automatic object-ID abbreviation changes
+as the object database grows; it shouldn't change the recorded patch digest.
+The extraction regression sets a short abbreviation and an external diff
+command which must not execute, then checks the complete IDs and applied bytes.

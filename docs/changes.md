@@ -1,5 +1,12 @@
 # barrier-x changes
 
+## 2.4.28-snapshot - 10 November 2026
+
+- I check POSIX peer-trust ancestors from the filesystem root.
+- I create missing trust folders privately through checked directory handles.
+- I bound intermediate link resolution and reject unsafe owners or write access.
+- I stabilise Qt patch extraction and disable disposable-checkout maintenance.
+
 ## 2.4.27-snapshot - 10 November 2026
 
 - I serialise competing SSL closes and synchronise shutdown/readiness flags.

@@ -823,3 +823,40 @@ the four selected ASan/UBSan entries. Windows engine run 42754926831 passes
 its ten engine entries before failing in SDK patch application; macOS run
 42754927449 also stops at that step, before application compilation. Windows
 native run 42754926728 reports success. These results don't validate 2.4.27.
+
+
+## POSIX GUI ancestor checks, 2.4.28
+
+10 November 2026. I build the manual-only GUI, engine and tests on Debian 13
+with GCC 14.2 and Qt 5.15.15. All thirteen CTest entries pass; the GUI unit
+suite has 95 cases, including 31 peer-store cases, and the dashboard has 30.
+The reader passes 39 cases with its one Unix-domain listener case explicitly
+skipped because this workspace denies AF_UNIX creation.
+
+Eleven new peer-store cases cover unsafe earlier ancestors, creation with an
+open umask, explicit parent traversal, checked absolute/relative intermediate
+links, unsafe link targets and loops, user-owned sticky ancestors, simulated
+foreign link ownership, failed mkdirat, replacement between inspection/open,
+changed ancestor permissions before publication, and descriptor release after
+256 rejected operations. Existing publication/cleanup failure cases still pass.
+
+In a separate ASan/UBSan GUI build, all 31 peer-store cases pass with
+`ASAN_OPTIONS=detect_leaks=0` and `UBSAN_OPTIONS=halt_on_error=1`. The initial
+run with leak scanning enabled finishes the cases but LeakSanitizer stops with
+`LeakSanitizer does not work under ptrace`. I don't claim a leak-scan pass. The
+Linux descriptor-count regression passes separately; it isn't a heap leak scan.
+
+The SDK patch-extraction regression, Python compilation and final whitespace
+checks pass. Automatic Git maintenance is disabled only in the disposable
+Qt source checkout. Full patch object IDs and disabled external diff/text
+conversion drivers pass the updated extraction regression. Successive native
+SDK jobs queue so an active validation can finish. Native Qt builds remain
+a separate validation requirement.
+
+For preceding commit 3cd43a22 (2.4.27), Linux run 42755993990 passes thirteen
+CTest entries in Debug and Release, the manual dashboard's thirty cases and
+the four selected ASan/UBSan entries. Windows native run 42755993945 passes
+its three entries, including the pipe, storage and temporary-service cases.
+macOS run 42755993808 stops during Qt source fetching after the first patch,
+before Qt or application compilation. These hosted results don't validate
+2.4.28 or close the remaining native GUI checks.

@@ -39,7 +39,10 @@ class PatchTests(unittest.TestCase):
             with self.assertRaises(subprocess.CalledProcessError):
                 sdk.production_patch(fetched, sha)
             git('fetch', '--depth=2', origin.as_uri(), sha, cwd=fetched)
+            git('config', 'diff.external', 'barrier-diff-tool-that-must-not-run', cwd=fetched)
+            git('config', 'core.abbrev', '5', cwd=fetched)
             patch = sdk.production_patch(fetched, sha)
+            self.assertRegex(patch, rb'index [0-9a-f]{40}\.\.[0-9a-f]{40} 100644')
             self.assertIn(b'-before', patch)
             self.assertIn(b'+after', patch)
             self.assertNotIn(b'untouched.cpp', patch)

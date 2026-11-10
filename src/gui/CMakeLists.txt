@@ -199,7 +199,7 @@ if (BARRIER_BUILD_TESTS)
     target_link_libraries(guiunittests ${GTEST_LIBRARIES} ${GMOCK_LIBRARIES} ${BARRIER_QT_PACKAGE}::Core ${BARRIER_QT_PACKAGE}::Widgets ${BARRIER_QT_PACKAGE}::Network ${libs} net base io common ${OPENSSL_LIBS})
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         target_compile_definitions(guiunittests PRIVATE BARRIER_TEST_WRAP_PEER_IO)
-        target_link_options(guiunittests PRIVATE -Wl,--wrap=write -Wl,--wrap=fsync -Wl,--wrap=fchmod -Wl,--wrap=fstat -Wl,--wrap=renameat)
+        target_link_options(guiunittests PRIVATE -Wl,--wrap=write -Wl,--wrap=fsync -Wl,--wrap=fchmod -Wl,--wrap=fstat -Wl,--wrap=renameat -Wl,--wrap=openat -Wl,--wrap=mkdirat -Wl,--wrap=fstatat)
     endif()
 endif()
 

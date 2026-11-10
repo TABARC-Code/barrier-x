@@ -27,7 +27,8 @@ def run(*args, cwd=None):
 def production_patch(source, sha):
     # I require the parent explicitly: a shallow root makes git show invent a full-tree patch.
     return subprocess.check_output(
-        ['git', 'diff', '--binary', sha + '^', sha, '--', 'src'], cwd=source, timeout=30)
+        ['git', 'diff', '--binary', '--full-index', '--no-ext-diff', '--no-textconv',
+         '--no-color', '--src-prefix=a/', '--dst-prefix=b/', sha + '^', sha, '--', 'src'], cwd=source, timeout=30)
 
 
 def build(prefix, jobs):
@@ -45,14 +46,15 @@ def build(prefix, jobs):
     patches = source / 'reviewed-patches'
     patches.mkdir(mode=0o700)
     run('git', 'init', source)
+    run('git', 'config', 'maintenance.auto', 'false', cwd=source)
     run('git', 'remote', 'add', 'origin', SOURCE, cwd=source)
-    run('git', 'fetch', '--depth=1', 'origin', BASE, cwd=source)
+    run('git', 'fetch', '--no-auto-maintenance', '--depth=1', 'origin', BASE, cwd=source)
     run('git', 'checkout', '--detach', BASE, cwd=source)
     revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=source, text=True, timeout=30).strip()
     if revision != BASE:
         raise RuntimeError('Qt source revision mismatch')
     for sha in FIXES:
-        run('git', 'fetch', '--depth=2', 'origin', sha, cwd=source)
+        run('git', 'fetch', '--no-auto-maintenance', '--depth=2', 'origin', sha, cwd=source)
         patch = production_patch(source, sha)
         if not patch:
             raise RuntimeError('The reviewed Qt fix has no production changes')
