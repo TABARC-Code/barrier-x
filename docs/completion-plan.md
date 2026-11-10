@@ -44,6 +44,7 @@ an address or discovered display name is not identity proof.
 | 2.4.29 native build settings | macOS SDK build established in 2.4.28; sysroot and Windows OpenGL failures reproduced in hosted logs and settings corrected | Corrected native application builds, GUI tests and packaging remain unverified |
 | 2.4.30 Qt API compatibility | Both local Qt majors compile; thirteen CTest entries pass under each | Native Windows/macOS GUI results, desktop use and packaging |
 | 2.4.31 identity-read ancestors | Shared POSIX walker; unsafe/link/missing/replaced-parent regressions | Identity creation/publication, engine trust loading, Windows parents and macOS ACLs |
+| 2.4.32 POSIX identity writer | Handle-relative creation, publication and cleanup; checked GUI folder creation; thirteen Qt 6 CTest entries, 99 Qt 5 GUI cases and 37 ASan/UBSan storage cases pass locally | Native validation, Windows parents, public fingerprints, extended ACLs, concurrent generation and crash durability |
 | Reviewed actions | Design only | Registry, target enforcement, transport, GUI, scheduling and negative tests |
 
 I update this table as evidence arrives. A workflow file or a successful compiler

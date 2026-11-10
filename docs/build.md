@@ -946,3 +946,42 @@ GUI job remains in progress and macOS is queued at this checkpoint; neither
 validates this iteration. Windows parent handling, macOS extended ACLs,
 identity creation/publication, engine trust loading and installed desktop
 behaviour remain open. The test branch remains separate from master.
+
+
+## Checked identity creation and publication, 2.4.32
+
+10 November 2026. I use the shared POSIX directory walker for identity-file
+creation and replacement, with checked GUI creation of missing identity
+folders. Six engine regressions cover unsafe ancestors, linked/missing folders,
+NUL/traversal, cleanup after a parent move, publication after a late parent move
+and a destination changed to a link. Two GUI cases cover private folder creation
+and refusal before creating anything beneath an unsafe ancestor.
+
+The fresh GCC 14.2 ASan/UBSan engine build passes all 37 certificate-storage
+cases with leak detection disabled. The local Qt 5.15.15 GUI suite passes all
+99 cases. I use the same compatibility-only Debian SDK prefix as the previous
+iteration; this doesn't change the pinned production dependency inputs.
+
+For preceding 2.4.31, Linux run 42864691273 and Windows helper run 42864691933
+report success. Windows engine run 42864691029 compiles the GUI and passes
+its service-reader suite, then fails GUI checks: key-binding round trips save
+an empty array, and a dashboard trust-context case sees disconnected instead
+of connecting. I record those observations without attributing a cause yet.
+macOS run 42864691047 reports failure; its listed job 130004077409 is cancelled
+and the log endpoint returns 404/BlobNotFound. I have no application-validation
+evidence from that run.
+
+Windows parents, macOS extended ACLs, engine trust loading and public fingerprint
+storage remain open. Identity generation isn't serialised. Cleanup is best-effort;
+a parent moved after the final recheck can leave a successful replacement in
+the held old folder. Directory synchronisation and crash recovery remain open.
+
+
+The final Qt 6.8.2 manual-only GUI/engine build passes all thirteen CTest entries
+on Debian 13. The engine suite contains 242 cases, certificate storage 37,
+GUI units 99 and dashboard 30; selected suites overlap rather than adding to
+the engine total. The reader reports 40 passes and one explicit AF_UNIX listener
+skip because this workspace denies creation of Unix-domain sockets. I verify
+the final source objects were rebuilt and review the final diff and matching
+version declarations; whitespace checks pass. No fresh leak/thread-sanitiser,
+native desktop or packaging pass is claimed for this iteration.

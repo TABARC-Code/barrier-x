@@ -1,10 +1,12 @@
 # Working plan
 
 10 November 2026. The five-area completion programme is in
-[completion-plan.md](completion-plan.md). Development is 2.4.31-snapshot.
-POSIX identity reads now share the GUI's checked directory walker. Both native Qt SDKs build; the GUI API corrections
-await native results. Identity creation/publication, Windows/engine trust paths,
-extended ACLs, packaging and reviewed actions are still open.
+[completion-plan.md](completion-plan.md). Development is 2.4.32-snapshot.
+POSIX identity reads and writes now use checked ancestor traversal, including
+GUI creation of missing identity folders. Native Windows GUI compilation and
+service-reader tests pass; key-binding round trips and a dashboard trust-context
+case still fail. I investigate those next. Engine trust paths, Windows parents,
+extended ACLs, packaging and reviewed actions remain open.
 
 The detailed backlog
 and landed versions live in [roadmap.md](roadmap.md); build evidence stays in
@@ -14,10 +16,10 @@ list of things I'd quite like to finish eventually.
 | Order | Work | State and finish point |
 | --- | --- | --- |
 | 1 | Windows TLS and engine build, BX-005 | Implemented in 2.4.17 for x64 Release: external OpenSSL 3.5.9, client/server/service builds and ten CTest entries passed. The legacy installer remains refused; GUI and packaging follow below. |
-| 2 | Qt and discovery libraries, BX-005 | Partial, 2.4.28. DNS-SD is optional and Qt 5/6 selection is explicit. The native jobs build a pinned, patched Qt SDK. Windows Qt/macOS compilation and live discovery failure handling remain unverified. |
+| 2 | Qt and discovery libraries, BX-005 | Partial, 2.4.31. DNS-SD is optional and Qt 5/6 selection is explicit. Windows Release GUI compilation and service-reader tests pass with the pinned, patched Qt SDK; key-binding/dashboard tests fail. macOS application validation and live discovery failure handling remain open. |
 | 3 | Windows packaging, BX-005/BX-024 | Planned. Collect the actual runtime DLLs and notices, check libssl/libcrypto versions, provider modules and search paths, then test installation, upgrade and removal on a clean machine. No borrowed DLL pile. |
 | 4 | SSL shutdown, BX-001 | Partial, 2.4.27. Atomic state and serial close pass five concurrent-shutdown cases, including real paired TLS application I/O and local ThreadSanitizer. Real network/multiplexer shutdown, reconnect and cancellation remain open. |
-| 5 | Trust and key recovery, BX-002/BX-004/BX-007 | Partial, 2.4.31. POSIX GUI trust and engine identity reads share checked ancestor traversal. GUI folder creation remains handle-relative. Identity creation/publication, engine trust loading, Windows parents and macOS extended ACLs remain open. Preserve keys/pins during any explicit recovery operation. |
+| 5 | Trust and key recovery, BX-002/BX-004/BX-007 | Partial, 2.4.32. POSIX GUI trust and identity reads/writes share checked ancestor traversal. GUI identity-folder creation is handle-relative. Engine trust loading, Windows parents, public fingerprint storage and macOS extended ACLs remain open. Preserve keys/pins during any explicit recovery operation. |
 | 6 | Protocol and sharing limits, BX-006/BX-010/BX-011 | Planned. Bound total queued bytes and simultaneous transfers, then add clipboard/file direction controls, acceptance, cancellation and honest progress. Check malformed lengths and unsafe destinations before adding formats. |
 | 7 | Input recovery, BX-007/BX-009/BX-019 | Planned. Release held keys on loss of connection. Show focus, pause and local-return controls; test sleep, lock and console switching. A process being alive doesn't tell me where my keyboard went. |
 | 8 | Monitor layout and Wayland, BX-008/BX-014 | Later. Add crossing previews and keyboard access to the existing layout editor. Design portal/libei capabilities from measured compositor behaviour before promising support. |
@@ -187,3 +189,13 @@ I still need native Windows Qt build/approval coverage and a review of earlier
 parent traversal. Full TLS shutdown concurrency remains BX-001; a storage patch
 doesn't close it. Runtime packaging and clean-machine install/upgrade/removal
 remain BX-005/BX-024. Four reviewed actions stay planned under BX-031.
+
+
+## Native GUI follow-up, BX-005/BX-007
+
+I investigate the Windows key-binding save/load cases and dashboard trust-context
+failure first. The local Qt 6 run also warns that the discovered-server selector's
+currentIndexChanged(QString) slot has no matching signal. Its body restarts the
+connection when a server is selected. I need an enabled-discovery regression
+for an actual selection, then a checked signal-connection fix. A manual-only
+build passing its dashboard tests doesn't establish that interaction.

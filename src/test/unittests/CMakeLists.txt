@@ -69,7 +69,7 @@ target_link_libraries(unittests
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_definitions(unittests PRIVATE BARRIER_TEST_WRAP_SSL_CONTEXT BARRIER_TEST_WRAP_POLL BARRIER_TEST_WRAP_CERTIFICATE_IO)
-    set_property(TARGET unittests APPEND_STRING PROPERTY LINK_FLAGS " -Wl,--wrap=SSL_CTX_new -Wl,--wrap=SSL_new -Wl,--wrap=SSL_read -Wl,--wrap=SSL_write -Wl,--wrap=SSL_set_fd -Wl,--wrap=SSL_connect -Wl,--wrap=SSL_accept -Wl,--wrap=SSL_get_error -Wl,--wrap=SSL_get1_peer_certificate -Wl,--wrap=SSL_get_peer_certificate -Wl,--wrap=X509_free -Wl,--wrap=X509_digest -Wl,--wrap=poll -Wl,--wrap=EVP_PKEY_keygen -Wl,--wrap=PEM_write_X509 -Wl,--wrap=fflush -Wl,--wrap=fsync -Wl,--wrap=fchmod -Wl,--wrap=fstat -Wl,--wrap=rename")
+    set_property(TARGET unittests APPEND_STRING PROPERTY LINK_FLAGS " -Wl,--wrap=SSL_CTX_new -Wl,--wrap=SSL_new -Wl,--wrap=SSL_read -Wl,--wrap=SSL_write -Wl,--wrap=SSL_set_fd -Wl,--wrap=SSL_connect -Wl,--wrap=SSL_accept -Wl,--wrap=SSL_get_error -Wl,--wrap=SSL_get1_peer_certificate -Wl,--wrap=SSL_get_peer_certificate -Wl,--wrap=X509_free -Wl,--wrap=X509_digest -Wl,--wrap=poll -Wl,--wrap=EVP_PKEY_keygen -Wl,--wrap=PEM_write_X509 -Wl,--wrap=fflush -Wl,--wrap=fsync -Wl,--wrap=fchmod -Wl,--wrap=fstat -Wl,--wrap=rename -Wl,--wrap=renameat")
 endif()
 
 add_test(NAME unit COMMAND unittests)

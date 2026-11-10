@@ -595,3 +595,33 @@ This covers POSIX identity loading, not creation/publication or the engine's
 peer-trust database reader. Windows parent handling and macOS extended ACLs
 remain open. Directory opens need read access as well as traversal access.
 The shared walker remains deliberately bounded rather than a general path API.
+
+
+## Identity creation and publication, 2.4.32
+
+I use the retained checked POSIX folder for the identity writer's destination
+inspection, exclusive private temporary file, atomic rename and failed-save
+cleanup. The completed key/certificate pair is flushed, synchronised and closed
+before publication. I recheck the directory chain and destination type first.
+The GUI creates missing identity folders through checked handles with mode 0700,
+rather than creating a path before finding out whether its ancestors are safe.
+
+A detected parent move refuses publication and cleanup stays in the held old
+folder. A move after the last check can still publish successfully in that old
+folder; it cannot redirect publication into the replacement path. A deterministic
+case records that exact limit. Destination links present at the recheck are
+refused. This isn't protection against arbitrary code running as the same user
+or root. Concurrent identity generation isn't serialised; the last successful
+replacement wins. Cleanup is best-effort and directory entries aren't yet
+synchronised for crash durability.
+
+Windows retains its existing writer and still needs ancestor/reparse review.
+The public fingerprint writer, engine trust reader and extended ACLs remain
+open. I keep those boundaries separate rather than closing the storage item
+because one more writer now behaves itself.
+
+The Windows 2.4.31 run compiles the GUI and passes its service-reader suite.
+KeySequence serialisation round trips produce an empty saved array in the native
+unit cases, and the dashboard trust-context case reports disconnected where it
+expects connecting. Those observations need investigation; I haven't established
+whether the test fixtures or application behaviour are at fault.

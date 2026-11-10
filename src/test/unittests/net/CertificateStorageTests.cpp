@@ -40,7 +40,7 @@ thread_local bool fail_publication = false;
 thread_local bool fail_mode_change = false;
 thread_local bool fail_file_stat = false;
 thread_local bool foreign_owner = false;
-thread_local std::function<void()> file_stat_hook;
+thread_local std::function<void()> file_stat_hook, sync_hook, publication_hook;
 thread_local int read_descriptor = -1;
 thread_local int read_descriptor_flags = -1;
 thread_local std::string swapped_path, replacement_path, displaced_path;
@@ -123,6 +123,7 @@ extern "C" int __wrap_fsync(int descriptor)
         errno = EIO;
         return -1;
     }
+    if (sync_hook) { auto hook = std::move(sync_hook); sync_hook = {}; hook(); }
     return __real_fsync(descriptor);
 }
 
@@ -136,6 +137,14 @@ extern "C" int __wrap_rename(const char* from, const char* to)
     }
     return __real_rename(from, to);
 }
+extern "C" int __real_renameat(int, const char*, int, const char*);
+extern "C" int __wrap_renameat(int from_dir, const char* from, int to_dir, const char* to)
+{
+    if (fail_publication) { fail_publication = false; errno = EACCES; return -1; }
+    if (publication_hook) { auto hook = std::move(publication_hook); publication_hook = {}; hook(); }
+    return __real_renameat(from_dir, from, to_dir, to);
+}
+
 #endif
 
 class CertificateStorageTests : public ::testing::Test {
@@ -164,7 +173,7 @@ protected:
         swapped_path.clear();
         replacement_path.clear();
         displaced_path.clear();
-        file_stat_hook = {};
+        file_stat_hook = sync_hook = publication_hook = {};
 #endif
         ERR_clear_error();
         if (!directory.empty()) {
@@ -611,5 +620,102 @@ TEST_F(CertificateStorageTests, ReplacedParentCannotRedirectIdentityPermissionMi
     ASSERT_EQ(0, stat(target.c_str(), &info));
     EXPECT_EQ(0666, info.st_mode & 07777);
     EXPECT_EQ(-1, fcntl(read_descriptor, F_GETFD));
+}
+#endif
+
+#if SYSAPI_UNIX
+TEST_F(CertificateStorageTests, CreationRefusesUnsafeAncestorWithoutLeavingFiles)
+{
+    const auto outer = directory / "outer";
+    barrier::fs::create_directories(outer / "private");
+    ASSERT_EQ(0, chmod(outer.c_str(), 0777));
+    auto restore = barrier::finally([&] { chmod(outer.c_str(), 0700); });
+    target = outer / "private" / "identity.pem";
+    EXPECT_THROW(barrier::generate_pem_self_signed_cert(target.u8string()), std::runtime_error);
+    EXPECT_TRUE(barrier::fs::is_empty(target.parent_path()));
+}
+TEST_F(CertificateStorageTests, CreationRefusesLinkedFolderAndMissingParents)
+{
+    const auto real = directory / "real";
+    barrier::fs::create_directory(real);
+    barrier::fs::create_directory_symlink(real, directory / "alias");
+    EXPECT_THROW(barrier::generate_pem_self_signed_cert((directory / "alias" / "identity.pem").u8string()), std::runtime_error);
+    EXPECT_TRUE(barrier::fs::is_empty(real));
+    EXPECT_THROW(barrier::generate_pem_self_signed_cert((directory / "missing" / "identity.pem").u8string()), std::runtime_error);
+    EXPECT_FALSE(barrier::fs::exists(directory / "missing"));
+}
+TEST_F(CertificateStorageTests, CreationRefusesEmbeddedNullAndParentTraversal)
+{
+    writeOriginal();
+    EXPECT_THROW(barrier::generate_pem_self_signed_cert(target.u8string() + std::string("\0ignored", 8)), std::runtime_error);
+    EXPECT_THROW(barrier::generate_pem_self_signed_cert((directory / "missing" / ".." / "identity.pem").u8string()), std::runtime_error);
+    EXPECT_EQ("original identity", read(target));
+    EXPECT_FALSE(barrier::fs::exists(directory / "missing"));
+    expectNoTemporaryFiles();
+}
+#endif
+#ifdef BARRIER_TEST_WRAP_CERTIFICATE_IO
+TEST_F(CertificateStorageTests, MovedParentKeepsFailedCleanupInTheHeldFolder)
+{
+    const auto outer = directory / "outer";
+    barrier::fs::create_directories(outer / "private");
+    target = outer / "private" / "identity.pem";
+    writeOriginal();
+    barrier::fs::path temporary_name;
+    sync_hook = [&] {
+        for (const auto& item : barrier::fs::directory_iterator(target.parent_path())) {
+            if (item.path().filename().u8string().find(".tmp.") != std::string::npos) {
+                temporary_name = item.path().filename();
+            }
+        }
+        EXPECT_FALSE(temporary_name.empty());
+        barrier::fs::rename(outer, directory / "moved");
+        barrier::fs::create_directories(outer / "private");
+        writeOriginal();
+        std::ofstream sentinel((target.parent_path() / temporary_name).c_str());
+        sentinel << "replacement folder marker";
+    };
+    EXPECT_THROW(barrier::generate_pem_self_signed_cert(target.u8string()), std::runtime_error);
+    EXPECT_FALSE(sync_hook);
+    ASSERT_FALSE(temporary_name.empty());
+    EXPECT_EQ("original identity", read(target));
+    EXPECT_EQ("original identity", read(directory / "moved" / "private" / "identity.pem"));
+    EXPECT_FALSE(barrier::fs::exists(directory / "moved" / "private" / temporary_name));
+    EXPECT_EQ("replacement folder marker", read(target.parent_path() / temporary_name));
+}
+TEST_F(CertificateStorageTests, LateParentMoveKeepsPublicationInTheHeldFolder)
+{
+    const auto outer = directory / "outer";
+    barrier::fs::create_directories(outer / "private");
+    target = outer / "private" / "identity.pem";
+    writeOriginal();
+    publication_hook = [&] {
+        barrier::fs::rename(outer, directory / "moved");
+        barrier::fs::create_directories(outer / "private");
+        writeOriginal();
+    };
+    EXPECT_NO_THROW(barrier::generate_pem_self_signed_cert(target.u8string()));
+    EXPECT_FALSE(publication_hook);
+    EXPECT_EQ("original identity", read(target));
+    const auto published = directory / "moved" / "private" / "identity.pem";
+    EXPECT_TRUE(barrier::get_pem_file_cert_fingerprint(published.u8string(), barrier::SHA256).valid());
+    for (const auto& item : barrier::fs::directory_iterator(published.parent_path())) {
+        EXPECT_EQ(std::string::npos, item.path().filename().u8string().find(".tmp."));
+    }
+}
+TEST_F(CertificateStorageTests, LateDestinationLinkIsRejectedWithoutTouchingVictim)
+{
+    writeOriginal();
+    const auto victim = directory / "victim";
+    { std::ofstream out(victim.c_str()); out << "leave this alone"; }
+    sync_hook = [&] {
+        barrier::fs::remove(target);
+        barrier::fs::create_symlink(victim, target);
+    };
+    EXPECT_THROW(barrier::generate_pem_self_signed_cert(target.u8string()), std::runtime_error);
+    EXPECT_FALSE(sync_hook);
+    EXPECT_TRUE(barrier::fs::is_symlink(target));
+    EXPECT_EQ("leave this alone", read(victim));
+    expectNoTemporaryFiles();
 }
 #endif

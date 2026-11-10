@@ -19,6 +19,7 @@
 #include "common/DataDirectories.h"
 #include "base/finally.h"
 #include "io/filesystem.h"
+#include "io/PrivateDirectory.h"
 #include "net/FingerprintDatabase.h"
 #include "net/SecureUtils.h"
 
@@ -55,7 +56,11 @@ void SslCertificate::generateCertificate()
             }
         }
         if (!identity.certificate) {
+#if SYSAPI_WIN32
             barrier::fs::create_directories(cert_path.parent_path());
+#else
+            barrier::PrivateDirectory directory(cert_path.parent_path(), barrier::PrivateDirectoryMode::Create);
+#endif
             barrier::generate_pem_self_signed_cert(cert_path.u8string());
             identity = barrier::read_pem_identity(cert_path.u8string());
             emit info(tr("SSL certificate generated."));
@@ -73,6 +78,7 @@ void SslCertificate::generateCertificate()
 void SslCertificate::generate_fingerprint(X509* certificate)
 {
     const auto local_path = barrier::DataDirectories::local_ssl_fingerprints_path();
+    // FUTURE(BX-004): I still need handle-relative public fingerprint storage.
     barrier::fs::create_directories(local_path.parent_path());
     const auto status = barrier::fs::symlink_status(local_path);
     if (barrier::fs::exists(status) && !barrier::fs::is_regular_file(status)) {

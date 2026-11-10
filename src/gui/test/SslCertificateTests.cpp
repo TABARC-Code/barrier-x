@@ -45,6 +45,28 @@ protected:
     int finished = 0, errors = 0;
 };
 
+TEST_F(SslCertificateTests, MissingIdentityFoldersAreCreatedPrivately)
+{
+    barrier::fs::remove_all(path.parent_path());
+    run();
+    EXPECT_EQ(1, finished);
+    EXPECT_EQ(0, errors);
+    struct stat info{};
+    ASSERT_EQ(0, stat(path.parent_path().c_str(), &info));
+    EXPECT_EQ(0700, info.st_mode & 0777);
+    EXPECT_TRUE(barrier::get_pem_file_cert_fingerprint(path.u8string(), barrier::SHA256).valid());
+}
+TEST_F(SslCertificateTests, UnsafeAncestorDoesNotCreateIdentityFolders)
+{
+    barrier::fs::remove_all(path.parent_path());
+    ASSERT_EQ(0, chmod(temporary.path().toStdString().c_str(), 0777));
+    run();
+    EXPECT_EQ(0, finished);
+    EXPECT_EQ(1, errors);
+    EXPECT_FALSE(barrier::fs::exists(path.parent_path()));
+    EXPECT_EQ(0, chmod(temporary.path().toStdString().c_str(), 0700));
+}
+
 TEST_F(SslCertificateTests, MigratesExistingIdentityAndKeepsItsFingerprint)
 {
     barrier::generate_pem_self_signed_cert(path.u8string());

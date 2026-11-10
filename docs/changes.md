@@ -1,5 +1,11 @@
 # barrier-x changes
 
+## 2.4.32-snapshot - 10 November 2026
+
+- I anchor POSIX certificate creation, replacement and cleanup to checked folder handles.
+- I recheck the folder and destination before publishing a completed identity.
+- I create missing POSIX GUI identity folders through checked ancestors.
+
 ## 2.4.31-snapshot - 10 November 2026
 
 - I check POSIX identity-file ancestors before opening or restricting the file.

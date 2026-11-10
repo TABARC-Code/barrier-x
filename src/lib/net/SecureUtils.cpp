@@ -100,12 +100,35 @@ void require_success(int result, const char* operation)
 
 void write_identity(const fs::path& destination, EVP_PKEY* key, X509* certificate)
 {
+#if SYSAPI_WIN32
     auto status = fs::symlink_status(destination);
     if (fs::is_symlink(status) || (fs::exists(status) && !fs::is_regular_file(status))) {
         throw std::runtime_error("Certificate destination must be a regular file");
     }
 
+#else
+    const auto name = destination.filename().native();
+    if (destination.native().find('\0') != std::string::npos ||
+        name.empty() || name == "." || name == "..") {
+        throw std::runtime_error("Certificate destination needs a valid file name");
+    }
+    PrivateDirectory directory(destination.parent_path());
+    const auto check_destination = [&] {
+        struct stat info{};
+        if (::fstatat(directory.descriptor(), name.c_str(), &info, AT_SYMLINK_NOFOLLOW) == 0) {
+            if (!S_ISREG(info.st_mode)) {
+                throw std::runtime_error("Certificate destination must be a regular file");
+            }
+        } else if (errno != ENOENT) {
+            throw std::runtime_error("Could not inspect certificate destination");
+        }
+    };
+    check_destination();
+#endif
     fs::path temporary;
+#if SYSAPI_UNIX
+    std::string temporary_name;
+#endif
     int descriptor = -1;
     for (int attempt = 0; attempt < 8; ++attempt) {
         unsigned char random[16];
@@ -124,8 +147,10 @@ void write_identity(const fs::path& destination, EVP_PKEY* key, X509* certificat
             }
         }
 #else
+        temporary_name = temporary.filename().native();
         // Restrict access at creation. Fixing the mode after writing is late.
-        descriptor = ::open(temporary.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+        descriptor = ::openat(directory.descriptor(), temporary_name.c_str(),
+                              O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, 0600);
         if (descriptor != -1) {
             break;
         }
@@ -152,8 +177,12 @@ void write_identity(const fs::path& destination, EVP_PKEY* key, X509* certificat
 #endif
         }
         if (!published) {
+#if SYSAPI_WIN32
             std::error_code ignored;
             fs::remove(temporary, ignored);
+#else
+            ::unlinkat(directory.descriptor(), temporary_name.c_str(), 0);
+#endif
         }
     });
 #if SYSAPI_WIN32
@@ -184,9 +213,19 @@ void write_identity(const fs::path& destination, EVP_PKEY* key, X509* certificat
         throw std::runtime_error("Could not close certificate output");
     }
     // Keep the previous identity until the new key and certificate are complete.
-    // FUTURE(BX-004): I still need checked ancestors for creation and publication.
-    // The parent directory must be trusted; this is not a shared-folder API.
+#if SYSAPI_WIN32
+    // FUTURE(BX-004): Windows ancestor/reparse checks still need their own implementation.
     fs::rename(temporary, destination);
+#else
+    directory.check_current();
+    check_destination();
+    // I keep publication and failed-save cleanup in the folder I actually opened.
+    if (::renameat(directory.descriptor(), temporary_name.c_str(),
+                   directory.descriptor(), name.c_str()) != 0) {
+        throw std::runtime_error("Could not publish certificate identity");
+    }
+    // FUTURE(BX-004): directory synchronisation and crash recovery remain open.
+#endif
     published = true;
 }
 
