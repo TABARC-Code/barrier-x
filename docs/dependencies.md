@@ -76,3 +76,16 @@ Homebrew package inputs remain hosted build inputs.
 Qt Core/Gui/Widgets/Network/Test licensing and deployment notices must accompany
 redistribution. Native build success alone doesn't settle downstream licensing,
 SDK advisories or a clean-machine installation.
+
+
+The first 2.4.26 native SDK jobs fail before Qt configuration: fetching a fix at
+depth one makes `git show` treat it as a root commit. In 2.4.27 I fetch its parent
+and explicitly diff parent to fix. A local regression reproduces the shallow
+case and checks that unrelated source stays untouched. I also fetch the actual
+three pinned fixes and apply them cleanly to the selected Qt base: only
+qjsoncbor.cpp, qhttpheaderparser_p.h and qhttpnetworkreply.cpp change. This is
+patch-application evidence, not a successful SDK compilation.
+
+For SSL ownership I recheck the official [OpenSSL threading guidance](https://docs.openssl.org/3.5/man7/openssl-threads/):
+shared sessions need application synchronisation. The socket retains one lock
+for session access and release; atomic status flags do not replace that lock.

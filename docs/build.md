@@ -786,3 +786,40 @@ switch. No new sanitiser result or Qt 6/native platform pass is claimed here.
 The native jobs build pinned Qt source with the recorded upstream security
 fixes rather than fetching an SDK through the rejected archive extractor. They
 remain unverified until their actual results are recorded. Master stays unchanged.
+
+
+## Shutdown and SDK correction, 2.4.27
+
+10 November 2026. I pass five new shutdown cases with GCC 14.2 and system
+OpenSSL 3.5.7: four callers repeatedly close one socket, and each connection
+role performs real memory-BIO TLS reads/writes while two closers wait. The
+I/O wrapper pauses before the actual OpenSSL call, then releases it; this
+checks release ordering without pretending to be a real network test.
+
+I configure a separate Debug engine build with
+`-DCMAKE_CXX_FLAGS='-fsanitize=thread -fno-omit-frame-pointer'` and
+`-DCMAKE_EXE_LINKER_FLAGS='-fsanitize=thread'`, then run
+`unittests --gtest_filter='SecureSocketTests.*Concurrent*'` with
+`TSAN_OPTIONS=halt_on_error=1`. The initial run finds a logger localtime race.
+After changing to per-call time storage, all five cases pass without
+suppressions. I retain the gate timeout and release/join cleanup on worker
+creation failure. Concurrent destruction is outside the supported lifetime.
+
+The complete local manual-only build passes all thirteen CTest entries: the
+unit suite has 230 cases; the lifecycle selection has 48; GUI units have 84;
+the dashboard has 30, including a non-Latin translated-default regression.
+The reader passes 39 cases with the single Unix-domain listener case explicitly
+skipped because this workspace denies AF_UNIX creation. That limitation is
+unchanged; I don't turn an environment skip into native transport evidence.
+
+I pass the SDK shallow-history regression and apply the three real pinned Qt
+fixes cleanly to the pinned base. The only production changes are the reviewed
+CBOR and two HTTP source files. Workflow syntax checks pass. Native SDK
+compilation still needs a successful run.
+
+For the published 2.4.26 commit afbbf860, Linux run 42754926799 passes Debug
+and Release (thirteen CTest entries each), the manual dashboard's 29 cases and
+the four selected ASan/UBSan entries. Windows engine run 42754926831 passes
+its ten engine entries before failing in SDK patch application; macOS run
+42754927449 also stops at that step, before application compilation. Windows
+native run 42754926728 reports success. These results don't validate 2.4.27.

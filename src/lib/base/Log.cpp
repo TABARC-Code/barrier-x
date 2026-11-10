@@ -167,12 +167,21 @@ Log::print(const char* file, int line, const char* fmt, ...)
     // do not prefix time and file for kPRINT (CLOG_PRINT)
     if (priority != kPRINT) {
 
-        struct tm *tm;
-        char timestamp[50];
-        time_t t;
-        time(&t);
-        tm = localtime(&t);
-        sprintf(timestamp, "%04i-%02i-%02iT%02i:%02i:%02i", tm->tm_year + 1900, tm->tm_mon+1, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
+        // I keep the broken-down time local; simultaneous log calls used to share it.
+        std::tm broken_down{};
+        char timestamp[50] = "0000-00-00T00:00:00";
+        const std::time_t now = std::time(nullptr);
+#ifdef _WIN32
+        const bool converted = localtime_s(&broken_down, &now) == 0;
+#else
+        const bool converted = localtime_r(&now, &broken_down) != nullptr;
+#endif
+        if (converted) {
+            char formatted[50]{};
+            if (std::strftime(formatted, sizeof(formatted), "%Y-%m-%dT%H:%M:%S", &broken_down)) {
+                std::strcpy(timestamp, formatted);
+            }
+        }
 
         // square brackets, spaces, comma and null terminator take about 10
         size_t size = 10;

@@ -21,6 +21,7 @@
 #include "net/TCPSocket.h"
 #include "net/XSocket.h"
 #include "io/filesystem.h"
+#include <atomic>
 #include <memory>
 #include <mutex>
 
@@ -96,10 +97,12 @@ private:
     // from outside SocketMultiplexer thread is close(), so we mostly care about things accessed
     // by it.
     std::mutex ssl_mutex_;
+    // I serialise callers of close without taking this lock in service callbacks.
+    std::mutex close_mutex_;
 
     std::unique_ptr<Ssl> m_ssl;
-    bool                m_secureReady;
-    bool                m_fatal;
+    std::atomic<bool>   m_secureReady;
+    std::atomic<bool>   m_fatal;
     ConnectionSecurityLevel security_level_ = ConnectionSecurityLevel::ENCRYPTED;
 
     int secure_accept_retry_ = 0; // used only in secureAccept()

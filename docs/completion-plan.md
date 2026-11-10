@@ -38,6 +38,8 @@ an address or discovered display name is not identity proof.
 | --- | --- | --- |
 | 2.4.24 native storage and engine | Windows storage/service/pipe checks, Windows Release engine, Linux Debug/Release and selected sanitisers passed on 1f21f179 | Windows Qt GUI, macOS and complete installation checks |
 | 2.4.25 POSIX trust folder | 84 GUI unit and 25 dashboard cases passed in each discovery mode locally | Earlier ancestors, native macOS and hosted checks for this version |
+| 2.4.26 GUI portability | Local Qt 5.15.15 build; 84 GUI unit and 29 dashboard cases | Windows Qt/macOS stop at SDK patch application; corrected in local 2.4.27, not yet a native pass |
+| 2.4.27 SSL shutdown | Five new local concurrency cases pass with ThreadSanitizer, including paired TLS application I/O | Real network/multiplexer shutdown and native concurrency |
 | Reviewed actions | Design only | Registry, target enforcement, transport, GUI, scheduling and negative tests |
 
 I update this table as evidence arrives. A workflow file or a successful compiler

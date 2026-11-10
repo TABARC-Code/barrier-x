@@ -1,5 +1,12 @@
 # barrier-x changes
 
+## 2.4.27-snapshot - 10 November 2026
+
+- I serialise competing SSL closes and synchronise shutdown/readiness flags.
+- I keep log timestamps in per-call storage during concurrent logging.
+- I preserve the default screen identifier in translated interfaces.
+- I extract Qt security patches against their fetched parents.
+
 ## 2.4.26-snapshot - 10 November 2026
 
 - I add explicit Qt 5/6 selection and replace obsolete regular-expression APIs.

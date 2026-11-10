@@ -72,7 +72,7 @@ void ScreenSetupView::enter(const QModelIndex& index)
         return;
     Screen& screen = model()->screen(index);
     if (screen.isNull())
-        screen = Screen(tr("Unnamed"));
+        screen = Screen(QStringLiteral("Unnamed"));
     ScreenSettingsDialog dlg(this, &screen);
     dlg.exec();
 }

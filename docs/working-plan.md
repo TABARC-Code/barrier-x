@@ -1,8 +1,10 @@
 # Working plan
 
 10 November 2026. The five-area completion programme is in
-[completion-plan.md](completion-plan.md). Local development is 2.4.26-snapshot;
-the published test branch remains 2.4.24 until the next verified checkpoint.
+[completion-plan.md](completion-plan.md). Local development is 2.4.27-snapshot;
+2.4.26 is the preceding published test checkpoint. Its Windows Qt/macOS SDK steps fail
+before application compilation; the corrected patch fetch and five new SSL
+shutdown cases pass locally, including ThreadSanitizer. Native validation follows.
 
 The detailed backlog
 and landed versions live in [roadmap.md](roadmap.md); build evidence stays in

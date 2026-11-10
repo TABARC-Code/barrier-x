@@ -3,6 +3,8 @@
 #include "../src/MainWindow.h"
 #include "../src/PeerTrustStore.h"
 #include "../src/ScreenSetupModel.h"
+#include "../src/ScreenSetupView.h"
+#include <QTranslator>
 #include <QDataStream>
 #include <QMimeData>
 #include <QLockFile>
@@ -809,4 +811,40 @@ TEST_F(DiscoveryTests, ScreenDropKeepsCopyAndMoveBoundaries)
     EXPECT_EQ(QString("Right"), screens[0].name());
     EXPECT_EQ(QString("Left"), screens[1].name());
     EXPECT_TRUE(screens[0].swapped());
+}
+
+TEST_F(DiscoveryTests, TranslatedLabelsDoNotBecomeScreenIdentifiers)
+{
+    class ScreenTranslator : public QTranslator {
+    public:
+        bool isEmpty() const override { return false; }
+        QString translate(const char* context, const char* text, const char*, int) const override {
+            if (QByteArray(context) == "ScreenSetupView" && QByteArray(text) == "Unnamed") {
+                return QString::fromUtf8("未命名");
+            }
+            return {};
+        }
+    } translator;
+    struct InstalledTranslation {
+        QTranslator* translator;
+        ~InstalledTranslation() { QCoreApplication::removeTranslator(translator); }
+    } installed{&translator};
+    ASSERT_TRUE(QCoreApplication::installTranslator(&translator));
+    std::vector<Screen> screens(2);
+    ScreenSetupModel model(screens, 2, 1);
+    ScreenSetupView view(nullptr);
+    view.setModel(&model);
+    view.setCurrentIndex(model.index(0, 0));
+    QTimer::singleShot(0, [&] {
+        for (auto* widget : QApplication::topLevelWidgets()) {
+            if (auto* dialog = qobject_cast<QDialog*>(widget)) { dialog->reject(); }
+        }
+    });
+    QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+    QApplication::sendEvent(&view, &enter);
+    EXPECT_EQ(QString("Unnamed"), screens[0].name());
+    std::unique_ptr<QMimeData> mime(model.mimeData({model.index(0, 0)}));
+    EXPECT_TRUE(static_cast<QAbstractItemModel&>(model).dropMimeData(
+        mime.get(), Qt::MoveAction, -1, -1, model.index(0, 1)));
+    EXPECT_EQ(QString("Unnamed"), screens[1].name());
 }

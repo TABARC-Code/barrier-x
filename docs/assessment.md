@@ -487,3 +487,21 @@ dynamic mappings. I remove those values across the engine and native input
 paths, retaining event/failure descriptions. Static keyboard-map configuration
 and registered hotkey configuration remain visible. Timing and routing metadata
 remain; this isn't anonymous logging or a complete diagnostic export audit.
+
+
+## Concurrent SSL shutdown, 2.4.27
+
+I make fatal/readiness flags atomic and serialise public close callers. Close
+marks the connection terminal before waiting for in-flight SSL operations. The
+existing SSL mutex still protects the session and its release; I remove the
+multiplexer job before taking it, preserving the callback lock order. Readiness
+observers report false once shutdown begins, including a handshake unwinding
+after the fatal flag changed. Concurrent destruction remains invalid object use.
+
+Five new tests cover repeated competing closes and real TLS sessions in both
+roles, pausing application reads/writes while two closers wait. I use registered
+application threads for calls into the socket layer. A first ThreadSanitizer run
+finds shared localtime storage in the logger; I replace it with localtime_r on
+POSIX and localtime_s on Windows, then pass all five cases without suppressions.
+OpenSSL itself is the system library, not an instrumented build. Real network
+multiplexer shutdown, cancellation and native stress checks remain open.

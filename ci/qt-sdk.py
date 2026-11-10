@@ -24,6 +24,12 @@ def run(*args, cwd=None):
     subprocess.run([str(arg) for arg in args], cwd=cwd, check=True, timeout=timeout)
 
 
+def production_patch(source, sha):
+    # I require the parent explicitly: a shallow root makes git show invent a full-tree patch.
+    return subprocess.check_output(
+        ['git', 'diff', '--binary', sha + '^', sha, '--', 'src'], cwd=source, timeout=30)
+
+
 def build(prefix, jobs):
     prefix = prefix.resolve()
     manifest = prefix / 'barrier-qt-source.json'
@@ -46,8 +52,8 @@ def build(prefix, jobs):
     if revision != BASE:
         raise RuntimeError('Qt source revision mismatch')
     for sha in FIXES:
-        run('git', 'fetch', '--depth=1', 'origin', sha, cwd=source)
-        patch = subprocess.check_output(['git', 'show', '--format=', '--binary', sha, '--', 'src'], cwd=source, timeout=30)
+        run('git', 'fetch', '--depth=2', 'origin', sha, cwd=source)
+        patch = production_patch(source, sha)
         if not patch:
             raise RuntimeError('The reviewed Qt fix has no production changes')
         patch_file = patches / ('qt-' + sha + '.diff')

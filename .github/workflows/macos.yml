@@ -20,6 +20,8 @@ jobs:
         run: git submodule update --init ext/gulrak-filesystem
       - name: Install native build libraries
         run: brew install openssl@3 googletest
+      - name: Check SDK patch extraction
+        run: python3 ci/test-qt-sdk.py
       - name: Build reviewed Qt SDK
         run: |
           python3 ci/qt-sdk.py --prefix "$RUNNER_TEMP/qt-sdk" --jobs 4

@@ -68,6 +68,8 @@ jobs:
           ctest --test-dir build -C Release --output-on-failure
           if ($LASTEXITCODE -ne 0) { throw 'Engine checks failed' }
 
+      - name: Check SDK patch extraction
+        run: python ci/test-qt-sdk.py
       - name: Build reviewed Qt SDK
         shell: pwsh
         run: |

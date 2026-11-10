@@ -14,10 +14,17 @@
 #include "common/DataDirectories.h"
 #include "net/SocketMultiplexer.h"
 #include "base/EventQueue.h"
+#include "base/finally.h"
+#include "mt/Thread.h"
 #include "test/global/gtest.h"
 
 #include <memory>
 #include <cstdlib>
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <thread>
+#include <vector>
 
 #ifdef BARRIER_TEST_WRAP_SSL_CONTEXT
 #include <openssl/ssl.h>
@@ -29,6 +36,27 @@
 #include <unistd.h>
 
 namespace {
+struct IoGate {
+    std::mutex mutex;
+    std::condition_variable changed;
+    bool entered = false, released = false, timed_out = false;
+    void pause() {
+        std::unique_lock<std::mutex> lock(mutex);
+        entered = true;
+        changed.notify_all();
+        timed_out = !changed.wait_for(lock, std::chrono::seconds(5), [&] { return released; });
+    }
+    bool wait() {
+        std::unique_lock<std::mutex> lock(mutex);
+        return changed.wait_for(lock, std::chrono::seconds(5), [&] { return entered; });
+    }
+    void release() {
+        std::lock_guard<std::mutex> lock(mutex);
+        released = true;
+        changed.notify_all();
+    }
+};
+thread_local IoGate* paused_io = nullptr;
 thread_local bool complete_handshake = false;
 thread_local bool fake_io = false;
 thread_local int io_calls = 0;
@@ -109,6 +137,7 @@ extern "C" int __real_SSL_write(SSL*, const void*, int);
 extern "C" int __wrap_SSL_read(SSL* ssl, void* buffer, int size)
 {
     ++io_calls;
+    if (paused_io) { paused_io->pause(); }
     if (fake_io && ERR_peek_error() != 0) {
         dirty_io_error_queue = true;
     }
@@ -117,6 +146,7 @@ extern "C" int __wrap_SSL_read(SSL* ssl, void* buffer, int size)
 extern "C" int __wrap_SSL_write(SSL* ssl, const void* buffer, int size)
 {
     ++io_calls;
+    if (paused_io) { paused_io->pause(); }
     if (fake_io && ERR_peek_error() != 0) {
         dirty_io_error_queue = true;
     }
@@ -201,6 +231,7 @@ protected:
 
 #ifdef BARRIER_TEST_WRAP_SSL_CONTEXT
     void checkHandshake(int version, bool expected);
+    void closeDuringRealIo(bool server, bool writing);
     int handshake(SecureSocket& connection, bool server, int descriptor = -1)
     {
         return server ? connection.secureAccept(descriptor) : connection.secureConnect(descriptor);
@@ -819,4 +850,140 @@ TEST_F(SecureSocketTests, DigestFailureReleasesPeerAndFailsClosed)
     EXPECT_TRUE(connection->isFatal());
     EXPECT_EQ(1, peer_releases);
 }
+#endif
+
+TEST_F(SecureSocketTests, ConcurrentCloseKeepsStateTerminal)
+{
+    auto connection = socket();
+    connection->initSsl(false);
+    std::atomic<bool> finished{false}, threw{false}, inconsistent{false};
+    std::unique_ptr<Thread> observer;
+    std::vector<std::unique_ptr<Thread>> callers;
+    callers.reserve(4);
+    auto cleanup = barrier::finally([&] {
+        finished = true;
+        for (const auto& caller : callers) { caller->wait(); }
+        if (observer) { observer->wait(); }
+    });
+    observer.reset(new Thread([&] {
+        while (!finished.load()) {
+            if (connection->isFatal() && connection->isSecureReady()) { inconsistent = true; }
+            std::this_thread::yield();
+        }
+    }));
+    for (int i = 0; i < 4; ++i) {
+        callers.emplace_back(new Thread([&] {
+            try { for (int n = 0; n < 16; ++n) { connection->close(); } }
+            catch (...) { threw = true; }
+        }));
+    }
+    for (const auto& caller : callers) { caller->wait(); }
+    finished = true;
+    observer->wait();
+    EXPECT_FALSE(threw.load());
+    EXPECT_FALSE(inconsistent.load());
+    EXPECT_TRUE(connection->isFatal());
+    EXPECT_FALSE(connection->isSecureReady());
+    rejectedIo(*connection);
+}
+
+#ifdef BARRIER_TEST_WRAP_SSL_CONTEXT
+void SecureSocketTests::closeDuringRealIo(bool server, bool writing)
+{
+    preparePeer(server, true);
+    ASSERT_FALSE(HasFatalFailure());
+    auto connection = socket(ConnectionSecurityLevel::ENCRYPTED_AUTHENTICATED);
+    connection->initSsl(server);
+    const auto pem = barrier::DataDirectories::ssl_certificate_path();
+    ASSERT_TRUE(connection->load_certificates(pem));
+    complete_handshake = false;
+    ASSERT_EQ(0, handshake(*connection, server));
+    SSL* session = last_session;
+    ASSERT_NE(nullptr, session);
+    fake_transport = override_peer = false;
+
+    std::unique_ptr<SSL_CTX, decltype(&SSL_CTX_free)> context(SSL_CTX_new(TLS_method()), SSL_CTX_free);
+    ASSERT_NE(nullptr, context);
+    ASSERT_EQ(1, SSL_CTX_use_certificate_file(context.get(), pem.c_str(), SSL_FILETYPE_PEM));
+    ASSERT_EQ(1, SSL_CTX_use_PrivateKey_file(context.get(), pem.c_str(), SSL_FILETYPE_PEM));
+    std::unique_ptr<SSL, decltype(&SSL_free)> peer(SSL_new(context.get()), SSL_free);
+    ASSERT_NE(nullptr, peer);
+    BIO* local = nullptr;
+    BIO* remote = nullptr;
+    ASSERT_EQ(1, BIO_new_bio_pair(&local, 0, &remote, 0));
+    SSL_set_bio(session, local, local);
+    SSL_set_bio(peer.get(), remote, remote);
+    if (server) { SSL_set_connect_state(peer.get()); }
+    else { SSL_set_accept_state(peer.get()); }
+    for (int attempt = 0; attempt < 64; ++attempt) {
+        if (!connection->isSecureReady()) { ASSERT_GE(handshake(*connection, server), 0); }
+        ERR_clear_error();
+        const int result = SSL_do_handshake(peer.get());
+        if (result != 1) {
+            const int error = SSL_get_error(peer.get(), result);
+            ASSERT_TRUE(error == SSL_ERROR_WANT_READ || error == SSL_ERROR_WANT_WRITE);
+        }
+        if (connection->isSecureReady() && SSL_is_init_finished(peer.get())) { break; }
+    }
+    ASSERT_TRUE(connection->isSecureReady());
+    ASSERT_TRUE(SSL_is_init_finished(peer.get()));
+    if (!writing) { ASSERT_EQ(4, SSL_write(peer.get(), "data", 4)); }
+
+    IoGate gate;
+    int result = 0, count = 99, calls = 0;
+    std::atomic<int> closed{0};
+    std::atomic<bool> threw{false};
+    std::unique_ptr<Thread> io, closer, another;
+    // I release and join started workers even if creating the next one fails.
+    auto cleanup = barrier::finally([&] {
+        gate.release();
+        for (const auto* worker : {io.get(), closer.get(), another.get()}) {
+            if (worker) { worker->wait(); }
+        }
+    });
+    io.reset(new Thread([&] {
+        paused_io = &gate;
+        io_calls = 0;
+        char bytes[4] = {};
+        result = writing ? connection->secureWrite("data", 4, count) :
+                           connection->secureRead(bytes, sizeof(bytes), count);
+        calls = io_calls;
+        paused_io = nullptr;
+    }));
+    const bool entered = gate.wait();
+    closer.reset(new Thread([&] {
+        try { connection->close(); ++closed; } catch (...) { threw = true; }
+    }));
+    another.reset(new Thread([&] {
+        try { connection->close(); ++closed; } catch (...) { threw = true; }
+    }));
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (!connection->isFatal() && std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    // No fatal assertions until every worker is released and joined.
+    EXPECT_TRUE(entered);
+    EXPECT_TRUE(connection->isFatal());
+    EXPECT_FALSE(connection->isSecureReady());
+    EXPECT_EQ(0, closed.load());
+    gate.release();
+    io->wait();
+    closer->wait();
+    another->wait();
+    EXPECT_FALSE(gate.timed_out);
+    EXPECT_FALSE(threw.load());
+    EXPECT_EQ(2, closed.load());
+    EXPECT_EQ(1, calls);
+    EXPECT_EQ(-1, result);
+    EXPECT_EQ(0, count);
+    rejectedIo(*connection);
+}
+TEST_F(SecureSocketTests, ClientReadFinishesBeforeConcurrentCloseFreesTheSession)
+{ closeDuringRealIo(false, false); }
+TEST_F(SecureSocketTests, ClientWriteFinishesBeforeConcurrentCloseFreesTheSession)
+{ closeDuringRealIo(false, true); }
+TEST_F(SecureSocketTests, ServerReadFinishesBeforeConcurrentCloseFreesTheSession)
+{ closeDuringRealIo(true, false); }
+TEST_F(SecureSocketTests, ServerWriteFinishesBeforeConcurrentCloseFreesTheSession)
+{ closeDuringRealIo(true, true); }
 #endif

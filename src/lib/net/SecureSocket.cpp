@@ -93,7 +93,9 @@ SecureSocket::~SecureSocket()
 void
 SecureSocket::close()
 {
+    std::lock_guard<std::mutex> close_lock{close_mutex_};
     isFatal(true);
+    m_secureReady = false;
     // Stop servicing callbacks before releasing their SSL state.
     removeJob();
     freeSSLResources();
@@ -327,9 +329,8 @@ SecureSocket::secureWrite(const void* buffer, int size, int& wrote)
 bool
 SecureSocket::isSecureReady()
 {
-    // FUTURE(BX-001): I still need to synchronise state observers with shutdown;
-    // the application I/O guards do not settle cross-thread flag access.
-    return m_secureReady;
+    // I expose terminal shutdown immediately, even while an in-flight handshake unwinds.
+    return m_secureReady.load() && !isFatal();
 }
 
 void
