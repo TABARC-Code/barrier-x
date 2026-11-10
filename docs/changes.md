@@ -1,5 +1,11 @@
 # barrier-x changes
 
+## 2.4.31-snapshot - 10 November 2026
+
+- I check POSIX identity-file ancestors before opening or restricting the file.
+- I share the checked directory walker between identity loading and GUI trust storage.
+- I refuse changed parent paths without redirecting permission changes to a replacement file.
+
 ## 2.4.30-snapshot - 10 November 2026
 
 - I replace the removed Qt middle-button and date-format APIs.

@@ -42,6 +42,8 @@ an address or discovered display name is not identity proof.
 | 2.4.27 SSL shutdown | Five new local concurrency cases pass with ThreadSanitizer, including paired TLS application I/O | Real network/multiplexer shutdown and native concurrency |
 | 2.4.28 POSIX GUI trust ancestors | Eleven new regressions; root-relative checks and private creation implemented | Windows/engine paths, macOS extended ACLs, path-based lock and crash durability remain open |
 | 2.4.29 native build settings | macOS SDK build established in 2.4.28; sysroot and Windows OpenGL failures reproduced in hosted logs and settings corrected | Corrected native application builds, GUI tests and packaging remain unverified |
+| 2.4.30 Qt API compatibility | Both local Qt majors compile; thirteen CTest entries pass under each | Native Windows/macOS GUI results, desktop use and packaging |
+| 2.4.31 identity-read ancestors | Shared POSIX walker; unsafe/link/missing/replaced-parent regressions | Identity creation/publication, engine trust loading, Windows parents and macOS ACLs |
 | Reviewed actions | Design only | Registry, target enforcement, transport, GUI, scheduling and negative tests |
 
 I update this table as evidence arrives. A workflow file or a successful compiler

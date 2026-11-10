@@ -18,6 +18,7 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <fstream>
+#include <functional>
 #include <iterator>
 #include <memory>
 #include <stdexcept>
@@ -39,6 +40,7 @@ thread_local bool fail_publication = false;
 thread_local bool fail_mode_change = false;
 thread_local bool fail_file_stat = false;
 thread_local bool foreign_owner = false;
+thread_local std::function<void()> file_stat_hook;
 thread_local int read_descriptor = -1;
 thread_local int read_descriptor_flags = -1;
 thread_local std::string swapped_path, replacement_path, displaced_path;
@@ -49,16 +51,12 @@ thread_local int observed_descriptor_flags = -1;
 extern "C" int __real_fstat(int, struct stat*);
 extern "C" int __wrap_fstat(int descriptor, struct stat* info)
 {
-    read_descriptor = descriptor;
-    if (fail_file_stat) {
-        fail_file_stat = false;
-        errno = EIO;
-        return -1;
-    }
-    int result = __real_fstat(descriptor, info);
-    if (result == 0 && foreign_owner) {
-        foreign_owner = false;
-        info->st_uid = geteuid() + 1;
+    const int result = __real_fstat(descriptor, info);
+    if (result == 0 && S_ISREG(info->st_mode)) {
+        read_descriptor = descriptor;
+        if (fail_file_stat) { fail_file_stat = false; errno = EIO; return -1; }
+        if (foreign_owner) { foreign_owner = false; info->st_uid = geteuid() + 1; }
+        if (file_stat_hook) { auto hook = std::move(file_stat_hook); file_stat_hook = {}; hook(); }
     }
     return result;
 }
@@ -166,6 +164,7 @@ protected:
         swapped_path.clear();
         replacement_path.clear();
         displaced_path.clear();
+        file_stat_hook = {};
 #endif
         ERR_clear_error();
         if (!directory.empty()) {
@@ -515,5 +514,102 @@ TEST_F(CertificateStorageTests, PathReplacementDoesNotChangeLoadedPair)
     EXPECT_EQ(0666, info.st_mode & 07777);
     ASSERT_EQ(0, stat(displaced_path.c_str(), &info));
     EXPECT_EQ(0600, info.st_mode & 07777);
+}
+#endif
+
+#if SYSAPI_UNIX
+TEST_F(CertificateStorageTests, UnsafeAncestorIsRefusedBeforeIdentityPermissionsChange)
+{
+    const auto outer = directory / "outer";
+    barrier::fs::create_directories(outer / "private");
+    ASSERT_EQ(0, chmod(outer.c_str(), 0700));
+    ASSERT_EQ(0, chmod((outer / "private").c_str(), 0700));
+    target = outer / "private" / "identity.pem";
+    barrier::generate_pem_self_signed_cert(target.u8string());
+    const auto original = read(target);
+    ASSERT_EQ(0, chmod(target.c_str(), 0666));
+    ASSERT_EQ(0, chmod(outer.c_str(), 0777));
+    auto repair = barrier::finally([&] { chmod(outer.c_str(), 0700); });
+    EXPECT_THROW(barrier::read_pem_identity(target.u8string()), std::runtime_error);
+    struct stat info{};
+    ASSERT_EQ(0, stat(target.c_str(), &info));
+    EXPECT_EQ(0666, info.st_mode & 07777);
+    EXPECT_TRUE(original == read(target));
+}
+TEST_F(CertificateStorageTests, LinkedIdentityFolderIsRefusedBeforeTouchingItsFile)
+{
+    const auto real = directory / "real";
+    barrier::fs::create_directory(real);
+    const auto file = real / "identity.pem";
+    barrier::generate_pem_self_signed_cert(file.u8string());
+    const auto original = read(file);
+    ASSERT_EQ(0, chmod(file.c_str(), 0666));
+    barrier::fs::create_directory_symlink(real, directory / "link");
+    EXPECT_THROW(barrier::read_pem_identity((directory / "link" / "identity.pem").u8string()), std::runtime_error);
+    struct stat info{};
+    ASSERT_EQ(0, stat(file.c_str(), &info));
+    EXPECT_EQ(0666, info.st_mode & 07777);
+    EXPECT_TRUE(original == read(file));
+}
+TEST_F(CertificateStorageTests, CheckedIntermediateLinkKeepsTheSameIdentity)
+{
+    const auto outer = directory / "outer";
+    barrier::fs::create_directories(outer / "private");
+    ASSERT_EQ(0, chmod(outer.c_str(), 0700));
+    ASSERT_EQ(0, chmod((outer / "private").c_str(), 0700));
+    const auto file = outer / "private" / "identity.pem";
+    barrier::generate_pem_self_signed_cert(file.u8string());
+    const auto expected = barrier::get_pem_file_cert_fingerprint(file.u8string(), barrier::SHA256);
+    barrier::fs::create_directory_symlink("outer", directory / "alias");
+    auto identity = barrier::read_pem_identity((directory / "alias" / "private" / "identity.pem").u8string());
+    EXPECT_EQ(expected, barrier::get_ssl_cert_fingerprint(identity.certificate.get(), barrier::SHA256));
+    EXPECT_EQ(1, X509_check_private_key(identity.certificate.get(), identity.private_key.get()));
+}
+TEST_F(CertificateStorageTests, IdentityParentTraversalAndEmbeddedNullAreRejected)
+{
+    barrier::generate_pem_self_signed_cert(target.u8string());
+    const auto original = read(target);
+    EXPECT_THROW(barrier::read_pem_identity(target.u8string() + std::string("\0ignored", 8)), std::runtime_error);
+    EXPECT_THROW(barrier::read_pem_identity((directory / "missing" / ".." / target.filename()).u8string()), std::runtime_error);
+    EXPECT_FALSE(barrier::fs::exists(directory / "missing"));
+    EXPECT_TRUE(original == read(target));
+}
+TEST_F(CertificateStorageTests, MissingIdentityParentsAreNotCreatedByReading)
+{
+    const auto missing = directory / "missing" / "private" / "identity.pem";
+    EXPECT_THROW(barrier::read_pem_identity(missing.u8string()), std::runtime_error);
+    EXPECT_FALSE(barrier::fs::exists(directory / "missing"));
+}
+#endif
+#ifdef BARRIER_TEST_WRAP_CERTIFICATE_IO
+TEST_F(CertificateStorageTests, ReplacedParentCannotRedirectIdentityPermissionMigration)
+{
+    const auto outer = directory / "outer";
+    barrier::fs::create_directories(outer / "private");
+    ASSERT_EQ(0, chmod(outer.c_str(), 0700));
+    ASSERT_EQ(0, chmod((outer / "private").c_str(), 0700));
+    target = outer / "private" / "identity.pem";
+    barrier::generate_pem_self_signed_cert(target.u8string());
+    const auto original = read(target);
+    ASSERT_EQ(0, chmod(target.c_str(), 0666));
+    std::string replacement;
+    file_stat_hook = [&] {
+        barrier::fs::rename(outer, directory / "moved");
+        barrier::fs::create_directories(outer / "private");
+        EXPECT_EQ(0, chmod(outer.c_str(), 0700));
+        EXPECT_EQ(0, chmod((outer / "private").c_str(), 0700));
+        barrier::generate_pem_self_signed_cert(target.u8string());
+        replacement = read(target);
+        EXPECT_EQ(0, chmod(target.c_str(), 0666));
+    };
+    EXPECT_THROW(barrier::read_pem_identity(target.u8string()), std::runtime_error);
+    EXPECT_FALSE(file_stat_hook);
+    EXPECT_FALSE(replacement.empty());
+    EXPECT_TRUE(replacement == read(target));
+    EXPECT_TRUE(original == read(directory / "moved" / "private" / "identity.pem"));
+    struct stat info{};
+    ASSERT_EQ(0, stat(target.c_str(), &info));
+    EXPECT_EQ(0666, info.st_mode & 07777);
+    EXPECT_EQ(-1, fcntl(read_descriptor, F_GETFD));
 }
 #endif

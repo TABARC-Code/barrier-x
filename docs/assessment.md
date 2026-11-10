@@ -572,3 +572,26 @@ That left transport failures disconnected from the GUI's error reporting.
 I use typed errorOccurred connections for TCP and local sockets, and add a
 connection-refused case which exercises the actual client signal. Native local
 service behaviour still needs its Windows check.
+
+
+## Identity-read ancestors, 2.4.31
+
+I move the existing POSIX GUI directory walker into io/PrivateDirectory and use
+it for engine identity reads. Each directory is opened relative to a checked
+handle from the filesystem root. Unsafe ownership/write access, explicit parent
+traversal and a linked final folder are refused before the identity is opened.
+Safe intermediate links retain the existing bounded resolution rules. Reading
+doesn't create missing folders or repair ancestor permissions.
+
+The file is opened relative to the retained folder, with the existing no-follow,
+regular-file, owner, single-link, size and mode checks. I reopen the directory
+chain before parsing and compare its final device/inode with the held handle.
+A replacement cannot redirect the file permission change. If a checked parent
+moves during that change, the held old file may already have been restricted
+before the directory recheck refuses the read. A later same-user rename is still
+possible; the read stays anchored to the file already opened.
+
+This covers POSIX identity loading, not creation/publication or the engine's
+peer-trust database reader. Windows parent handling and macOS extended ACLs
+remain open. Directory opens need read access as well as traversal access.
+The shared walker remains deliberately bounded rather than a general path API.

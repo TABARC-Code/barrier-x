@@ -47,6 +47,7 @@
 #include "base/String.h"
 #include "base/finally.h"
 #include "io/filesystem.h"
+#include "io/PrivateDirectory.h"
 
 #include <openssl/evp.h>
 #include <openssl/x509.h>
@@ -183,6 +184,7 @@ void write_identity(const fs::path& destination, EVP_PKEY* key, X509* certificat
         throw std::runtime_error("Could not close certificate output");
     }
     // Keep the previous identity until the new key and certificate are complete.
+    // FUTURE(BX-004): I still need checked ancestors for creation and publication.
     // The parent directory must be trusted; this is not a shared-folder API.
     fs::rename(temporary, destination);
     published = true;
@@ -285,8 +287,15 @@ PemIdentity read_pem_identity(const std::string& path)
         throw std::runtime_error("Could not open checked certificate stream");
     }
 #else
-    // I reject a final symlink and open FIFOs without waiting for a writer.
-    int descriptor = ::open(path.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK);
+    const auto identity_path = fs::u8path(path);
+    const auto name = identity_path.filename().native();
+    if (path.find('\0') != std::string::npos || name.empty() || name == "." || name == "..") {
+        throw std::runtime_error("Certificate identity needs a valid file name");
+    }
+    // I check the ancestors before opening or changing permissions on the identity.
+    PrivateDirectory directory(identity_path.parent_path());
+    int descriptor = ::openat(directory.descriptor(), name.c_str(),
+                              O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK);
     if (descriptor < 0) { throw std::runtime_error("Could not safely open certificate identity"); }
     auto close_descriptor = finally([&] { if (descriptor >= 0) { ::close(descriptor); } });
     auto check_file = [&](const struct stat& info) {
@@ -306,7 +315,8 @@ PemIdentity read_pem_identity(const std::string& path)
     if (::fstat(descriptor, &info) != 0) { throw std::runtime_error("Could not verify certificate identity permissions"); }
     check_file(info);
     if ((info.st_mode & 07777) != 0600) { throw std::runtime_error("Certificate identity permissions remain unsafe"); }
-    // I keep this descriptor for the read. A second path lookup buys a race.
+    directory.check_current();
+    // I keep this descriptor for the read. A second file lookup buys a race.
     file = fdopen(descriptor, "rb");
     if (!file) { throw std::runtime_error("Could not open certificate identity stream"); }
     descriptor = -1;

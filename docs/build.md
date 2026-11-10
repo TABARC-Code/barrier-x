@@ -915,3 +915,34 @@ first Qt 6 pass exposes a removed socket-error signal, I use typed errorOccurred
 connections and add a real connection-refused case. The final reader runs report
 40 passes and one environment skip. The Unix listener skip remains explicit;
 these runs don't validate the Windows service transport or native desktop.
+
+
+## Checked identity-read ancestors, 2.4.31
+
+10 November 2026. I configure the shared POSIX directory helper into the io
+library and build the complete Qt 6 manual-only GUI, engine and test targets
+with GCC 14.2 on Debian 13. All thirteen CTest entries pass. The engine suite
+contains 236 cases, the selected SSL lifecycle suite 48, certificate storage 31,
+GUI units 97 and dashboard 30. Selected suites overlap the engine suite; these
+aren't additive totals. The reader reports 40 passes and one explicit Unix
+listener skip because this workspace denies AF_UNIX socket creation.
+
+I also build and run all 97 Qt 5 GUI unit cases against the shared helper.
+All 31 certificate-storage cases pass in a fresh engine-only ASan/UBSan build
+with leak detection disabled. This is address/undefined-behaviour evidence,
+not a new heap-leak or thread-sanitiser pass. Both local Qt packages are the
+compatibility-only Debian SDK described above, not shipping dependencies.
+
+Six new cases cover unsafe earlier ancestors before identity-mode migration,
+a linked final folder, a safe intermediate link, embedded NUL/explicit parent
+traversal, missing parents and parent replacement during file inspection.
+The replacement case preserves the new path's file bytes and mode, retains
+the old identity bytes and checks the reader's descriptor closes on refusal.
+The GUI trust-store regressions exercise the same extracted traversal code.
+
+I review the final source diff and version declarations; whitespace checks
+pass. The 2.4.30 native Windows helper job 42863324722 passes. Its Windows
+GUI job remains in progress and macOS is queued at this checkpoint; neither
+validates this iteration. Windows parent handling, macOS extended ACLs,
+identity creation/publication, engine trust loading and installed desktop
+behaviour remain open. The test branch remains separate from master.
