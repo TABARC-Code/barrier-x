@@ -1,5 +1,11 @@
 # barrier-x changes
 
+## 2.4.33-snapshot - 10 November 2026
+
+- I add an optional Tor loopback transport plugin with strict SOCKS parsing and bounded sessions.
+- I add authenticated POSIX onion-service presets and a standalone Python package.
+- I keep the transport disabled by default and preserve engine TLS and peer approval.
+
 ## 2.4.32-snapshot - 10 November 2026
 
 - I anchor POSIX certificate creation, replacement and cleanup to checked folder handles.

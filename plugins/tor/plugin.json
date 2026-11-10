@@ -1,0 +1,17 @@
+{
+  "id": "barrier-x.tor",
+  "name": "Tor remote link",
+  "version": "0.1.0",
+  "type": "external-transport",
+  "entrypoint": "bridge.py",
+  "python": ">=3.11",
+  "default_enabled": false,
+  "local_address": "127.0.0.1",
+  "default_listen_port": 24801,
+  "default_socks_port": 9050,
+  "default_remote_port": 24800,
+  "requires": ["operator-configured Tor", "Barrier TLS and peer approval"],
+  "tor_reviewed_baseline": "C Tor 0.4.9.16 on 10 November 2026; operator-verified",
+  "service_provisioning": "POSIX only",
+  "licence": "See bundled LICENSE"
+}

@@ -2,10 +2,10 @@
 
 Updated 10 November 2026. Starting point: upstream-derived commit
 `653e4badeb88f61de901581667d4465d7b1e2d52` on `master`.
-Current development version: **2.4.32-snapshot**. POSIX identity reads and
-writes use checked ancestors; missing GUI identity folders are created through
-checked handles. Windows GUI compilation and its service reader now pass;
-key-binding and dashboard regressions still fail in the native 2.4.31 run.
+Current development version: **2.4.33-snapshot**. The optional external Tor
+transport plugin is coded and packaged separately, disabled by default. Local
+protocol, relay, TLS and packaging checks pass; public onion connectivity,
+authorisation rejection and latency remain unverified. Windows GUI regressions,
 Windows parents, extended ACLs and storage crash recovery remain open.
 
 The aim is dependable control across several computers, with a clear account
@@ -117,6 +117,7 @@ A warning button isn't an authorisation boundary. No action runner is implemente
 | BX-028 | Implemented, 2.4.7-snapshot | Event queues own their lazy event-type providers; first construction is serialised | Two new tests cover all twenty providers, repeated lifetimes and concurrent first access. Normal and ASan/UBSan checks passed locally; hosted Debug/Release and leak checks passed in run 40860940285 |
 | BX-029 | Implemented, 2.4.8-snapshot | Incremental, bounded engine IPC frames, strict validation and correct command elevation encoding | Thirteen regressions and three localhost round trips passed; local ASan/UBSan passed. Split/coalesced frames, both limits, invalid fields/directions and proxy dispatch covered; Qt reader hardening follows in 2.4.10; caller authentication and aggregate queue limits remain open |
 | BX-030 | Implemented, 2.4.10-snapshot | Non-blocking bounded Qt service reader, reconnect recovery and explicit protocol errors | Full Linux GUI build, 58 existing GUI tests and the Qt socket suite passed; QtTest reported 39 passes including suite hooks, also under local ASan/UBSan. Windows/macOS and interactive desktop validation remain open |
+| BX-032 | In progress, 2.4.33-snapshot | Optional external Tor transport plugin 0.1.0: fixed onion target, loopback SOCKS bridge, bounded relay and private POSIX service preset | Sixteen local checks cover strict parsing, backpressure, cancellation, caps, reconnects, real TLS, preset safety, archive execution and shutdown; CMake build/install component verified. Tor is not installed locally, so public-network behaviour, actual client-authorisation rejection, latency and native Windows/macOS checks remain open. No native plugin loader or GUI integration claimed. |
 | BX-031 | Planned | Four reviewed actions and a separately unlocked one-off script editor | Target-side authorisation, exact script/target approval, expiry and replay rejection, bounded execution and cancellation need design and tests; no runner implemented |
 
 ## Next four weeks

@@ -1,7 +1,7 @@
 # Working plan
 
 10 November 2026. The five-area completion programme is in
-[completion-plan.md](completion-plan.md). Development is 2.4.32-snapshot.
+[completion-plan.md](completion-plan.md). Development is 2.4.33-snapshot.
 POSIX identity reads and writes now use checked ancestor traversal, including
 GUI creation of missing identity folders. Native Windows GUI compilation and
 service-reader tests pass; key-binding round trips and a dashboard trust-context
@@ -199,3 +199,15 @@ currentIndexChanged(QString) slot has no matching signal. Its body restarts the
 connection when a server is selected. I need an enabled-discovery regression
 for an actual selection, then a checked signal-connection fix. A manual-only
 build passing its dashboard tests doesn't establish that interaction.
+
+
+## Optional Tor transport, BX-032
+
+I add the external bridge requested separately from the core work. The first
+plugin is coded and packaged as 0.1.0; it uses existing engine TLS and approval.
+I still need a real authenticated onion-service session, a client without its
+Tor authorisation key, measured pointer latency and native platform checks.
+A future GUI entry should make the target, route and local-return action clear,
+without showing a connected badge merely because the bridge listener is alive.
+Tor failure must release input through the engine's existing recovery path;
+actual held-key recovery over this route remains unverified.

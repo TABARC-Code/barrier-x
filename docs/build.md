@@ -985,3 +985,29 @@ skip because this workspace denies creation of Unix-domain sockets. I verify
 the final source objects were rebuilt and review the final diff and matching
 version declarations; whitespace checks pass. No fresh leak/thread-sanitiser,
 native desktop or packaging pass is claimed for this iteration.
+
+
+## Optional Tor plugin, 2.4.33
+
+10 November 2026. I run sixteen Python 3.12.14 local checks on Debian 13.
+They pass with actual TCP sockets, a controlled SOCKS peer and a real TLS
+server/client pair which accepts the trusted certificate and rejects another.
+The packaged CLI forwards bytes and stops its active session on SIGTERM.
+The suite also covers fragmented and malformed SOCKS replies, a stalled setup,
+auth downgrade, connection caps, reconnect isolation, idle/write/half-close
+limits, checksummed addresses, private presets and unsafe ancestors.
+
+I configure BARRIER_BUILD_TOR_PLUGIN=ON in the local Qt 6 build, build only the
+barrier-tor-plugin target and run its registered CTest entry. The entry passes
+all sixteen checks. I install just the tor-plugin component into a clean local
+prefix and run its archive's --version entry point. The manifest, README,
+licence and exact runtime source are present; caches, fixtures and keys are
+excluded. Python compilation and final whitespace checks pass. The Linux job
+now checks this optional transport and its standalone packaging independently
+of the main C++ build. Hosted results for this iteration remain pending.
+
+The C++ implementation is unchanged in this iteration; I don't claim a new full
+engine/native GUI build. Tor isn't installed here, so public onion transport,
+Tor-side authorisation rejection, actual Tor config parsing and latency aren't
+exercised. Native Windows/macOS plugin runs and Windows ACL provisioning remain
+open. The external bridge has no automatic GUI loader or reviewed-action runner.

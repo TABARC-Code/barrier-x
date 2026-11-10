@@ -625,3 +625,37 @@ KeySequence serialisation round trips produce an empty saved array in the native
 unit cases, and the dashboard trust-context case reports disconnected where it
 expects connecting. Those observations need investigation; I haven't established
 whether the test fixtures or application behaviour are at fault.
+
+
+## Optional Tor transport plugin, 2.4.33
+
+I implement an external companion rather than invent an in-process plugin ABI.
+Its one fixed destination must be a checksum-valid v3 onion address. Only
+127.0.0.1 is used for the local listener and Tor SOCKS endpoint. SOCKS fields
+are read by exact bounded lengths, with a single setup deadline and no direct
+fallback. Fresh connections carry new Tor isolation values; these aren't
+credentials or substitutes for engine certificate approval.
+
+The bridge relays opaque bytes with backpressure, bounded sessions, idle/write
+waits and a bounded half-close. It doesn't terminate or configure TLS. Other
+local accounts can reach a loopback listener, and the Tor listener isn't itself
+authenticated. I retain application TLS and peer trust as required boundaries.
+Payloads and remote identifiers aren't logged; only an aggregate failure count
+is reported on shutdown. Reader thresholds can overshoot and kernel buffers
+are additional, so I don't describe these as exact total-memory caps.
+
+The POSIX preset creator uses checked, retained directory handles, exclusive
+0600 files and 0700 folders. It refuses existing profiles and linked or unsafe
+ancestors. The authorised-client file precedes the launchable config. It doesn't
+claim extended-ACL checks, crash durability or protection from same-user/root
+changes. Windows ACL provisioning stays manual. Tor's rule that the last valid
+authorisation file controls whether the service is private remains operationally
+important: the generated files must be loaded and an unauthorised client tested.
+
+Sixteen local checks include fragmented/bad replies, auth-method downgrade,
+2 MiB transfer, caps/reconnects, shutdown during setup, blocked writes and EOF,
+private presets, package execution and real TLS trust rejection. The first
+shutdown test finds and fixes waiting for clients before cancelling them.
+Tor isn't installed here. These checks don't establish a real onion service,
+client-authorisation enforcement, anonymity, latency or input recovery over Tor.
+The plugin remains experimental and disabled by default.

@@ -123,3 +123,29 @@ for local Qt 5/6 compatibility builds. Debian's Qt 6.8.2 package has unresolved
 [security-tracker issues](https://security-tracker.debian.org/tracker/source-package/qt6-base);
 its controlled local compatibility run is not approval to distribute that SDK.
 The pinned and patched Qt 6.12 source remains the native candidate.
+
+
+## Optional Tor transport, 2.4.33
+
+I add no third-party Python package or imported source. The external plugin uses
+Python 3.11+ standard-library asyncio, sockets, encoding and checksum functions;
+its archive carries the repository licence. Tor and Python aren't bundled. The
+operator supplies maintained, patched installations and Tor's client-auth files.
+
+I check the official [SOCKS extensions](https://spec.torproject.org/socks-extensions),
+[v3 address encoding](https://spec.torproject.org/rend-spec/encoding-onion-addresses.html),
+[service setup](https://community.torproject.org/onion-services/setup/) and
+[client authorisation](https://community.torproject.org/onion-services/advanced/client-auth/).
+The SOCKS isolation format 0 uses the documented Tor magic username; no external
+implementation or setup script is copied or executed. I check Python's Server
+shutdown semantics against its current documentation and exercise pending-client
+cancellation with actual local sockets.
+
+On 10 November 2026, Tor's official release channel lists
+[0.4.9.16](https://forum.torproject.org/t/security-release-0-4-9-16/22372) as stable;
+the preceding 0.4.9.14 security release includes onion-service and client fixes.
+Tor's [August notice](https://newsletter.torproject.org/archive/2026-08-05-august-2026-tor-news/)
+marks 0.4.8 end-of-life. The reviewed deployment baseline is C Tor 0.4.9.16 or a
+newer supported patched release, with a fresh advisory check at installation.
+The bridge cannot infer or enforce that version through SOCKS. No Tor binary
+is installed or executed locally, so there is no live Tor version-validation claim.

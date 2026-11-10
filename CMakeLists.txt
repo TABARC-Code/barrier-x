@@ -421,3 +421,9 @@ option(BARRIER_BUILD_GUI_IPC_TESTS "Build Qt service-reader tests" OFF)
 if (BARRIER_BUILD_TESTS AND BARRIER_BUILD_GUI_IPC_TESTS)
     add_subdirectory(src/gui/test/ipc)
 endif()
+
+
+option(BARRIER_BUILD_TOR_PLUGIN "Build the optional external Tor transport" OFF)
+if(BARRIER_BUILD_TOR_PLUGIN)
+    add_subdirectory(plugins/tor)
+endif()
