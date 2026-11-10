@@ -1,31 +1,5 @@
 # barrier-x
 
-Development version: **2.4.24-snapshot**, based on Barrier 2.4.
-
-I can build the GUI without DNS-SD using `-DBARRIER_BUILD_DISCOVERY=OFF`.
-Manual connections stay available; the GUI no longer downloads Bonjour installers.
-
-On Windows the service and its clients now use an authenticated named pipe.
-Changing a service command requires the active console user's elevated GUI;
-start the interface as administrator. Upgrade the service, GUI and engine together.
-Previously saved commands need administrator approval again after upgrading.
-There is no service TCP fallback. I now check identity access through a temporary
-LocalSystem service. Interactive desktop and installer checks remain open.
-
-Windows engine builds now require external OpenSSL 3.5 LTS, at least 3.5.9.
-The old build/installer helpers are retired; see [Windows build notes](docs/windows-build.md).
-
-See the [working plan](docs/working-plan.md), [development backlog](docs/roadmap.md),
-[starting assessment](docs/assessment.md) and [fork changes](docs/changes.md).
-This snapshot sets a TLS 1.2 minimum, fixes POSIX wake-up resource ownership,
-and publishes generated certificates only after checked writes. New POSIX key
-files are owner-only; existing POSIX identities now get mode 0600 on read,
-without key rotation. Windows identity files now use a protected owner/LocalSystem
-ACL, including migration through the checked read handle. Foreign-owned files
-require explicit ownership repair. See [build and test notes](docs/build.md)
-for coverage and remaining checks. The inherited documentation below describes Barrier;
-its badges and download links refer to upstream builds, not verified fork builds.
-
 ## Barrier
 
 Eliminate the barrier between your machines.
