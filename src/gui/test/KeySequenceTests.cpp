@@ -143,3 +143,17 @@ TEST(KeySequenceTests, ToString)
                                    {Qt::Key_0, Qt::ControlModifier}}),
               "a+Control+0");
 }
+
+TEST(KeySequenceCompatibilityTests, MiddleMouseButtonKeepsItsProtocolNumber)
+{
+    KeySequence sequence;
+    sequence.appendMouseButton(Qt::MiddleButton);
+    EXPECT_EQ(QString("3"), sequence.toString());
+}
+
+TEST(KeySequenceCompatibilityTests, UnicodeCodeUnitKeepsPaddedLowerCaseHex)
+{
+    KeySequence sequence;
+    sequence.appendKey(0x0100, 0);
+    EXPECT_EQ(QString("\\u0101"), sequence.toString());
+}

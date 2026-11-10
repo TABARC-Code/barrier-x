@@ -270,6 +270,17 @@ private slots:
         QCOMPARE(logs.count(), 1);
         QCOMPARE(logs[0][0].toString(), QString("first"));
     }
+    void clientReportsConnectionRefused()
+    {
+        const auto port = server.serverPort();
+        server.close();
+        IpcClient client(port);
+        QSignalSpy errors(&client, &IpcClient::errorMessage);
+        client.connectToHost();
+        QTRY_VERIFY(!errors.isEmpty());
+        QCOMPARE(errors.first().first().toString(), QString("ipc connection error, connection refused"));
+        client.disconnectFromHost();
+    }
     void clientRestartsAndRelaysProtocolErrors()
     {
         IpcClient client(server.serverPort());

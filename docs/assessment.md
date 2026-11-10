@@ -555,3 +555,20 @@ the same, and the SDK provenance file now records its configure options.
 These are build-setting corrections. Successful Qt SDK installation on macOS
 doesn't establish a working application or package; the corrected native jobs
 still need their own compilation and runtime evidence.
+
+
+## Remaining Qt API compatibility, 2.4.30
+
+Both native 2.4.29 jobs finish SDK construction and reach GUI compilation.
+KeySequence still uses Qt::MidButton and passes a char16_t Unicode unit to a
+QString::arg overload which no longer accepts that call in Qt 6.12. AboutDialog
+also uses the removed SystemLocaleLongDate enum. I use MiddleButton, an explicit
+unsigned integer for hexadecimal formatting and QLocale's system long format.
+Two key-binding cases preserve middle mouse as 3 and Unicode as padded lower-case
+hex. This doesn't add separate side-button bindings; that remains BX-013.
+
+The first local Qt 6 pass also warns that QTcpSocket::error no longer exists.
+That left transport failures disconnected from the GUI's error reporting.
+I use typed errorOccurred connections for TCP and local sockets, and add a
+connection-refused case which exercises the actual client signal. Native local
+service behaviour still needs its Windows check.

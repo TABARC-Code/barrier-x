@@ -191,10 +191,10 @@ QString KeySequence::keyToString(int key)
         {
             case Qt::LeftButton: return "1";
             case Qt::RightButton: return "2";
-            case Qt::MidButton: return "3";
+            case Qt::MiddleButton: return "3";
         }
 
-        return "4"; // qt only knows three mouse buttons, so assume it's an unknown fourth one
+        return "4"; // FUTURE(BX-013): I still need separate side-button bindings; this is the old fallback.
     }
 
     // modifiers?
@@ -231,7 +231,7 @@ QString KeySequence::keyToString(int key)
 
     // representable in ucs2?
     if (key < 0x10000)
-        return QString("\\u%1").arg(QChar(key).toLower().unicode(), 4, 16, QChar('0'));
+        return QString("\\u%1").arg(static_cast<uint>(QChar(key).toLower().unicode()), 4, 16, QChar('0'));
 
     // give up, barrier probably won't handle this
     return "";

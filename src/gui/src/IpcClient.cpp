@@ -37,7 +37,7 @@ m_Enabled(false)
     if (port == IPC_PORT) {
         m_Local = new QLocalSocket(this);
         m_Socket = m_Local;
-        connect(m_Local, SIGNAL(error(QLocalSocket::LocalSocketError)), this, SLOT(localError(QLocalSocket::LocalSocketError)));
+        connect(m_Local, &QLocalSocket::errorOccurred, this, &IpcClient::localError);
         connect(m_Local, &QLocalSocket::disconnected, this, [this] { m_Verified = false; });
         m_Reader = new IpcReader(m_Local);
     }
@@ -48,7 +48,7 @@ m_Enabled(false)
         m_Tcp = new QTcpSocket(this);
         m_Socket = m_Tcp;
         connect(m_Tcp, SIGNAL(connected()), this, SLOT(connected()));
-        connect(m_Tcp, SIGNAL(error(QAbstractSocket::SocketError)), this, SLOT(error(QAbstractSocket::SocketError)));
+        connect(m_Tcp, &QAbstractSocket::errorOccurred, this, &IpcClient::error);
         m_Reader = new IpcReader(m_Tcp);
     }
     connect(m_Reader, &IpcReader::protocolError, this, &IpcClient::errorMessage);

@@ -889,3 +889,29 @@ CTest entries in both Debug and Release, the manual dashboard's thirty cases
 and four selected ASan/UBSan entries. Windows native run 42758567687 passes
 its three entries, including the file replacement and temporary-service cases.
 These results establish the earlier checks, not the corrected native GUI build.
+
+
+## Qt 5/6 API compatibility, 2.4.30
+
+10 November 2026. Both native 2.4.29 jobs finish SDK construction and reach
+GUI compilation. Windows run 42761402300 and macOS run 42761402295 reject
+Qt::MidButton, the char16_t QString::arg call and SystemLocaleLongDate. I
+replace those uses with APIs accepted by both supported Qt majors.
+
+I configure fresh manual-only Debug builds on Debian 13 with GCC 14.2,
+Qt 5.15.15 and Qt 6.8.2 from signed Debian packages extracted into a user-owned
+prefix. The complete GUI, engine and test targets compile under both majors.
+Two new cases preserve middle mouse as 3 and Unicode code units as four-digit,
+lower-case hexadecimal. The GUI suite contains 97 cases and the dashboard 30.
+
+The local reader's Unix-domain listener case is explicitly skipped because
+creating AF_UNIX sockets returns EPERM in this workspace. The other reader
+cases run. The Debian Qt 6 package is a compatibility tool with unresolved
+tracker issues, not a replacement for the pinned patched native SDK. Native
+Windows/macOS runtime and packaging checks remain unverified.
+
+Each fresh local Qt-major build passes all thirteen CTest entries. After the
+first Qt 6 pass exposes a removed socket-error signal, I use typed errorOccurred
+connections and add a real connection-refused case. The final reader runs report
+40 passes and one environment skip. The Unix listener skip remains explicit;
+these runs don't validate the Windows service transport or native desktop.

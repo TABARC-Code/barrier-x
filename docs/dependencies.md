@@ -114,3 +114,12 @@ Qt's default Windows backend; other platforms retain the existing setting.
 No dependency revision or additional archive is introduced. I record the exact
 configure options in the SDK provenance file. Native compilation remains the
 check that determines whether these settings resolve the observed failures.
+
+
+For 2.4.30 I check the current [Qt namespace](https://doc.qt.io/qt-6/qt.html)
+and [QLocale](https://doc.qt.io/qt-6/qlocale.html) documentation against both
+native compiler reports. I use signed Debian packages in a user-owned prefix
+for local Qt 5/6 compatibility builds. Debian's Qt 6.8.2 package has unresolved
+[security-tracker issues](https://security-tracker.debian.org/tracker/source-package/qt6-base);
+its controlled local compatibility run is not approval to distribute that SDK.
+The pinned and patched Qt 6.12 source remains the native candidate.

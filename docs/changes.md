@@ -1,5 +1,11 @@
 # barrier-x changes
 
+## 2.4.30-snapshot - 10 November 2026
+
+- I replace the removed Qt middle-button and date-format APIs.
+- I keep Unicode key formatting compatible with Qt 6 integer overloads.
+- I restore service socket-error reporting through typed signal connections.
+
 ## 2.4.29-snapshot - 10 November 2026
 
 - I stop forcing a macOS sysroot into the compiler flags.

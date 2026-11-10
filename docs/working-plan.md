@@ -1,10 +1,10 @@
 # Working plan
 
 10 November 2026. The five-area completion programme is in
-[completion-plan.md](completion-plan.md). Development is 2.4.29-snapshot. The
-2.4.28 Linux and Windows helper checks pass. The native runs identify two
-build blockers: an empty macOS sysroot flag and OpenGL disabled in the Windows
-Qt SDK. I correct those settings before extending storage work.
+[completion-plan.md](completion-plan.md). Development is 2.4.30-snapshot. Both
+native SDKs now build; I correct the remaining middle-button, Unicode formatting
+and date-format API calls found during native GUI compilation. Checked identity-read ancestors remain the next separate change. Windows/engine
+trust paths, extended ACLs, packaging and reviewed actions are still open.
 
 The detailed backlog
 and landed versions live in [roadmap.md](roadmap.md); build evidence stays in
