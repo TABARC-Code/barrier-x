@@ -1,10 +1,10 @@
 # Working plan
 
 10 November 2026. The five-area completion programme is in
-[completion-plan.md](completion-plan.md). Development is 2.4.28-snapshot. I add
-POSIX GUI trust-ancestor checks and correct the disposable Qt checkout's fetch
-policy. Linux and Windows helper checks pass for the preceding 2.4.27 checkpoint;
-macOS stops during a Qt fetch, with Windows Qt still unverified.
+[completion-plan.md](completion-plan.md). Development is 2.4.29-snapshot. The
+2.4.28 Linux and Windows helper checks pass. The native runs identify two
+build blockers: an empty macOS sysroot flag and OpenGL disabled in the Windows
+Qt SDK. I correct those settings before extending storage work.
 
 The detailed backlog
 and landed versions live in [roadmap.md](roadmap.md); build evidence stays in

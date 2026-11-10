@@ -1,5 +1,11 @@
 # barrier-x changes
 
+## 2.4.29-snapshot - 10 November 2026
+
+- I stop forcing a macOS sysroot into the compiler flags.
+- I enable OpenGL support in the Windows Qt SDK.
+- I record the Qt configure options beside its pinned source inputs.
+
 ## 2.4.28-snapshot - 10 November 2026
 
 - I check POSIX peer-trust ancestors from the filesystem root.

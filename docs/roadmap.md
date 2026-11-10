@@ -2,10 +2,11 @@
 
 Updated 10 November 2026. Starting point: upstream-derived commit
 `653e4badeb88f61de901581667d4465d7b1e2d52` on `master`.
-Current development version: **2.4.28-snapshot**. Hosted 2.4.27 Linux
-Debug/Release and native Windows helper checks pass. macOS stops during a Qt
-fetch; Windows Qt integration remains unverified. The POSIX GUI ancestor checks
-and bounded fetch-maintenance correction are implemented locally in 2.4.28.
+Current development version: **2.4.29-snapshot**. Hosted 2.4.28 Linux
+Debug/Release and native Windows helper checks pass. The macOS Qt SDK now
+builds, but application linking stops at an inherited sysroot flag. Windows
+Qt SDK compilation stops at a disabled-OpenGL reference. I correct these
+settings in 2.4.29; native GUI validation remains open.
 
 The aim is dependable control across several computers, with a clear account
 of which device receives input and what it may share. Security, recovery and

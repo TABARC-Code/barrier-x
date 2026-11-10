@@ -67,7 +67,9 @@ def build(prefix, jobs):
     options = [
         '-G', 'Ninja', '-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_INSTALL_PREFIX=' + str(prefix),
         '-DQT_BUILD_EXAMPLES=OFF', '-DQT_BUILD_TESTS=OFF', '-DBUILD_SHARED_LIBS=ON',
-        '-DFEATURE_opengl=OFF', '-DFEATURE_sql=OFF', '-DFEATURE_dbus=OFF',
+        # I keep Windows' platform-plugin OpenGL support in the SDK.
+        '-DFEATURE_opengl=' + ('ON' if sys.platform == 'win32' else 'OFF'),
+        '-DFEATURE_sql=OFF', '-DFEATURE_dbus=OFF',
         '-DFEATURE_printsupport=OFF', '-DFEATURE_widgets=ON', '-DFEATURE_testlib=ON',
         '-DFEATURE_openssl=OFF',
     ]
@@ -76,7 +78,7 @@ def build(prefix, jobs):
     run('cmake', '--install', output)
     notices = prefix / 'licenses/Qt'
     shutil.copytree(source / 'LICENSES', notices)
-    manifest.write_text(json.dumps(IDENTITY, indent=2) + '\n')
+    manifest.write_text(json.dumps({**IDENTITY, 'configure_options': options}, indent=2) + '\n')
 
 
 if __name__ == '__main__':

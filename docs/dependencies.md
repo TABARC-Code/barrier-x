@@ -104,3 +104,13 @@ conversion drivers and colour. Git's automatic object-ID abbreviation changes
 as the object database grows; it shouldn't change the recorded patch digest.
 The extraction regression sets a short abbreviation and an external diff
 command which must not execute, then checks the complete IDs and applied bytes.
+
+
+For 2.4.29 I check the current [CMake macOS sysroot guidance](https://cmake.org/cmake/help/v4.0/variable/CMAKE_OSX_SYSROOT.html)
+and [Qt 6.12 Windows graphics documentation](https://doc.qt.io/qt-6.12/windows-graphics.html).
+I remove the inherited hand-built --sysroot compiler argument and explicitly
+select macosx in the native job. Windows SDK configuration enables OpenGL using
+Qt's default Windows backend; other platforms retain the existing setting.
+No dependency revision or additional archive is introduced. I record the exact
+configure options in the SDK provenance file. Native compilation remains the
+check that determines whether these settings resolve the observed failures.

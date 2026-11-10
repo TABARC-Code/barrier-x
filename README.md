@@ -1,6 +1,6 @@
 # barrier-x
 
-Development version: **2.4.28-snapshot**, based on Barrier 2.4.
+Development version: **2.4.29-snapshot**, based on Barrier 2.4.
 
 ## Barrier
 

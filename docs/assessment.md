@@ -535,3 +535,23 @@ For recovery, I want the interface to identify the failing ancestor and explain
 which ownership or access check failed (BX-007). Any repair needs a deliberately
 selected folder. A blanket permission change would be a fairly efficient way
 to create the next problem. This is a proposal, not an implemented repair flow.
+
+
+## Native build settings, 2.4.29
+
+The macOS 2.4.28 job builds and installs the reviewed Qt SDK, then fails while
+linking barrierc: `ld: library 'c++' not found`. The command starts with an empty
+`--sysroot` followed by a legacy Google Test definition. That makes the next
+flag act as the sysroot argument. I remove the inherited flags assignment and
+leave SDK handling to CMake; the native job selects CMAKE_OSX_SYSROOT=macosx.
+Caller-supplied compiler flags remain available through CMake's usual settings.
+
+The Windows 2.4.27 Qt SDK build fails in qwindowswindow.cpp with references to
+QOpenGLStaticContext and QOpenGLContext while OpenGL is disabled. I enable the
+SDK's OpenGL feature on Windows, retaining the selected Qt default backend.
+Linux and macOS keep the existing disabled setting. The source/fix pins stay
+the same, and the SDK provenance file now records its configure options.
+
+These are build-setting corrections. Successful Qt SDK installation on macOS
+doesn't establish a working application or package; the corrected native jobs
+still need their own compilation and runtime evidence.

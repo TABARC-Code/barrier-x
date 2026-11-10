@@ -134,7 +134,7 @@ if (UNIX)
     endif()
 
     if (APPLE)
-        set (CMAKE_CXX_FLAGS "--sysroot ${CMAKE_OSX_SYSROOT} ${CMAKE_CXX_FLAGS} -DGTEST_USE_OWN_TR1_TUPLE=1")
+        # I leave SDK flags to CMake; an empty hand-built sysroot swallowed the next flag.
 
         find_library (lib_ScreenSaver ScreenSaver)
         find_library (lib_IOKit IOKit)

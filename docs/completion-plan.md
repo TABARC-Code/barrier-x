@@ -41,6 +41,7 @@ an address or discovered display name is not identity proof.
 | 2.4.26 GUI portability | Local Qt 5.15.15 build; 84 GUI unit and 29 dashboard cases | Windows Qt/macOS stop at SDK patch application; corrected in local 2.4.27, not yet a native pass |
 | 2.4.27 SSL shutdown | Five new local concurrency cases pass with ThreadSanitizer, including paired TLS application I/O | Real network/multiplexer shutdown and native concurrency |
 | 2.4.28 POSIX GUI trust ancestors | Eleven new regressions; root-relative checks and private creation implemented | Windows/engine paths, macOS extended ACLs, path-based lock and crash durability remain open |
+| 2.4.29 native build settings | macOS SDK build established in 2.4.28; sysroot and Windows OpenGL failures reproduced in hosted logs and settings corrected | Corrected native application builds, GUI tests and packaging remain unverified |
 | Reviewed actions | Design only | Registry, target enforcement, transport, GUI, scheduling and negative tests |
 
 I update this table as evidence arrives. A workflow file or a successful compiler

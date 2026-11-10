@@ -860,3 +860,32 @@ its three entries, including the pipe, storage and temporary-service cases.
 macOS run 42755993808 stops during Qt source fetching after the first patch,
 before Qt or application compilation. These hosted results don't validate
 2.4.28 or close the remaining native GUI checks.
+
+
+## Native SDK settings, 2.4.29
+
+10 November 2026. macOS run 42758568071 builds and installs the pinned, patched
+Qt 6.12 SDK, then application linking fails with `ld: library 'c++' not found`.
+I inspect the link command: the inherited empty --sysroot argument consumes
+the following legacy Google Test definition. I remove the manual compiler-flag
+assignment and select CMAKE_OSX_SYSROOT=macosx in the native job.
+
+Windows run 42755993932 fails while building Qt's Windows platform plugin: an
+OpenGL-disabled configuration still references QOpenGLStaticContext and
+QOpenGLContext in qwindowswindow.cpp. I enable the SDK OpenGL feature on
+Windows. The SDK provenance file now records its configure options. Corrected
+Windows/macOS application and runtime checks remain unverified.
+
+Locally, I configure and build the complete Qt 5 manual-only GUI, engine and
+tests with GCC 14.2 on Debian 13. All thirteen CTest entries pass, including
+95 GUI unit and 30 dashboard cases. The reader passes 39 cases with the same
+single Unix listener case explicitly skipped because this workspace denies
+AF_UNIX creation. The SDK patch-extraction regression, Python compilation,
+workflow syntax and final whitespace checks pass. No native or new sanitiser
+pass is claimed for 2.4.29.
+
+For preceding commit 2bcf2971 (2.4.28), Linux run 42758567762 passes thirteen
+CTest entries in both Debug and Release, the manual dashboard's thirty cases
+and four selected ASan/UBSan entries. Windows native run 42758567687 passes
+its three entries, including the file replacement and temporary-service cases.
+These results establish the earlier checks, not the corrected native GUI build.
