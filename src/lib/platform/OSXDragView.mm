@@ -81,7 +81,7 @@ namesOfPromisedFilesDroppedAtDestination:(NSURL *)dropDestination
 {
 	[m_dropTarget setString:@""];
 	[m_dropTarget appendString:dropDestination.path];
-	NSLog ( @"cocoa drop target: %@", m_dropTarget);
+	NSLog ( @"cocoa drop target selected");
 	return nil;
 }
 

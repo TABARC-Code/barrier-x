@@ -75,6 +75,7 @@ std::string MSWindowsClipboardBitmapConverter::toIClipboard(HANDLE data) const
     }
     UInt32 srcSize = (UInt32)GlobalSize(data);
 
+    // FUTURE(BX-010): I need checked DIB bounds before passing this buffer to GDI.
     // check image type
     const BITMAPINFO* bitmap = static_cast<const BITMAPINFO*>(src);
     LOG((CLOG_INFO "bitmap: %dx%d %d", bitmap->bmiHeader.biWidth, bitmap->bmiHeader.biHeight, (int)bitmap->bmiHeader.biBitCount));

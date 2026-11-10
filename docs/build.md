@@ -1011,3 +1011,33 @@ engine/native GUI build. Tor isn't installed here, so public onion transport,
 Tor-side authorisation rejection, actual Tor config parsing and latency aren't
 exercised. Native Windows/macOS plugin runs and Windows ACL provisioning remain
 open. The external bridge has no automatic GUI loader or reviewed-action runner.
+
+
+## Security corrections, 2.4.34
+
+10 November 2026. I compile a small reproducer against the old clipboard decoder
+with ASan/UBSan. Its 32-byte message announces a 4096-byte payload; ASan reports
+a heap-buffer-overflow in IClipboard::unmarshall and exits non-zero. The corrected
+reader validates all headers/lengths before clipboard mutation and uses unsigned
+wire IDs until range checks. Six new clipboard regressions and six POSIX trusted
+fingerprint storage regressions are added.
+
+The targeted ASan/UBSan run passes 46 clipboard/chunk/fingerprint/storage cases
+with leak detection disabled. I then build the complete manual-only Qt 6 GUI,
+engine and test targets with GCC 14.2 on Debian 13. All fourteen local CTest
+entries pass with the optional Tor plugin enabled: engine units contain 254
+cases, GUI units 99, dashboard 30 and the plugin 16. Selected CTest suites overlap
+the engine suite. The reader reports 40 passes and one explicit Unix listener
+skip because this workspace denies AF_UNIX creation.
+
+The changed X11 and Linux paths compile; full X11 DEBUG2 selection handling isn't
+exercised on a desktop. Windows/macOS diagnostic changes and the checked Windows
+pin-reader integration need native validation. No new Qt 5, heap-leak, thread-
+sanitiser, installed-service/session or clean-machine installation pass is
+claimed. Hosted checks for this iteration remain pending.
+
+I review the final source diff, match both version declarations and check
+whitespace. The [security review](../production/security/security-audit-2026-11-10-full.md)
+records fixed issues and remaining coverage. Today's OpenSSL fix release can't
+be pinned from a verified archive/tag/checksum yet; no replacement dependency
+build is claimed. Existing source selections remain unchanged.

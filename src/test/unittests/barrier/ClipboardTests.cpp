@@ -17,6 +17,8 @@
  */
 
 #include "barrier/Clipboard.h"
+#include "barrier/XBarrier.h"
+#include <stdexcept>
 
 #include "test/global/gtest.h"
 
@@ -401,4 +403,105 @@ TEST(ClipboardTests, copy_withSingleText_clipboardsAreEqual)
     clipboard2.open(0);
     String actual = clipboard2.get(Clipboard::kText);
     EXPECT_EQ("barrier rocks!", actual);
+}
+
+
+namespace {
+void appendClipboardWord(String& bytes, UInt32 value)
+{
+    for (int shift = 24; shift >= 0; shift -= 8) {
+        bytes += static_cast<char>((value >> shift) & 255);
+    }
+}
+String clipboardEntry(UInt32 format, const String& content)
+{
+    String bytes;
+    appendClipboardWord(bytes, 1);
+    appendClipboardWord(bytes, format);
+    appendClipboardWord(bytes, static_cast<UInt32>(content.size()));
+    return bytes + content;
+}
+}
+
+TEST(ClipboardTests, MalformedMessagesPreserveExistingContentsAndTimestamp)
+{
+    Clipboard clipboard;
+    ASSERT_TRUE(clipboard.open(42));
+    clipboard.empty();
+    clipboard.add(IClipboard::kText, "previous clipboard");
+    clipboard.close();
+    const String valid = clipboardEntry(IClipboard::kText, "new clipboard");
+    for (std::size_t cut = 0; cut < valid.size(); ++cut) {
+        EXPECT_THROW(clipboard.unmarshall(valid.substr(0, cut), 99), XBadClient);
+        ASSERT_TRUE(clipboard.open(0));
+        EXPECT_EQ("previous clipboard", clipboard.get(IClipboard::kText));
+        clipboard.close();
+        EXPECT_EQ(42u, clipboard.getTime());
+    }
+    EXPECT_THROW(clipboard.unmarshall(valid + "extra", 99), XBadClient);
+    EXPECT_EQ(42u, clipboard.getTime());
+}
+TEST(ClipboardTests, AdvertisedPayloadCannotReadBeyondItsBuffer)
+{
+    // Tuesday games later. This used to read past the buffer.
+    Clipboard clipboard;
+    String data(32, '\0');
+    data[3] = 1;
+    data[10] = 0x10;
+    EXPECT_THROW(clipboard.unmarshall(data, 0), XBadClient);
+}
+TEST(ClipboardTests, ImpossibleCountsAndSizesAreRejected)
+{
+    Clipboard clipboard;
+    String data;
+    appendClipboardWord(data, 0xffffffffu);
+    EXPECT_THROW(clipboard.unmarshall(data, 0), XBadClient);
+    data.clear();
+    appendClipboardWord(data, 1);
+    appendClipboardWord(data, IClipboard::kText);
+    appendClipboardWord(data, 0xffffffffu);
+    EXPECT_THROW(clipboard.unmarshall(data, 0), XBadClient);
+}
+TEST(ClipboardTests, HighBitAndFutureFormatIdsAreSkippedSafely)
+{
+    for (const UInt32 format : {0xffffffffu, 0x80000000u, 0x7fffffffu,
+                                static_cast<UInt32>(IClipboard::kNumFormats)}) {
+        Clipboard clipboard;
+        String data;
+        appendClipboardWord(data, 2);
+        appendClipboardWord(data, format);
+        appendClipboardWord(data, 1);
+        data += 'x';
+        const auto known = clipboardEntry(IClipboard::kText, "safe text");
+        data += known.substr(4);
+        EXPECT_NO_THROW(clipboard.unmarshall(data, 0));
+        ASSERT_TRUE(clipboard.open(0));
+        EXPECT_TRUE(clipboard.has(IClipboard::kText));
+        EXPECT_EQ("safe text", clipboard.get(IClipboard::kText));
+        clipboard.close();
+    }
+}
+TEST(ClipboardTests, BinaryRoundTripAndDuplicateFormatsKeepTheLastValue)
+{
+    Clipboard clipboard;
+    String data;
+    appendClipboardWord(data, 2);
+    data += clipboardEntry(IClipboard::kText, "first").substr(4);
+    data += clipboardEntry(IClipboard::kText, String("a\0b", 3)).substr(4);
+    clipboard.unmarshall(data, 123);
+    Clipboard copy;
+    copy.unmarshall(clipboard.marshall(), 123);
+    ASSERT_TRUE(copy.open(0));
+    EXPECT_EQ(String("a\0b", 3), copy.get(IClipboard::kText));
+    copy.close();
+}
+TEST(ClipboardTests, ClipboardClosesIfAnAdapterThrows)
+{
+    class ThrowingClipboard : public Clipboard {
+    public:
+        void add(EFormat, const String&) override { throw std::runtime_error("fixture failure"); }
+    } clipboard;
+    EXPECT_THROW(clipboard.unmarshall(clipboardEntry(IClipboard::kText, "test"), 0), std::runtime_error);
+    EXPECT_TRUE(clipboard.open(0));
+    clipboard.close();
 }

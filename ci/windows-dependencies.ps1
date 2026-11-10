@@ -16,6 +16,7 @@ if (!(Test-Path $perl)) { throw 'Native Strawberry Perl is unavailable' }
 $env:PATH = "C:\Program Files\NASM;$env:PATH"
 if (!(Get-Command nasm.exe -ErrorAction SilentlyContinue)) { throw 'NASM is unavailable' }
 
+# FUTURE(BX-024): I need the published 3.5.10 archive and verified checksum before changing this pin.
 $archive = Join-Path $work 'openssl-3.5.9.tar.gz'
 Invoke-WebRequest 'https://github.com/openssl/openssl/releases/download/openssl-3.5.9/openssl-3.5.9.tar.gz' -OutFile $archive
 $expected = '603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a'

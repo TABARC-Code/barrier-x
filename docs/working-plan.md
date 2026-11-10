@@ -1,7 +1,7 @@
 # Working plan
 
 10 November 2026. The five-area completion programme is in
-[completion-plan.md](completion-plan.md). Development is 2.4.33-snapshot.
+[completion-plan.md](completion-plan.md). Development is 2.4.34-snapshot.
 POSIX identity reads and writes now use checked ancestor traversal, including
 GUI creation of missing identity folders. Native Windows GUI compilation and
 service-reader tests pass; key-binding round trips and a dashboard trust-context
@@ -211,3 +211,15 @@ A future GUI entry should make the target, route and local-return action clear,
 without showing a connected badge merely because the bridge listener is alive.
 Tor failure must release input through the engine's existing recovery path;
 actual held-key recovery over this route remains unverified.
+
+
+## Security follow-through
+
+I land the reproduced clipboard bounds fix, checked engine pin reads and removal
+of identified sensitive diagnostics in 2.4.34. The [security review](../production/security/security-audit-2026-11-10-full.md)
+is the current work list. Next come per-peer clipboard/file assembly and queue
+limits, then strict drop destinations and native bitmap checks. Keep drag/drop
+disabled by default while those protections are unfinished. I also need the
+verified OpenSSL corrected release when its archive and checksum are published.
+Native Windows/macOS review, UAC/session tests and clean-machine packaging still
+need their actual platforms. A successful source scan isn't a release sign-off.

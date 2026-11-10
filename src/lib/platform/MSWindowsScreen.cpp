@@ -1914,7 +1914,7 @@ MSWindowsScreen::getDropTarget() const
         char desktopPath[MAX_PATH];
         if (SUCCEEDED(SHGetFolderPath(NULL, CSIDL_DESKTOP, NULL, 0, desktopPath))) {
             m_dropTargetPath = std::string(desktopPath);
-            LOG((CLOG_INFO "using desktop for drop target: %s", m_dropTargetPath.c_str()));
+            LOG((CLOG_INFO "using desktop for drop target"));
         }
         else {
             LOG((CLOG_ERR "failed to get desktop path, no drop target available, error=%d", GetLastError()));

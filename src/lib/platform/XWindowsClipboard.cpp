@@ -1091,57 +1091,7 @@ XWindowsClipboard::sendReply(Reply* reply)
         LOG((CLOG_DEBUG1 "clipboard: sending notify to 0x%08x,%d,%d", reply->m_requestor, reply->m_target, reply->m_property));
         reply->m_replied = true;
 
-        // dump every property on the requestor window to the debug2
-        // log.  we've seen what appears to be a bug in lesstif and
-        // knowing the properties may help design a workaround, if
-        // it becomes necessary.
-        if (CLOG->getFilter() >= kDEBUG2) {
-            XWindowsUtil::ErrorLock lock(m_display);
-            int n;
-            Atom* props = m_impl->XListProperties(m_display, reply->m_requestor,
-                                                  &n);
-            LOG((CLOG_DEBUG2 "properties of 0x%08x:", reply->m_requestor));
-            for (int i = 0; i < n; ++i) {
-                Atom target;
-                std::string data;
-                char* name = m_impl->XGetAtomName(m_display, props[i]);
-                if (!XWindowsUtil::getWindowProperty(m_display,
-                                reply->m_requestor,
-                                props[i], &data, &target, NULL, False)) {
-                    LOG((CLOG_DEBUG2 "  %s: <can't read property>", name));
-                }
-                else {
-                    // if there are any non-ascii characters in string
-                    // then print the binary data.
-                    static const char* hex = "0123456789abcdef";
-                    for (std::string::size_type j = 0; j < data.size(); ++j) {
-                        if (data[j] < 32 || data[j] > 126) {
-                            std::string tmp;
-                            tmp.reserve(data.size() * 3);
-                            for (j = 0; j < data.size(); ++j) {
-                                unsigned char v = (unsigned char)data[j];
-                                tmp += hex[v >> 16];
-                                tmp += hex[v & 15];
-                                tmp += ' ';
-                            }
-                            data = tmp;
-                            break;
-                        }
-                    }
-                    char* type = m_impl->XGetAtomName(m_display, target);
-                    LOG((CLOG_DEBUG2 "  %s (%s): %s", name, type, data.c_str()));
-                    if (type != NULL) {
-                        m_impl->XFree(type);
-                    }
-                }
-                if (name != NULL) {
-                    m_impl->XFree(name);
-                }
-            }
-            if (props != NULL) {
-                m_impl->XFree(props);
-            }
-        }
+        // I leave clipboard and window-property contents out of diagnostics.
 
         sendNotify(reply->m_requestor, m_selection,
                                 reply->m_target, reply->m_property,

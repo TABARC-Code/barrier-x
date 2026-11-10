@@ -149,3 +149,15 @@ marks 0.4.8 end-of-life. The reviewed deployment baseline is C Tor 0.4.9.16 or a
 newer supported patched release, with a fresh advisory check at installation.
 The bridge cannot infer or enforce that version through SOCKS. No Tor binary
 is installed or executed locally, so there is no live Tor version-validation claim.
+
+
+## Advisory checkpoint, 2.4.34
+
+10 November 2026. The official [vulnerability list](https://www.openssl-library.org/news/vulnerabilities/)
+now names 3.5.10 fixes for new CMS, AES-GCM-SIV and QUIC issues. The inspected
+application uses ordinary TLS methods; no CMS encryption, GCM-SIV or QUIC API
+call is found. Transitive use isn't fully inventoried. The [downloads page](https://www.openssl-library.org/source/)
+still lists 3.5.9, and checked 3.5.10 tag, release and checksum endpoints return
+404. I retain the verified input while tracking the corrected release as open.
+No guessed hash, new upstream script or unreviewed dependency is introduced.
+The pin must be revisited before release; runtime packaging remains blocked.

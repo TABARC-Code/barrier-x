@@ -20,6 +20,21 @@
 #include "io/filesystem.h"
 #include <algorithm>
 #include <fstream>
+#include <sstream>
+#include <stdexcept>
+#include <cerrno>
+#include <utility>
+#include <system_error>
+#include "base/finally.h"
+#ifdef _WIN32
+#include "io/WinPrivateFile.h"
+#include <io.h>
+#else
+#include "io/PrivateDirectory.h"
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
 
 namespace barrier {
 
@@ -28,6 +43,74 @@ void FingerprintDatabase::read(const fs::path& path)
     std::ifstream file;
     open_utf8_path(file, path, std::ios_base::in);
     read_stream(file);
+}
+
+void FingerprintDatabase::read_trusted(const fs::path& path)
+{
+    // I don't let an unreadable replacement leave yesterday's approvals active.
+    fingerprints_.clear();
+    constexpr std::size_t limit = 1024 * 1024;
+    int descriptor = -1;
+#ifdef _WIN32
+    std::error_code error;
+    const auto status = fs::symlink_status(path, error);
+    if (error == std::errc::no_such_file_or_directory || (!error && !fs::exists(status))) { return; }
+    if (error) { throw std::runtime_error("Cannot inspect peer trust storage"); }
+    descriptor = read_private_file(path.native());
+    auto cleanup = finally([&] { _close(descriptor); });
+#else
+    const auto name = path.filename().native();
+    if (path.native().find('\0') != std::string::npos || name.empty() || name == "." || name == "..") {
+        throw std::runtime_error("Peer trust storage needs a valid file name");
+    }
+    PrivateDirectory directory(path.parent_path(), PrivateDirectoryMode::AllowMissing);
+    if (directory.descriptor() < 0) { return; }
+    descriptor = ::openat(directory.descriptor(), name.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK);
+    if (descriptor < 0) {
+        if (errno == ENOENT) { return; }
+        throw std::runtime_error("Cannot open peer trust storage");
+    }
+    auto cleanup = finally([&] { ::close(descriptor); });
+    struct stat info{};
+    if (::fstat(descriptor, &info) != 0 || !S_ISREG(info.st_mode) || info.st_uid != geteuid() ||
+        info.st_nlink != 1 || (info.st_mode & (S_IWGRP | S_IWOTH)) != 0 || info.st_size < 0 ||
+        static_cast<unsigned long long>(info.st_size) > limit) {
+        throw std::runtime_error("Peer trust storage has unsafe ownership, links, access or size");
+    }
+#endif
+    std::string bytes;
+    char buffer[4096];
+    while (true) {
+        const auto wanted = std::min<std::size_t>(sizeof(buffer), limit + 1 - bytes.size());
+#ifdef _WIN32
+        const auto count = _read(descriptor, buffer, static_cast<unsigned>(wanted));
+#else
+        const auto count = ::read(descriptor, buffer, wanted);
+#endif
+        if (count < 0 && errno == EINTR) { continue; }
+        if (count < 0) { throw std::runtime_error("Cannot read peer trust storage"); }
+        if (count == 0) { break; }
+        bytes.append(buffer, static_cast<std::size_t>(count));
+        if (bytes.size() > limit) { throw std::runtime_error("Peer trust storage exceeds 1 MiB"); }
+    }
+#ifndef _WIN32
+    directory.check_current();
+#endif
+    FingerprintDatabase checked;
+    std::istringstream encoded(bytes);
+    std::string line;
+    while (std::getline(encoded, line)) {
+        if (!line.empty() && line.back() == '\r') { line.pop_back(); }
+        if (line.empty()) { continue; }
+        const auto peer = parse_db_line(line);
+        if (!((peer.algorithm == "sha256" && peer.data.size() == 32) ||
+              (peer.algorithm == "sha1" && peer.data.size() == 20))) {
+            throw std::runtime_error("Peer trust storage contains a malformed or unsupported entry");
+        }
+        checked.add_trusted(peer);
+    }
+    // FUTURE(BX-002): Windows ancestors and macOS extended ACLs still need review.
+    fingerprints_ = std::move(checked.fingerprints_);
 }
 
 void FingerprintDatabase::write(const fs::path& path)

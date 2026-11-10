@@ -1,6 +1,6 @@
 # barrier-x
 
-Development version: **2.4.33-snapshot**, based on Barrier 2.4.
+Development version: **2.4.34-snapshot**, based on Barrier 2.4.
 
 Optional [Tor remote-link plugin](plugins/tor/README.md): a separate loopback transport, disabled by default.
 

@@ -659,3 +659,34 @@ shutdown test finds and fixes waiting for clients before cancelling them.
 Tor isn't installed here. These checks don't establish a real onion service,
 client-authorisation enforcement, anonymity, latency or input recovery over Tor.
 The plugin remains experimental and disabled by default.
+
+
+## Clipboard bounds, trust loading and diagnostics, 2.4.34
+
+I reproduce a heap-buffer-overflow in IClipboard::unmarshall using 32 bytes
+which announce a 4096-byte format payload. The decoder used raw pointer reads,
+trusted counts/lengths and converted format IDs before checking their range.
+I validate the whole blob, stage supported contents and retain unsigned wire
+IDs until the range check. Invalid data leaves the previous clipboard and
+ownership time alone. RAII closes an adapter if an add operation throws.
+
+I also close the difference between GUI approval storage and engine pin loading.
+The engine uses bounded checked file input, validated records and no stale
+in-memory authority after a failed read. POSIX ancestors use the retained
+PrivateDirectory walker; Windows uses its existing private-file helper. A
+validation failure refuses the connection. It doesn't rewrite the pin file.
+Native Windows ancestors and macOS extended ACLs remain open.
+
+X11's DEBUG2 requestor-window dump includes clipboard payloads and unrelated
+window properties. I remove it entirely. Identified GUI startup arguments,
+trust-store paths and drag/drop paths/names are replaced with fixed labels and
+counts. I preserve public peer fingerprints used by the approval interface.
+Old diagnostic files aren't sanitised retroactively.
+
+The [security review](../production/security/security-audit-2026-11-10-full.md)
+keeps the remaining work explicit: per-peer transfer state and total limits,
+packet queue bounds, drag metadata/destinations, native bitmap validation,
+log-file storage, installed service authorisation and runtime provenance.
+Today's OpenSSL notices name fixes in 3.5.10, but no checked release/tag/checksum
+is available yet. I don't claim an upgrade or an established trigger through
+this application's ordinary TLS calls.

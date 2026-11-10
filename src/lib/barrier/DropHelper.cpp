@@ -25,9 +25,10 @@
 void
 DropHelper::writeToDir(const String& destination, DragFileList& fileList, String& data)
 {
-    LOG((CLOG_DEBUG "dropping file, files=%i target=%s", fileList.size(), destination.c_str()));
+    LOG((CLOG_DEBUG "dropping file, count=%i", fileList.size()));
 
     if (!destination.empty() && fileList.size() > 0) {
+        // FUTURE(BX-011): I need reviewed names and link/overwrite protection before wider use.
         std::fstream file;
         String dropTarget = destination;
 #ifdef SYSAPI_WIN32
@@ -38,13 +39,13 @@ DropHelper::writeToDir(const String& destination, DragFileList& fileList, String
         dropTarget.append(fileList.at(0).getFilename());
         barrier::open_utf8_path(file, dropTarget, std::ios::out | std::ios::binary);
         if (!file.is_open()) {
-            LOG((CLOG_ERR "drop file failed: can not open %s", dropTarget.c_str()));
+            LOG((CLOG_ERR "drop file failed: cannot open destination"));
         }
 
         file.write(data.c_str(), data.size());
         file.close();
 
-        LOG((CLOG_INFO "dropped file \"%s\" in \"%s\"", fileList.at(0).getFilename().c_str(), destination.c_str()));
+        LOG((CLOG_INFO "file drop completed"));
 
         fileList.clear();
     }

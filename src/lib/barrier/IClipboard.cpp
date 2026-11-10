@@ -18,6 +18,9 @@
 
 #include "barrier/IClipboard.h"
 #include "common/stdvector.h"
+#include "barrier/XBarrier.h"
+#include "base/finally.h"
+#include <array>
 
 //
 // IClipboard
@@ -28,38 +31,47 @@ IClipboard::unmarshall(IClipboard* clipboard, const String& data, Time time)
 {
     assert(clipboard != NULL);
 
-    const char* index = data.data();
+    if (data.size() < 4) {
+        throw XBadClient("Clipboard header is truncated");
+    }
+    const UInt32 numFormats = readUInt32(data.data());
+    if (numFormats > (data.size() - 4) / 8) {
+        throw XBadClient("Clipboard format count exceeds the message");
+    }
+
+    // I check the whole blob before touching the clipboard. Rain or shine.
+    std::array<String, kNumFormats> decoded;
+    std::array<bool, kNumFormats> present{};
+    std::size_t offset = 4;
+    for (UInt32 i = 0; i < numFormats; ++i) {
+        if (data.size() - offset < 8) {
+            throw XBadClient("Clipboard format header is truncated");
+        }
+        const UInt32 format = readUInt32(data.data() + offset);
+        const UInt32 size = readUInt32(data.data() + offset + 4);
+        offset += 8;
+        if (size > data.size() - offset) {
+            throw XBadClient("Clipboard format exceeds the message");
+        }
+        // Keep wire IDs unsigned; a future format mustn't become a negative index.
+        if (format < static_cast<UInt32>(kNumFormats)) {
+            decoded[format].assign(data.data() + offset, size);
+            present[format] = true;
+        }
+        offset += size;
+    }
+    if (offset != data.size()) {
+        throw XBadClient("Clipboard message has trailing data");
+    }
 
     if (clipboard->open(time)) {
-        // clear existing data
-        clipboard->empty();
-
-        // read the number of formats
-        const UInt32 numFormats = readUInt32(index);
-        index += 4;
-
-        // read each format
-        for (UInt32 i = 0; i < numFormats; ++i) {
-            // get the format id
-            IClipboard::EFormat format =
-                static_cast<IClipboard::EFormat>(readUInt32(index));
-            index += 4;
-
-            // get the size of the format data
-            UInt32 size = readUInt32(index);
-            index += 4;
-
-            // save the data if it's a known format.  if either the client
-            // or server supports more clipboard formats than the other
-            // then one of them will get a format >= kNumFormats here.
-            if (format <IClipboard::kNumFormats) {
-                clipboard->add(format, String(index, size));
+        auto close = barrier::finally([&] { clipboard->close(); });
+        if (!clipboard->empty()) { return; }
+        for (UInt32 format = 0; format < static_cast<UInt32>(kNumFormats); ++format) {
+            if (present[format]) {
+                clipboard->add(static_cast<EFormat>(format), decoded[format]);
             }
-            index += size;
         }
-
-        // done
-        clipboard->close();
     }
 }
 

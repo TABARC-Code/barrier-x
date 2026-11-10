@@ -644,11 +644,8 @@ void MainWindow::startBarrier()
 
     appendLogInfo("starting " + QString(barrier_type() == BarrierType::Server ? "server" : "client"));
 
-    qDebug() << args;
-
-    appendLogDebug(QString("command: %1 %2").arg(app, args.join(" ")));
-
-    appendLogInfo("config file: " + configFilename());
+    // I keep startup paths and endpoint arguments out of shared diagnostics.
+    appendLogDebug("engine command prepared");
     appendLogInfo("log level: " + appConfig().logLevelText());
 
     if (appConfig().logToFile())

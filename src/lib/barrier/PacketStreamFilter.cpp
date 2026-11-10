@@ -161,6 +161,7 @@ PacketStreamFilter::readMore()
     // note if we have whole packet
     bool wasReady = isReadyNoLock();
 
+    // FUTURE(BX-006): I still need a total queue cap and a terminal error state here.
     // read more data
     char buffer[4096];
     UInt32 n = getStream()->read(buffer, sizeof(buffer));

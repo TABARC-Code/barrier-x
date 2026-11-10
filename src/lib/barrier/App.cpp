@@ -176,7 +176,7 @@ App::initApp(int argc, const char** argv)
     if (argsBase().m_enableDragDrop) {
         LOG((CLOG_INFO "drag and drop enabled"));
         if (!argsBase().m_dropTarget.empty()) {
-            LOG((CLOG_INFO "drop target: %s", argsBase().m_dropTarget.c_str()));
+            LOG((CLOG_INFO "drop target configured"));
         }
     }
 

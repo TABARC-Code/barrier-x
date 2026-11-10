@@ -29,6 +29,8 @@ namespace barrier {
 class FingerprintDatabase {
 public:
     void read(const fs::path& path);
+    // A failed checked read leaves no active pins.
+    void read_trusted(const fs::path& path);
     void write(const fs::path& path);
 
     void read_stream(std::istream& stream);

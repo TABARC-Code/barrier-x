@@ -23,6 +23,7 @@
 #include "base/Log.h"
 #include <cstring>
 
+// FUTURE(BX-006): I need per-peer assembly state and a total byte limit.
 size_t ClipboardChunk::s_expectedSize = 0;
 
 ClipboardChunk::ClipboardChunk(size_t size) :

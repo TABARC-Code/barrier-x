@@ -1,5 +1,12 @@
 # barrier-x changes
 
+## 2.4.34-snapshot - 10 November 2026
+
+- I validate complete clipboard messages before changing clipboard contents.
+- I reject unsafe or malformed peer-trust storage in the engine.
+- I remove clipboard property dumps and identified path/argument diagnostics.
+- I record the remaining parser, storage and dependency work.
+
 ## 2.4.33-snapshot - 10 November 2026
 
 - I add an optional Tor loopback transport plugin with strict SOCKS parsing and bounded sessions.

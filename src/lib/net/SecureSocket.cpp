@@ -772,18 +772,20 @@ bool SecureSocket::verify_cert_fingerprint(const barrier::fs::path& fingerprint_
          barrier::format_ssl_fingerprint(fingerprint_sha1.data).c_str(),
          barrier::format_ssl_fingerprint(fingerprint_sha256.data).c_str()));
 
-    // Provide debug hint as to what file is being used to verify fingerprint trust
-    LOG((CLOG_NOTE "fingerprint_db_path: %s", fingerprint_db_path.u8string().c_str()));
+    LOG((CLOG_NOTE "Checking peer trust storage"));
 
     barrier::FingerprintDatabase db;
-    db.read(fingerprint_db_path);
+    try {
+        db.read_trusted(fingerprint_db_path);
+    } catch (const std::exception&) {
+        LOG((CLOG_ERR "Peer trust storage failed validation; connection refused"));
+        return false;
+    }
 
     if (!db.fingerprints().empty()) {
-        LOG((CLOG_NOTE "Read %d fingerprints from: %s", db.fingerprints().size(),
-             fingerprint_db_path.u8string().c_str()));
+        LOG((CLOG_NOTE "Read %u trusted fingerprints", static_cast<unsigned>(db.fingerprints().size())));
     } else {
-        LOG((CLOG_NOTE "Could not read fingerprints from: %s",
-             fingerprint_db_path.u8string().c_str()));
+        LOG((CLOG_NOTE "No approved fingerprints loaded"));
     }
 
     if (db.is_trusted(fingerprint_sha256)) {

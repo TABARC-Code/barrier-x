@@ -603,7 +603,7 @@ void OSXScreen::get_drop_target_thread()
 	}
 
 	if (cstr != NULL) {
-		LOG((CLOG_DEBUG "drop target: %s", cstr));
+		LOG((CLOG_DEBUG "drop target available"));
 		m_dropTarget = cstr;
 	}
 	else {
@@ -2075,7 +2075,7 @@ OSXScreen::getDraggingFilename()
 			m_draggingFilename.clear();
 		}
 		else {
-			LOG((CLOG_DEBUG "drag info: %s", info));
+			LOG((CLOG_DEBUG "dragged-file information available"));
 			CFRelease(dragInfo);
 			String fileList(info);
 			m_draggingFilename = fileList;
