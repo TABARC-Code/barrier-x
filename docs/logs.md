@@ -52,4 +52,13 @@ refusal, links, streams, size limits, Unicode names, rotation, legacy logs and
 handle inheritance. The existing foreign-owner fixture also checks the log
 editor. These tests are added in 2.4.36; native execution is pending at this
 source checkpoint. The macOS workflow also includes the existing portable
-retention suite. Neither replaces installed-service or interactive GUI checks.
+retention suite. Both selections subsequently pass on 2.4.36: Windows run
+42981547370 and macOS run 42981547400.
+
+In 2.4.37 I extend the temporary LocalSystem service fixture to cover logs too:
+retention, manual clearing, resumed writing, console-owner policy, foreign-owner
+refusal, unavailable console tokens, denied writes and busy files. It checks
+preserved bytes and ACLs after refusal, and prevents the ordinary test process
+from reading the service-owned log. Native execution of this extension is
+pending at its source checkpoint. This isn't an installed-application or
+interactive GUI check. Windows parent-folder validation remains open.

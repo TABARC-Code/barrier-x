@@ -715,3 +715,14 @@ The existing second-user fixture now checks foreign-owner refusal by the log
 editor too. Hosted native execution remains pending at this source checkpoint;
 new test source is not a Windows pass. macOS now selects the portable retention
 suite too. Application behaviour is unchanged.
+
+## Follow-up: 2.4.37-snapshot
+
+The 2.4.36 Windows log harness passes all twelve scenarios in run 42981547370.
+macOS passes all six selected suites, including retention, in run 42981547400.
+I now add log operations to the temporary LocalSystem service fixture, retaining
+SCM result reporting and checking both allowed and refused access. Refused
+operations must preserve contents and ACLs; fixture impersonation unwinds on
+failure. Native execution of this extension is pending at this source checkpoint.
+Windows parent validation, installed-application integration and interactive
+desktop checks remain open. Application behaviour is unchanged.

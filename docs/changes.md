@@ -1,5 +1,11 @@
 # barrier-x changes
 
+## 2.4.37-snapshot - 11 November 2026
+
+- I exercise log expiry, deletion and resumed writing through a temporary Windows service.
+- I check console and foreign ownership, token failures, denied writes and busy logs.
+- I preserve the calling identity when a fixture fails during impersonation.
+
 ## 2.4.36-snapshot - 11 November 2026
 
 - I add a standalone Windows log-storage check target.

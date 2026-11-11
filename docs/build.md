@@ -1103,3 +1103,38 @@ the engine and GUI. All five log-control dashboard cases pass. Its GUI test step
 still fails on the known special-key round trips and trust-context dashboard
 case; those aren't log failures, but the workflow remains red. Existing
 dependency selections are unchanged.
+
+## Service log checks, 2.4.37
+
+11 November 2026. I extend the existing temporary LocalSystem service fixture
+with production log-store calls. It exercises current/backup expiry, manual
+clearing and resumed writing, active-console ownership, foreign-owner refusal,
+failed console-token lookup, denied data writes and busy logs. Refusal must
+preserve bytes and the security descriptor. The ordinary parent process must
+be denied read access to the service-owned log. Fixture impersonation now
+unwinds on exceptions before account/file cleanup.
+
+The full local Linux GUI/engine build succeeds and all fifteen CTest entries
+pass in 25.57 seconds, with the existing explicit Unix-listener exclusion.
+No application behaviour or dependency selection changes in this iteration.
+The new Windows service extension cannot run on the local Linux host; native
+execution is pending at this source checkpoint. It uses dummy files and a
+temporary SCM service, not the installed application. Console acceptance is
+reported separately from refusal when the runner has no matching active user.
+
+On the preceding 2.4.36 commit, Windows run
+[42981547370](https://github.com/TABARC-Code/barrier-x/actions/runs/42981547370)
+passes all four native targets, including twelve log scenarios. macOS run
+[42981547400](https://github.com/TABARC-Code/barrier-x/actions/runs/42981547400)
+passes all six selected suites, including twelve retention/argument cases,
+89 GUI units, 35 dashboard cases and 41 reader passes without reader skips.
+Linux run 42981547407 also succeeds. Windows full run 42981547369 still fails
+the known key-sequence and trust-context GUI cases after compiling the GUI;
+its log-control dashboard cases pass. This doesn't close Windows parent-folder
+validation, macOS extended ACLs, installation or interactive desktop checks.
+
+The service/token and file-rights expectations follow Microsoft's
+[WTSQueryUserToken](https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/nf-wtsapi32-wtsqueryusertoken)
+and [file security](https://learn.microsoft.com/en-us/windows/win32/fileio/file-security-and-access-rights)
+documentation. I review the final diff, match both version declarations and
+check whitespace before publication.

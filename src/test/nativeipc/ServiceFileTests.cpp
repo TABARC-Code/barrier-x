@@ -1,6 +1,7 @@
 /* Copyright (C) 2026 barrier-x contributors
  * Distributed under the GNU General Public License; see LICENSE. */
 #include "../../lib/io/WinPrivateFile.h"
+#include "../../lib/io/LogStore.h"
 #include "../../lib/ipc/WinLocalPipe.h"
 #include <aclapi.h>
 #include <sddl.h>
@@ -12,6 +13,7 @@
 #include <stdexcept>
 #include <system_error>
 #include <vector>
+#include <functional>
 using barrier::localipc::Handle;
 namespace {
 void require(bool condition, const char* message) {
@@ -27,6 +29,11 @@ struct Descriptor {
 struct Security {
     PSECURITY_DESCRIPTOR value = nullptr;
     ~Security() { LocalFree(value); }
+};
+struct Impersonation {
+    explicit Impersonation(HANDLE token) { require(ImpersonateLoggedOnUser(token), "test impersonation"); }
+    ~Impersonation() { if (!RevertToSelf()) { std::terminate(); } }
+    Impersonation(const Impersonation&) = delete;
 };
 struct ScHandle {
     SC_HANDLE value;
@@ -59,6 +66,39 @@ void ownership_refused(const std::wstring& path) {
     catch (const std::runtime_error& error) { refused = std::string(error.what()).find("another owner") != std::string::npos; }
     require(refused, "service accepted foreign ownership");
 }
+void rejected(const std::function<void()>& operation) {
+    bool refused = false;
+    try { operation(); } catch (const std::exception&) { refused = true; }
+    require(refused, "service accepted an unsafe log operation");
+}
+std::string read_log(const std::wstring& path) {
+    Handle file(CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr));
+    require(static_cast<bool>(file), "read dummy log");
+    LARGE_INTEGER size{};
+    require(GetFileSizeEx(file.get(), &size) && size.QuadPart >= 0 && size.QuadPart <= 4096, "dummy log size");
+    std::string bytes(static_cast<std::size_t>(size.QuadPart), '\0'); DWORD count = 0;
+    require(ReadFile(file.get(), bytes.data(), static_cast<DWORD>(bytes.size()), &count, nullptr) && count == bytes.size(), "dummy log bytes");
+    return bytes;
+}
+std::wstring log_security(const std::wstring& path) {
+    Security descriptor;
+    require(GetNamedSecurityInfoW(const_cast<wchar_t*>(path.c_str()), SE_FILE_OBJECT,
+        OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION, nullptr, nullptr, nullptr, nullptr, &descriptor.value) == ERROR_SUCCESS, "log security");
+    wchar_t* raw = nullptr;
+    require(ConvertSecurityDescriptorToStringSecurityDescriptorW(descriptor.value, SDDL_REVISION_1,
+        OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION, &raw, nullptr), "log security text");
+    const std::wstring text(raw); LocalFree(raw); return text;
+}
+constexpr std::time_t log_time = 1700000000;
+void refused_log_operations(const std::wstring& filename) {
+    const barrier::fs::path path(filename);
+    const auto before = read_log(filename);
+    const auto security = log_security(filename);
+    rejected([&] { barrier::clear_logs(path); });
+    rejected([&] { barrier::expire_logs(path, 5, log_time + 6*86400); });
+    rejected([&] { barrier::append_log(path, "must not append", 0, log_time); });
+    require(read_log(filename) == before && log_security(filename) == security, "refusal changed log contents or permissions");
+}
 struct TcbDisabled {
     Handle token;
     TOKEN_PRIVILEGES previous{};
@@ -90,7 +130,7 @@ struct TcbDisabled {
 std::wstring service_name, directory;
 constexpr DWORD result_marker = 0x42580000;
 constexpr DWORD own_pass = 1, console_pass = 2, foreign_pass = 4, token_failure_pass = 8,
-                permission_pass = 16, console_accepted = 32, failure = 0x8000;
+                permission_pass = 16, console_accepted = 32, log_pass = 64, failure = 0x8000;
 DWORD stage = 0;
 DWORD exercise_service() {
     stage = 1;
@@ -164,7 +204,62 @@ DWORD exercise_service() {
       char bytes[14]{}; DWORD count = 0;
       require(file && ReadFile(file.get(), bytes, sizeof(bytes), &count, nullptr) && count == 13 &&
               std::string(bytes, 13) == "test identity", "failed migration changed bytes"); }
-    return result | permission_pass;
+    result |= permission_pass;
+
+    stage = 6;
+    const barrier::fs::path log(directory + L"\\system.log"), backup(directory + L"\\system.log.1");
+    barrier::append_log(log, "old service entry", 0, log_time);
+    barrier::append_log(backup, "old archive", 0, log_time);
+    require(barrier::expire_logs(log, 5, log_time + 5*86400) == 2, "service retention boundary");
+    require(read_log(log.native()).empty() && read_log(backup.native()).empty(), "service logs retained contents");
+    barrier::append_log(log, "fresh service entry", 5, log_time + 5*86400);
+    require(read_log(log.native()).find("fresh service entry") != std::string::npos, "service logging didn't resume");
+    require(barrier::clear_logs(log) == 1 && read_log(log.native()).empty(), "manual service log deletion");
+    barrier::append_log(log, "after manual deletion", 0, log_time);
+    read_identity(directory + L"\\system.pem");
+
+    stage = 7;
+    const barrier::fs::path console_log(directory + L"\\console.log");
+    if (matches_console) {
+        const auto before = log_security(console_log.native());
+        require(barrier::clear_logs(console_log) == 1 && read_log(console_log.native()).empty(), "console log deletion");
+        barrier::append_log(console_log, "console logging resumed", 0, log_time);
+        require(log_security(console_log.native()) == before, "console log ownership or ACL changed");
+    } else { refused_log_operations(console_log.native()); }
+
+    stage = 8;
+    // I give the service access to this fixture; ownership must still get the final say.
+    refused_log_operations(directory + L"\\foreign.log");
+
+    stage = 9;
+    { TcbDisabled disabled; refused_log_operations(console_log.native()); }
+
+    stage = 10;
+    const barrier::fs::path denied_log(directory + L"\\denied.log");
+    barrier::append_log(denied_log, "preserve denied entry", 0, log_time);
+    Security denied_write;
+    require(ConvertStringSecurityDescriptorToSecurityDescriptorW(L"D:P(D;;0x2;;;SY)(A;;FA;;;SY)", SDDL_REVISION_1,
+        &denied_write.value, nullptr), "denied log ACL");
+    acl = nullptr; present = FALSE; defaulted = FALSE;
+    require(GetSecurityDescriptorDacl(denied_write.value, &present, &acl, &defaulted), "denied log DACL");
+    require(SetNamedSecurityInfoW(const_cast<wchar_t*>(denied_log.c_str()), SE_FILE_OBJECT,
+        DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION, nullptr, nullptr, acl, nullptr) == ERROR_SUCCESS, "apply denied log ACL");
+    {
+        Handle writable(CreateFileW(denied_log.c_str(), GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr));
+        require(!writable && GetLastError() == ERROR_ACCESS_DENIED, "denied log fixture still permits writing");
+    }
+    refused_log_operations(denied_log.native());
+
+    stage = 11;
+    const auto active_before = read_log(log.native()), backup_before = read_log(backup.native());
+    for (const auto& path : {log, backup}) {
+        Handle held(CreateFileW(path.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr));
+        require(static_cast<bool>(held), "hold service log");
+        rejected([&] { barrier::clear_logs(log); });
+        rejected([&] { barrier::expire_logs(log, 5, log_time + 6*86400); });
+    }
+    require(read_log(log.native()) == active_before && read_log(backup.native()) == backup_before, "busy service log changed");
+    return result | log_pass;
 }
 void WINAPI control(DWORD operation) {
     // This is a short-lived test service; cancellation must not leave it running.
@@ -244,11 +339,15 @@ struct Fixture {
         };
         // I preserve explicit service access before removing the inherited public ACEs.
         restrict(directory + L"\\foreign.pem", directory + L"\\foreign.pem");
+        restrict(directory + L"\\foreign.log", directory + L"\\foreign.log");
         // I close the public setup window before launching anything as LocalSystem.
         restrict(directory, directory + L"\\console.pem");
     }
     ~Fixture() {
-        for (auto name : {L"console.pem", L"foreign.pem", L"system.pem", L"denied.pem"}) { DeleteFileW((directory + L"\\" + name).c_str()); }
+        for (auto name : {L"console.pem", L"foreign.pem", L"system.pem", L"denied.pem",
+                          L"console.log", L"foreign.log", L"system.log", L"system.log.1", L"denied.log"}) {
+            DeleteFileW((directory + L"\\" + name).c_str());
+        }
         RemoveDirectoryW(directory.c_str());
     }
 };
@@ -315,25 +414,39 @@ int wmain(int argc, wchar_t** argv) {
     try {
         Fixture fixture;
         write_identity(directory + L"\\console.pem");
+        barrier::append_log(barrier::fs::path(directory + L"\\console.log"), "dummy console entry", 0, log_time);
         Account account;
-        require(ImpersonateLoggedOnUser(account.token.get()), "foreign user impersonation");
-        HANDLE created = CreateFileW((directory + L"\\foreign.pem").c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, 0, nullptr);
-        if (!RevertToSelf()) { std::terminate(); }
-        Handle foreign(created);
-        require(static_cast<bool>(foreign), "foreign identity fixture");
-        foreign.reset();
+        {
+            Impersonation caller(account.token.get());
+            Handle foreign(CreateFileW((directory + L"\\foreign.pem").c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, 0, nullptr));
+            require(static_cast<bool>(foreign), "foreign identity fixture");
+            Handle foreign_log(CreateFileW((directory + L"\\foreign.log").c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, 0, nullptr));
+            const std::string bytes = "# barrier-x log 1 1700000000\ndummy foreign entry\n"; DWORD count = 0;
+            require(foreign_log && WriteFile(foreign_log.get(), bytes.data(), static_cast<DWORD>(bytes.size()), &count, nullptr) &&
+                    count == bytes.size(), "foreign log fixture");
+        }
         fixture.lock();
         DWORD result = 0;
         { TemporaryService service; result = service.run(); service.remove(); }
         account.remove();
-        constexpr DWORD required = result_marker | own_pass | console_pass | foreign_pass | token_failure_pass | permission_pass;
+        constexpr DWORD required = result_marker | own_pass | console_pass | foreign_pass | token_failure_pass | permission_pass | log_pass;
         if ((result & ~console_accepted) != required) {
             throw std::runtime_error("LocalSystem file check failed at stage " + std::to_string((result >> 8) & 0x7f));
+        }
+        {
+            Handle denied(CreateFileW((directory + L"\\system.log").c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr));
+            require(!denied && GetLastError() == ERROR_ACCESS_DENIED, "ordinary process read a service-owned log");
         }
         std::cout << "PASS LocalSystem key creation and reading\n";
         if (result & console_accepted) { std::cout << "PASS active console user's key\n"; }
         else { std::cout << "SKIP console-user acceptance: runner has no matching active console\nPASS console-owner mismatch refused\n"; }
         std::cout << "PASS foreign owner's key refused\nPASS failed console-token lookup refused\nPASS denied permission migration preserves bytes\n";
+        std::cout << "PASS service log retention, deletion and resumed writing\n";
+        if (result & console_accepted) { std::cout << "PASS active console user's log deletion preserves ownership\n"; }
+        else { std::cout << "SKIP console log acceptance: runner has no matching active console\nPASS console log owner mismatch refused\n"; }
+        std::cout << "PASS foreign log owner refused\nPASS failed console-token log access refused\n"
+                     "PASS denied log writes preserve contents and ACL\nPASS busy service logs preserved\n"
+                     "PASS ordinary process cannot read service-owned logs\n";
         return 0;
     }
     catch (const std::exception& error) { std::cerr << "FAIL " << error.what() << '\n'; return 1; }
