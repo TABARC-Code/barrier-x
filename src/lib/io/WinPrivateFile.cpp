@@ -14,15 +14,27 @@
 #include <vector>
 #include <atomic>
 #include <cstring>
+#include <utility>
 
 namespace barrier {
 namespace {
+#ifdef BARRIER_PRIVATE_FILE_TESTING
+std::atomic<void (*)()> parent_check_hook{nullptr};
+#endif
 struct Handle {
     HANDLE value;
     explicit Handle(HANDLE h) : value(h) {}
     ~Handle() { if (value && value != INVALID_HANDLE_VALUE) { CloseHandle(value); } }
     Handle(const Handle&) = delete;
     Handle& operator=(const Handle&) = delete;
+    Handle(Handle&& other) noexcept : value(std::exchange(other.value, INVALID_HANDLE_VALUE)) {}
+    Handle& operator=(Handle&& other) noexcept {
+        if (this != &other) {
+            if (value && value != INVALID_HANDLE_VALUE) { CloseHandle(value); }
+            value = std::exchange(other.value, INVALID_HANDLE_VALUE);
+        }
+        return *this;
+    }
 };
 struct LocalFreeDeleter { void operator()(void* p) const { LocalFree(p); } };
 using Local = std::unique_ptr<void, LocalFreeDeleter>;
@@ -74,6 +86,70 @@ void check_path(const std::wstring& path) {
         throw std::runtime_error("Identity streams are unsupported");
     }
 }
+struct CheckedPath {
+    std::wstring value;
+    std::vector<Handle> parents;
+};
+CheckedPath checked_path(const std::wstring& path) {
+    check_path(path);
+    if (path.empty()) { throw std::runtime_error("Private file path is empty"); }
+    DWORD needed = GetFullPathNameW(path.c_str(), 0, nullptr, nullptr);
+    if (!needed) { fail(GetLastError(), "Could not resolve private file path"); }
+    if (needed > 32768) { throw std::runtime_error("Private file path is too long"); }
+    std::vector<wchar_t> full(needed);
+    DWORD length = GetFullPathNameW(path.c_str(), needed, full.data(), nullptr);
+    if (!length || length >= needed) { throw std::runtime_error("Private file path could not be resolved consistently"); }
+    CheckedPath result{std::wstring(full.data(), length), {}};
+    for (auto& character : result.value) {
+        if (character == L'/') { character = L'\\'; }
+    }
+    check_path(result.value);
+
+    const bool extended = result.value.compare(0, 4, L"\\\\?\\") == 0;
+    const std::size_t drive = extended ? 4 : 0;
+    const bool drive_letter = result.value.size() > drive + 2 &&
+        ((result.value[drive] >= L'A' && result.value[drive] <= L'Z') ||
+         (result.value[drive] >= L'a' && result.value[drive] <= L'z')) &&
+        result.value[drive + 1] == L':' && result.value[drive + 2] == L'\\';
+    if (!drive_letter) {
+        throw std::runtime_error("Private files require a local drive path");
+    }
+    const std::size_t root_end = drive + 3;
+    const std::size_t last_separator = result.value.find_last_of(L'\\');
+    if (last_separator == std::wstring::npos || last_separator < root_end - 1 ||
+        last_separator + 1 == result.value.size()) {
+        throw std::runtime_error("Private file path needs a file name");
+    }
+    const std::wstring parent = result.value.substr(0, last_separator == root_end - 1 ? root_end : last_separator);
+    std::size_t component_end = root_end;
+    std::size_t component_start = root_end;
+    while (true) {
+        const std::wstring current = parent.substr(0, component_end);
+        // Omitting delete sharing pins the name while the final file is opened or replaced.
+        Handle directory(CreateFileW(current.c_str(), FILE_READ_ATTRIBUTES | READ_CONTROL,
+                                     FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING,
+                                     FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr));
+        if (directory.value == INVALID_HANDLE_VALUE) { fail(GetLastError(), "Could not open private file parent"); }
+        BY_HANDLE_FILE_INFORMATION info{};
+        check(GetFileInformationByHandle(directory.value, &info), "Could not inspect private file parent");
+        if (!(info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ||
+            (info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
+            throw std::runtime_error("Private file parents must be ordinary directories");
+        }
+        result.parents.push_back(std::move(directory));
+        if (component_end == parent.size()) { break; }
+        const std::size_t separator = parent.find(L'\\', component_start);
+        if (separator == component_start) {
+            throw std::runtime_error("Private file path contains an empty parent component");
+        }
+        component_end = separator == std::wstring::npos ? parent.size() : separator;
+        component_start = separator == std::wstring::npos ? parent.size() : separator + 1;
+    }
+#ifdef BARRIER_PRIVATE_FILE_TESTING
+    if (auto hook = parent_check_hook.load(std::memory_order_acquire)) { hook(); }
+#endif
+    return result;
+}
 void check_file(HANDLE file, DWORD maximum = 1024 * 1024) {
     BY_HANDLE_FILE_INFORMATION info{};
     check(GetFileInformationByHandle(file, &info), "Could not inspect identity file");
@@ -121,7 +197,7 @@ int descriptor(Handle& file, int flags) {
 }
 
 int create_private_file(const std::wstring& path) {
-    check_path(path);
+    auto checked = checked_path(path);
     auto user = process_user();
     auto system = system_sid();
     auto bytes = private_acl(sid(user), system.data());
@@ -132,7 +208,7 @@ int create_private_file(const std::wstring& path) {
     check(SetSecurityDescriptorControl(&security, SE_DACL_PROTECTED, SE_DACL_PROTECTED), "Could not protect identity ACL");
     SECURITY_ATTRIBUTES attributes{sizeof(attributes), &security, FALSE};
     // I supply the ACL at creation; closing the door after writing the key is late.
-    Handle file(CreateFileW(path.c_str(), GENERIC_WRITE | READ_CONTROL | DELETE, 0, &attributes, CREATE_NEW,
+    Handle file(CreateFileW(checked.value.c_str(), GENERIC_WRITE | READ_CONTROL | DELETE, 0, &attributes, CREATE_NEW,
                             FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, nullptr));
     if (file.value == INVALID_HANDLE_VALUE) { fail(GetLastError(), "Could not create private identity file"); }
     try {
@@ -148,9 +224,9 @@ int create_private_file(const std::wstring& path) {
 }
 
 static int open_checked_file(const std::wstring& path, bool log_edit) {
-    check_path(path);
+    auto checked = checked_path(path);
     // No write/delete sharing: the checked file stays put until the snapshot is read.
-    Handle file(CreateFileW(path.c_str(), GENERIC_READ | READ_CONTROL | (log_edit ? GENERIC_WRITE : WRITE_DAC), 0, nullptr, OPEN_EXISTING,
+    Handle file(CreateFileW(checked.value.c_str(), GENERIC_READ | READ_CONTROL | (log_edit ? GENERIC_WRITE : WRITE_DAC), 0, nullptr, OPEN_EXISTING,
                             FILE_FLAG_OPEN_REPARSE_POINT, nullptr));
     if (file.value == INVALID_HANDLE_VALUE) { fail(GetLastError(), "Could not open private identity file"); }
     check_file(file.value, log_edit ? 2 * 1024 * 1024 : 1024 * 1024);
@@ -188,20 +264,18 @@ static int open_checked_file(const std::wstring& path, bool log_edit) {
 
 int read_private_file(const std::wstring& path) { return open_checked_file(path, false); }
 int edit_private_log(const std::wstring& path) { return open_checked_file(path, true); }
+#ifdef BARRIER_PRIVATE_FILE_TESTING
+void set_private_file_parent_check_hook(void (*hook)()) {
+    parent_check_hook.store(hook, std::memory_order_release);
+}
+#endif
 
 void replace_private_file(const std::wstring& path, const std::string& bytes) {
-    check_path(path);
     if (path.empty() || bytes.size() > 1024 * 1024) {
         throw std::runtime_error("Private file replacement needs a path and at most 1 MiB");
     }
-    DWORD needed = GetFullPathNameW(path.c_str(), 0, nullptr, nullptr);
-    if (!needed) { fail(GetLastError(), "Could not resolve private file path"); }
-    if (needed > 32768) { throw std::runtime_error("Private file path is too long"); }
-    std::vector<wchar_t> full(needed);
-    DWORD length = GetFullPathNameW(path.c_str(), needed, full.data(), nullptr);
-    if (!length || length >= needed) { throw std::runtime_error("Private file path could not be resolved consistently"); }
-    const std::wstring target(full.data(), length);
-    check_path(target);
+    auto checked = checked_path(path);
+    const std::wstring& target = checked.value;
     // I refuse unsafe existing files before making a replacement, not after it.
     try {
         int fd = read_private_file(target);

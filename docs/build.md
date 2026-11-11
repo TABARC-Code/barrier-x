@@ -1138,3 +1138,26 @@ The service/token and file-rights expectations follow Microsoft's
 and [file security](https://learn.microsoft.com/en-us/windows/win32/fileio/file-security-and-access-rights)
 documentation. I review the final diff, match both version declarations and
 check whitespace before publication.
+
+## Windows private-file parents, 2.4.38
+
+11 November 2026. I resolve private key, trust and log paths to a local drive,
+then open every existing parent directory with reparse processing disabled.
+Directories stay open without delete sharing until the final file open or
+replacement completes. This refuses junctions and symbolic links in the parent
+chain and prevents a checked component being renamed underneath the operation.
+UNC and device paths are refused; private material has no useful business
+wandering onto a remote share by accident.
+
+The native private-file target adds linked-parent create/read/replace refusal
+and a checked-parent rename attempt. The local host has no Windows compiler or
+runtime, so native execution is pending at this source checkpoint. The complete
+local Qt 6 Linux rebuild succeeds and all fifteen CTest entries pass in 33.11
+seconds, with the existing explicit Unix-listener exclusion. This change does
+not claim an inherited-ACL policy, clean installation or interactive desktop
+check.
+
+The implementation follows Microsoft's documentation for
+[directory handles](https://learn.microsoft.com/en-us/windows/win32/fileio/obtaining-a-handle-to-a-directory),
+[reparse-point opens](https://learn.microsoft.com/en-us/windows/win32/fileio/reparse-point-operations)
+and [delete sharing](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew).

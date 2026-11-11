@@ -1,5 +1,11 @@
 # barrier-x changes
 
+## 2.4.38-snapshot - 11 November 2026
+
+- I check and pin Windows parent directories before opening private files.
+- I refuse junctions and other reparse points anywhere in that parent chain.
+- I cover linked parents and attempted parent renames in the native file checks.
+
 ## 2.4.37-snapshot - 11 November 2026
 
 - I exercise log expiry, deletion and resumed writing through a temporary Windows service.

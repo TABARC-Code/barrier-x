@@ -114,6 +114,56 @@ void symlink() {
     rejected([&] { barrier::replace_private_file(link, "replacement"); });
     Descriptor file(barrier::read_private_file(path)); check_private(reinterpret_cast<HANDLE>(_get_osfhandle(file.value)));
 }
+void parent_symlink() {
+    Fixture f;
+    const auto real = f.directory + L"\\real";
+    const auto link = f.directory + L"\\linked";
+    const auto direct = real + L"\\key.pem";
+    const auto through_link = link + L"\\key.pem";
+    const auto new_through_link = link + L"\\new.pem";
+    require(CreateDirectoryW(real.c_str(), nullptr), "create real parent");
+    struct Cleanup {
+        std::wstring real, link, direct, created;
+        ~Cleanup() {
+            DeleteFileW(created.c_str()); DeleteFileW(direct.c_str());
+            RemoveDirectoryW(link.c_str()); RemoveDirectoryW(real.c_str());
+        }
+    } cleanup{real, link, direct, new_through_link};
+    write_key(direct);
+    require(CreateSymbolicLinkW(link.c_str(), real.c_str(), SYMBOLIC_LINK_FLAG_DIRECTORY | 2), "parent symlink fixture");
+    rejected([&] { Descriptor file(barrier::read_private_file(through_link)); });
+    rejected([&] { Descriptor file(barrier::create_private_file(new_through_link)); });
+    rejected([&] { barrier::replace_private_file(through_link, "replacement"); });
+    Descriptor file(barrier::read_private_file(direct));
+    char bytes[13];
+    require(_read(file.value, bytes, sizeof(bytes)) == 13 && std::string(bytes, 13) == "test identity",
+            "linked parent changed identity");
+}
+std::wstring pinned_parent, moved_parent;
+void try_moving_pinned_parent() {
+    require(!MoveFileW(pinned_parent.c_str(), moved_parent.c_str()), "checked parent renamed while pinned");
+}
+void parent_pin() {
+    Fixture f;
+    pinned_parent = f.directory + L"\\pinned";
+    moved_parent = f.directory + L"\\moved";
+    const auto path = pinned_parent + L"\\key.pem";
+    require(CreateDirectoryW(pinned_parent.c_str(), nullptr), "create pinned parent");
+    struct Cleanup {
+        std::wstring path;
+        ~Cleanup() {
+            barrier::set_private_file_parent_check_hook(nullptr);
+            DeleteFileW(path.c_str()); RemoveDirectoryW(moved_parent.c_str()); RemoveDirectoryW(pinned_parent.c_str());
+        }
+    } cleanup{path};
+    barrier::set_private_file_parent_check_hook(try_moving_pinned_parent);
+    write_key(path);
+    barrier::set_private_file_parent_check_hook(nullptr);
+    Descriptor file(barrier::read_private_file(path));
+    char bytes[13];
+    require(_read(file.value, bytes, sizeof(bytes)) == 13 && std::string(bytes, 13) == "test identity",
+            "pinned parent lost identity");
+}
 void directory() {
     Fixture f;
     rejected([&] { Descriptor file(barrier::read_private_file(f.directory)); });
@@ -194,6 +244,12 @@ void streams() {
     rejected([&] { Descriptor file(barrier::create_private_file(path + L":hidden")); });
     rejected([&] { barrier::replace_private_file(path + L":hidden", "replacement"); });
 }
+void remote_path() {
+    const std::wstring path = L"\\\\server.invalid\\share\\key.pem";
+    rejected([&] { Descriptor file(barrier::read_private_file(path)); });
+    rejected([&] { Descriptor file(barrier::create_private_file(path)); });
+    rejected([&] { barrier::replace_private_file(path, "replacement"); });
+}
 void permission_failure() {
     Fixture f; auto path = f.path(L"denied.pem"); write_key(path);
     PSECURITY_DESCRIPTOR raw = nullptr;
@@ -271,8 +327,10 @@ void other_user() {
 int main() {
     struct Test { const char* name; void (*run)(); } tests[] = {
         {"creation", creation}, {"migration", migration}, {"collision", collision}, {"hardlink", hardlink},
-        {"symlink", symlink}, {"directory", directory}, {"size limit", size_limit}, {"sharing", sharing},
-        {"replacement", replacement}, {"streams", streams}, {"permission failure", permission_failure},
+        {"symlink", symlink}, {"parent symlink", parent_symlink}, {"parent pin", parent_pin},
+        {"directory", directory}, {"size limit", size_limit}, {"sharing", sharing},
+        {"replacement", replacement}, {"streams", streams}, {"remote path", remote_path},
+        {"permission failure", permission_failure},
         {"busy writer", busy_writer}, {"extended path", extended_path}, {"other user", other_user},
         {"replacement creation", replacement_creation}, {"replacement failure", replacement_failure},
         {"replacement limit", replacement_limit}};

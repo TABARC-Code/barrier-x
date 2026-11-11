@@ -726,3 +726,19 @@ operations must preserve contents and ACLs; fixture impersonation unwinds on
 failure. Native execution of this extension is pending at this source checkpoint.
 Windows parent validation, installed-application integration and interactive
 desktop checks remain open. Application behaviour is unchanged.
+
+## Follow-up: 2.4.38-snapshot
+
+The 2.4.37 Windows native run 42993099755 passes all four targets and exercises
+the LocalSystem log cases, including active-console ownership. Linux run
+42993100073 and macOS run 42993099915 also pass. The full Windows Qt run still
+fails the known special-key round trips and trust-context dashboard case after
+compilation; its log cases pass.
+
+I now resolve Windows private-file paths to local drive paths, open every existing
+parent with reparse processing disabled and keep those handles open without
+delete sharing until the final file is opened or published. A linked parent is
+refused for creation, reading and replacement. A native test hook attempts to
+rename a checked parent while those handles are held. Native execution of this
+new behaviour is pending at the source checkpoint. I haven't settled inherited
+ancestor ACL policy or clean-machine installation in this iteration.

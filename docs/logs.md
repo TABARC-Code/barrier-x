@@ -59,6 +59,11 @@ In 2.4.37 I extend the temporary LocalSystem service fixture to cover logs too:
 retention, manual clearing, resumed writing, console-owner policy, foreign-owner
 refusal, unavailable console tokens, denied writes and busy files. It checks
 preserved bytes and ACLs after refusal, and prevents the ordinary test process
-from reading the service-owned log. Native execution of this extension is
-pending at its source checkpoint. This isn't an installed-application or
-interactive GUI check. Windows parent-folder validation remains open.
+from reading the service-owned log. Windows run 42993099755 passes these checks,
+including the active console-user case. This isn't an installed-application or
+interactive GUI check.
+
+In 2.4.38 Windows log access shares the private-file parent walk. Each existing
+parent is opened without following a reparse point and pinned until the final
+file handle is open. Native linked-parent and rename checks are pending at this
+source checkpoint. Inherited parent ACL review remains open.

@@ -147,7 +147,7 @@ public:
         auto path = path_;
         if (backup) { path += ".1"; }
 #ifdef _WIN32
-        // FUTURE(BX-033): Windows parent handles and inherited ACLs still need native review.
+        // Parent handles reject junctions and stay pinned. FUTURE(BX-033): inherited ACL policy still needs native review.
         if (!fs::exists(fs::symlink_status(path))) {
             if (!create) { return {}; }
             const int created = create_private_file(path.native());
