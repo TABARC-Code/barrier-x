@@ -24,6 +24,25 @@ struct Descriptor {
     ~Descriptor() { if (value >= 0) { _close(value); } }
     Descriptor(const Descriptor&) = delete;
 };
+void protect_directory(const barrier::fs::path& path) {
+    PSECURITY_DESCRIPTOR owner_descriptor = nullptr;
+    PSID owner = nullptr;
+    require(GetNamedSecurityInfoW(const_cast<wchar_t*>(path.c_str()), SE_FILE_OBJECT,
+                                  OWNER_SECURITY_INFORMATION, &owner, nullptr, nullptr, nullptr,
+                                  &owner_descriptor) == ERROR_SUCCESS, "read fixture owner");
+    LPWSTR owner_text = nullptr;
+    require(ConvertSidToStringSidW(owner, &owner_text), "format fixture owner");
+    const std::wstring sddl = L"D:P(A;OICI;FA;;;" + std::wstring(owner_text) + L")(A;OICI;FA;;;SY)";
+    LocalFree(owner_text); LocalFree(owner_descriptor);
+    PSECURITY_DESCRIPTOR raw = nullptr;
+    require(ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl.c_str(), SDDL_REVISION_1, &raw, nullptr),
+            "private fixture ACL");
+    PACL acl = nullptr; BOOL present = FALSE, defaulted = FALSE;
+    require(GetSecurityDescriptorDacl(raw, &present, &acl, &defaulted) && present && acl, "read private fixture ACL");
+    const DWORD error = SetNamedSecurityInfoW(const_cast<wchar_t*>(path.c_str()), SE_FILE_OBJECT,
+        DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION, nullptr, nullptr, acl, nullptr);
+    LocalFree(raw); require(error == ERROR_SUCCESS, "protect fixture folder");
+}
 struct Fixture {
     barrier::fs::path directory;
     std::vector<barrier::fs::path> files;
@@ -32,12 +51,8 @@ struct Fixture {
         auto length = GetTempPathW(MAX_PATH, temporary);
         require(length && length < MAX_PATH, "temporary folder");
         directory = barrier::fs::path(temporary) / (L"BXLogs-" + std::to_wstring(GetCurrentProcessId()) + L"-" + std::to_wstring(GetTickCount64()));
-        PSECURITY_DESCRIPTOR raw = nullptr;
-        require(ConvertStringSecurityDescriptorToSecurityDescriptorW(L"D:(A;OICI;FA;;;WD)", SDDL_REVISION_1, &raw, nullptr), "fixture ACL");
-        SECURITY_ATTRIBUTES attributes{sizeof(attributes), raw, FALSE};
-        const auto created = CreateDirectoryW(directory.c_str(), &attributes);
-        LocalFree(raw);
-        require(created, "create fixture folder");
+        require(CreateDirectoryW(directory.c_str(), nullptr), "create fixture folder");
+        protect_directory(directory);
     }
     barrier::fs::path path(const wchar_t* name) { files.push_back(directory / name); return files.back(); }
     ~Fixture() {

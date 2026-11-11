@@ -1,7 +1,7 @@
 # Working plan
 
 11 November 2026. The five-area completion programme is in
-[completion-plan.md](completion-plan.md). Development is 2.4.38-snapshot.
+[completion-plan.md](completion-plan.md). Development is 2.4.39-snapshot.
 POSIX identity reads and writes now use checked ancestor traversal, including
 GUI creation of missing identity folders. Native Windows GUI compilation and
 service-reader tests pass; key-binding round trips and a dashboard trust-context
@@ -239,8 +239,9 @@ cases pass in run 42930635323; known key round trips and one trust-context case
 still fail the workflow. Full desktop/service access and installation checks follow.
 
 The twelve Windows log scenarios and macOS retention selection pass on 2.4.36.
-The temporary LocalSystem log cases pass on 2.4.37. In 2.4.38 I check each
-existing Windows parent without following reparse points and keep those handles
-open through the final file operation. Native execution is pending at this
-source checkpoint. Inherited parent ACL policy, installed-application and desktop
-tests remain separate work.
+The temporary LocalSystem log cases pass on 2.4.37. Version 2.4.38 refuses
+reparse parents, but native run 43103242776 proves that an open directory handle
+doesn't pin its name against a same-user rename. In 2.4.39 I check owner and ACL
+entries for unsafe writers and recheck volume/file identities around the final
+operation. Native execution is pending at this source checkpoint. Inherited
+deny-ACE policy, installed-application and desktop tests remain separate work.

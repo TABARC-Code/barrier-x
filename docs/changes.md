@@ -1,5 +1,11 @@
 # barrier-x changes
 
+## 2.4.39-snapshot - 11 November 2026
+
+- I reject Windows parent folders which grant unsafe write access to another principal.
+- I recheck each parent by volume and file identity around private-file operations.
+- I replace the ineffective rename-sharing check with owner and ACL cases.
+
 ## 2.4.38-snapshot - 11 November 2026
 
 - I check and pin Windows parent directories before opening private files.

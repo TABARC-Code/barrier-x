@@ -63,7 +63,10 @@ from reading the service-owned log. Windows run 42993099755 passes these checks,
 including the active console-user case. This isn't an installed-application or
 interactive GUI check.
 
-In 2.4.38 Windows log access shares the private-file parent walk. Each existing
-parent is opened without following a reparse point and pinned until the final
-file handle is open. Native linked-parent and rename checks are pending at this
-source checkpoint. Inherited parent ACL review remains open.
+In 2.4.38 Windows log access shares the private-file parent walk and refuses
+reparse points. Native run 43103242776 passes linked-parent refusal but proves
+that an open directory handle doesn't pin its name against a same-user rename.
+Version 2.4.39 therefore checks owner and ACL entries for unsafe writers and
+rechecks each component's volume and file identity around the final operation.
+Native execution is pending at this source checkpoint. The directory owner still
+controls its folder, and inherited deny-ACE policy remains under review.

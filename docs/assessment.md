@@ -742,3 +742,19 @@ refused for creation, reading and replacement. A native test hook attempts to
 rename a checked parent while those handles are held. Native execution of this
 new behaviour is pending at the source checkpoint. I haven't settled inherited
 ancestor ACL policy or clean-machine installation in this iteration.
+
+## Follow-up: 2.4.39-snapshot
+
+Windows native run 43103242776 compiles 2.4.38 and passes the linked-parent
+case, but its same-user parent rename succeeds. The run fails, correctly. An
+open directory handle without delete sharing is not a reliable name pin on this
+path, so I remove that test hook and the corresponding claim.
+
+I retain the no-reparse traversal and add owner/DACL inspection to every parent.
+An allow entry which gives mutation rights to anyone except the directory owner,
+the calling user, LocalSystem, the active console user or local administrators
+is refused. Each component is also reopened and compared by volume serial and
+file index around the final operation. The test fixtures now begin private;
+the explicit unsafe-parent case grants Everyone access and must be rejected.
+Native execution of 2.4.39 is pending. Deny-ACE ordering and installed paths
+still need separate review.

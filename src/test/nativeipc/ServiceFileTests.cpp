@@ -311,37 +311,45 @@ struct Account {
     }
 };
 struct Fixture {
+    static void restrict(const std::wstring& target, const std::wstring& owner_path, bool children = false) {
+        Security owner_descriptor; PSID owner = nullptr;
+        require(GetNamedSecurityInfoW(const_cast<wchar_t*>(owner_path.c_str()), SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION,
+                                     &owner, nullptr, nullptr, nullptr, &owner_descriptor.value) == ERROR_SUCCESS, "fixture owner");
+        wchar_t* text = nullptr;
+        require(ConvertSidToStringSidW(owner, &text), "fixture owner SID");
+        const std::wstring flags = children ? L"OICI" : L"";
+        std::wstring acl_text = L"D:P(A;" + flags + L";FA;;;" + std::wstring(text) +
+                                 L")(A;" + flags + L";FA;;;SY)";
+        LocalFree(text);
+        Security security;
+        require(ConvertStringSecurityDescriptorToSecurityDescriptorW(acl_text.c_str(), SDDL_REVISION_1, &security.value, nullptr), "private fixture ACL");
+        PACL acl = nullptr; BOOL present = FALSE, defaulted = FALSE;
+        require(GetSecurityDescriptorDacl(security.value, &present, &acl, &defaulted), "fixture DACL");
+        require(SetNamedSecurityInfoW(const_cast<wchar_t*>(target.c_str()), SE_FILE_OBJECT,
+            DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION, nullptr, nullptr, acl, nullptr) == ERROR_SUCCESS, "restrict fixture access");
+    }
     Fixture() {
         wchar_t path[MAX_PATH]; DWORD length = GetTempPathW(MAX_PATH, path);
         require(length && length < MAX_PATH, "temporary path");
         directory = std::wstring(path) + L"BXServiceFile-" + std::to_wstring(GetCurrentProcessId()) + L"-" + std::to_wstring(GetTickCount64());
+        require(CreateDirectoryW(directory.c_str(), nullptr), "fixture directory");
+        restrict(directory, directory, true);
+    }
+    void unlock() {
         Security security;
-        // Deliberately public fixtures allow a real second user to create its file.
         require(ConvertStringSecurityDescriptorToSecurityDescriptorW(L"D:P(A;OICI;FA;;;WD)", SDDL_REVISION_1, &security.value, nullptr), "fixture ACL");
-        SECURITY_ATTRIBUTES attributes{sizeof(attributes), security.value, FALSE};
-        require(CreateDirectoryW(directory.c_str(), &attributes), "fixture directory");
+        PACL acl = nullptr; BOOL present = FALSE, defaulted = FALSE;
+        require(GetSecurityDescriptorDacl(security.value, &present, &acl, &defaulted), "public fixture DACL");
+        require(SetNamedSecurityInfoW(const_cast<wchar_t*>(directory.c_str()), SE_FILE_OBJECT,
+            DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION, nullptr, nullptr, acl, nullptr) == ERROR_SUCCESS,
+            "open fixture setup access");
     }
     void lock() {
-        auto restrict = [](const std::wstring& target, const std::wstring& owner_path) {
-            Security owner_descriptor; PSID owner = nullptr;
-            require(GetNamedSecurityInfoW(const_cast<wchar_t*>(owner_path.c_str()), SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION,
-                                         &owner, nullptr, nullptr, nullptr, &owner_descriptor.value) == ERROR_SUCCESS, "fixture owner");
-            wchar_t* text = nullptr;
-            require(ConvertSidToStringSidW(owner, &text), "fixture owner SID");
-            std::wstring acl_text = L"D:P(A;;FA;;;" + std::wstring(text) + L")(A;;FA;;;SY)";
-            LocalFree(text);
-            Security security;
-            require(ConvertStringSecurityDescriptorToSecurityDescriptorW(acl_text.c_str(), SDDL_REVISION_1, &security.value, nullptr), "private fixture ACL");
-            PACL acl = nullptr; BOOL present = FALSE, defaulted = FALSE;
-            require(GetSecurityDescriptorDacl(security.value, &present, &acl, &defaulted), "fixture DACL");
-            require(SetNamedSecurityInfoW(const_cast<wchar_t*>(target.c_str()), SE_FILE_OBJECT,
-                DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION, nullptr, nullptr, acl, nullptr) == ERROR_SUCCESS, "restrict fixture access");
-        };
         // I preserve explicit service access before removing the inherited public ACEs.
         restrict(directory + L"\\foreign.pem", directory + L"\\foreign.pem");
         restrict(directory + L"\\foreign.log", directory + L"\\foreign.log");
         // I close the public setup window before launching anything as LocalSystem.
-        restrict(directory, directory + L"\\console.pem");
+        restrict(directory, directory + L"\\console.pem", true);
     }
     ~Fixture() {
         for (auto name : {L"console.pem", L"foreign.pem", L"system.pem", L"denied.pem",
@@ -415,6 +423,7 @@ int wmain(int argc, wchar_t** argv) {
         Fixture fixture;
         write_identity(directory + L"\\console.pem");
         barrier::append_log(barrier::fs::path(directory + L"\\console.log"), "dummy console entry", 0, log_time);
+        fixture.unlock();
         Account account;
         {
             Impersonation caller(account.token.get());

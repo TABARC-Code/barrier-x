@@ -1161,3 +1161,36 @@ The implementation follows Microsoft's documentation for
 [directory handles](https://learn.microsoft.com/en-us/windows/win32/fileio/obtaining-a-handle-to-a-directory),
 [reparse-point opens](https://learn.microsoft.com/en-us/windows/win32/fileio/reparse-point-operations)
 and [delete sharing](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew).
+
+Windows native run
+[43103242776](https://github.com/TABARC-Code/barrier-x/actions/runs/43103242776)
+compiles the change and passes the linked-parent case, but the parent rename
+test fails because Windows permits that same-user rename. The sharing-based pin
+claim is therefore wrong. The other three native targets pass in that run.
+
+## Windows parent authority, 2.4.39
+
+11 November 2026. I replace the failed name-pin assumption with an authority
+check. Every parent remains a normal, non-reparse directory. Its owner and DACL
+are read from the retained handle; allow entries which grant mutation rights to
+an unrelated principal are refused. Volume serial and file index values are
+then rechecked around the final file operation. The directory owner remains an
+authority over that folder, which is Windows being Windows rather than a useful
+place for theatre.
+
+The native fixtures now create private parent folders before calling production
+storage code. A separate unsafe-parent case grants Everyone full control and
+checks create, read and replace refusal. The LocalSystem fixture opens its setup
+folder only while creating the deliberately foreign-owned files, then restores
+owner/System access before starting the service. Native execution is pending at
+this source checkpoint. The complete local Qt 6 Linux rebuild succeeds and all
+fifteen CTest entries pass in 32.99 seconds, with the existing explicit
+Unix-listener exclusion.
+
+The ACL walk follows Microsoft's
+[GetSecurityInfo](https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-getsecurityinfo),
+[GetExplicitEntriesFromAclW](https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-getexplicitentriesfromaclw)
+and [file access-rights](https://learn.microsoft.com/en-us/windows/win32/fileio/file-security-and-access-rights)
+documentation. I conservatively reject unsafe allow entries even where a deny
+entry might later reduce them. Deny ordering and application installation paths
+remain open for native review.

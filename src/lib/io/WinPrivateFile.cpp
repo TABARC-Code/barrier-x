@@ -18,9 +18,6 @@
 
 namespace barrier {
 namespace {
-#ifdef BARRIER_PRIVATE_FILE_TESTING
-std::atomic<void (*)()> parent_check_hook{nullptr};
-#endif
 struct Handle {
     HANDLE value;
     explicit Handle(HANDLE h) : value(h) {}
@@ -88,8 +85,102 @@ void check_path(const std::wstring& path) {
 }
 struct CheckedPath {
     std::wstring value;
-    std::vector<Handle> parents;
+    struct Parent {
+        std::wstring path;
+        Handle handle;
+        BY_HANDLE_FILE_INFORMATION info;
+    };
+    std::vector<Parent> parents;
+
+    void verify() const {
+        for (const auto& parent : parents) {
+            Handle current(CreateFileW(parent.path.c_str(), FILE_READ_ATTRIBUTES | READ_CONTROL,
+                                       FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                                       nullptr, OPEN_EXISTING,
+                                       FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr));
+            if (current.value == INVALID_HANDLE_VALUE) { fail(GetLastError(), "Could not recheck private file parent"); }
+            BY_HANDLE_FILE_INFORMATION info{};
+            check(GetFileInformationByHandle(current.value, &info), "Could not recheck private file parent");
+            if (!(info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ||
+                (info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) ||
+                info.dwVolumeSerialNumber != parent.info.dwVolumeSerialNumber ||
+                info.nFileIndexHigh != parent.info.nFileIndexHigh ||
+                info.nFileIndexLow != parent.info.nFileIndexLow) {
+                throw std::runtime_error("Private file parent changed during access");
+            }
+        }
+    }
 };
+bool trusted_sid(PSID candidate, const std::vector<std::vector<BYTE>>& trusted) {
+    if (!candidate || !IsValidSid(candidate)) { return false; }
+    for (const auto& principal : trusted) {
+        if (EqualSid(candidate, const_cast<BYTE*>(principal.data()))) { return true; }
+    }
+    return false;
+}
+std::vector<std::vector<BYTE>> trusted_parents() {
+    std::vector<std::vector<BYTE>> result;
+    result.push_back(process_user());
+    result.push_back(system_sid());
+    DWORD size = SECURITY_MAX_SID_SIZE;
+    result.emplace_back(size);
+    check(CreateWellKnownSid(WinBuiltinAdministratorsSid, nullptr, result.back().data(), &size),
+          "Could not identify local administrators");
+    result.back().resize(size);
+    if (EqualSid(sid(result.front()), result[1].data())) {
+        HANDLE raw = nullptr;
+        if (WTSQueryUserToken(WTSGetActiveConsoleSessionId(), &raw)) {
+            Handle token(raw);
+            result.push_back(token_user(token.value));
+        }
+    }
+    return result;
+}
+void check_parent_permissions(HANDLE directory, const std::vector<std::vector<BYTE>>& trusted, bool root) {
+    PSID owner = nullptr;
+    PACL acl = nullptr;
+    PSECURITY_DESCRIPTOR raw = nullptr;
+    DWORD error = GetSecurityInfo(directory, SE_FILE_OBJECT,
+                                  OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
+                                  &owner, nullptr, &acl, nullptr, &raw);
+    Local descriptor(raw);
+    if (error) { fail(error, "Could not inspect private file parent permissions"); }
+    if (!owner || !IsValidSid(owner) || !acl || !IsValidAcl(acl)) {
+        throw std::runtime_error("Private file parent ownership or permissions are unsafe");
+    }
+    auto allowed = trusted;
+    allowed.emplace_back(GetLengthSid(owner));
+    if (!CopySid(static_cast<DWORD>(allowed.back().size()), allowed.back().data(), owner)) {
+        fail(GetLastError(), "Could not retain private file parent owner");
+    }
+    ULONG count = 0;
+    PEXPLICIT_ACCESS_W entries = nullptr;
+    error = GetExplicitEntriesFromAclW(acl, &count, &entries);
+    Local entry_list(entries);
+    if (error) { fail(error, "Could not enumerate private file parent permissions"); }
+    const DWORD basic_changes = DELETE | WRITE_DAC | WRITE_OWNER | FILE_DELETE_CHILD | GENERIC_ALL;
+    const DWORD content_changes = FILE_ADD_FILE | FILE_ADD_SUBDIRECTORY |
+                                  FILE_WRITE_EA | FILE_WRITE_ATTRIBUTES | GENERIC_WRITE;
+    const DWORD unsafe = basic_changes | (root ? 0 : content_changes);
+    for (ULONG index = 0; index < count; ++index) {
+        const auto& entry = entries[index];
+        if (entry.grfAccessMode != GRANT_ACCESS ||
+            (entry.grfInheritance & INHERIT_ONLY_ACE) ||
+            !(entry.grfAccessPermissions & unsafe)) {
+            continue;
+        }
+        PSID principal = nullptr;
+        if (entry.Trustee.TrusteeForm == TRUSTEE_IS_SID) {
+            principal = reinterpret_cast<PSID>(entry.Trustee.ptstrName);
+        }
+        else if (entry.Trustee.TrusteeForm == TRUSTEE_IS_OBJECTS_AND_SID) {
+            principal = reinterpret_cast<OBJECTS_AND_SID*>(entry.Trustee.ptstrName)->pSid;
+        }
+        if (!trusted_sid(principal, allowed)) {
+            throw std::runtime_error("Private file parent grants write access to another principal");
+        }
+    }
+}
 CheckedPath checked_path(const std::wstring& path) {
     check_path(path);
     if (path.empty()) { throw std::runtime_error("Private file path is empty"); }
@@ -121,13 +212,13 @@ CheckedPath checked_path(const std::wstring& path) {
         throw std::runtime_error("Private file path needs a file name");
     }
     const std::wstring parent = result.value.substr(0, last_separator == root_end - 1 ? root_end : last_separator);
+    const auto trusted = trusted_parents();
     std::size_t component_end = root_end;
     std::size_t component_start = root_end;
     while (true) {
         const std::wstring current = parent.substr(0, component_end);
-        // Omitting delete sharing pins the name while the final file is opened or replaced.
         Handle directory(CreateFileW(current.c_str(), FILE_READ_ATTRIBUTES | READ_CONTROL,
-                                     FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING,
+                                     FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
                                      FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr));
         if (directory.value == INVALID_HANDLE_VALUE) { fail(GetLastError(), "Could not open private file parent"); }
         BY_HANDLE_FILE_INFORMATION info{};
@@ -136,7 +227,8 @@ CheckedPath checked_path(const std::wstring& path) {
             (info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
             throw std::runtime_error("Private file parents must be ordinary directories");
         }
-        result.parents.push_back(std::move(directory));
+        check_parent_permissions(directory.value, trusted, component_end == root_end);
+        result.parents.push_back({current, std::move(directory), info});
         if (component_end == parent.size()) { break; }
         const std::size_t separator = parent.find(L'\\', component_start);
         if (separator == component_start) {
@@ -145,9 +237,6 @@ CheckedPath checked_path(const std::wstring& path) {
         component_end = separator == std::wstring::npos ? parent.size() : separator;
         component_start = separator == std::wstring::npos ? parent.size() : separator + 1;
     }
-#ifdef BARRIER_PRIVATE_FILE_TESTING
-    if (auto hook = parent_check_hook.load(std::memory_order_acquire)) { hook(); }
-#endif
     return result;
 }
 void check_file(HANDLE file, DWORD maximum = 1024 * 1024) {
@@ -212,6 +301,7 @@ int create_private_file(const std::wstring& path) {
                             FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, nullptr));
     if (file.value == INVALID_HANDLE_VALUE) { fail(GetLastError(), "Could not create private identity file"); }
     try {
+        checked.verify();
         check_file(file.value);
         verify_acl(file.value, sid(user), system.data());
         return descriptor(file, _O_WRONLY);
@@ -229,6 +319,7 @@ static int open_checked_file(const std::wstring& path, bool log_edit) {
     Handle file(CreateFileW(checked.value.c_str(), GENERIC_READ | READ_CONTROL | (log_edit ? GENERIC_WRITE : WRITE_DAC), 0, nullptr, OPEN_EXISTING,
                             FILE_FLAG_OPEN_REPARSE_POINT, nullptr));
     if (file.value == INVALID_HANDLE_VALUE) { fail(GetLastError(), "Could not open private identity file"); }
+    checked.verify();
     check_file(file.value, log_edit ? 2 * 1024 * 1024 : 1024 * 1024);
     PSID owner = nullptr;
     PSECURITY_DESCRIPTOR raw = nullptr;
@@ -264,11 +355,6 @@ static int open_checked_file(const std::wstring& path, bool log_edit) {
 
 int read_private_file(const std::wstring& path) { return open_checked_file(path, false); }
 int edit_private_log(const std::wstring& path) { return open_checked_file(path, true); }
-#ifdef BARRIER_PRIVATE_FILE_TESTING
-void set_private_file_parent_check_hook(void (*hook)()) {
-    parent_check_hook.store(hook, std::memory_order_release);
-}
-#endif
 
 void replace_private_file(const std::wstring& path, const std::string& bytes) {
     if (path.empty() || bytes.size() > 1024 * 1024) {
@@ -327,9 +413,11 @@ void replace_private_file(const std::wstring& path, const std::string& bytes) {
     }
     check(FlushFileBuffers(file.handle), "Could not flush private replacement file");
     check_file(file.handle);
-    // 2.4.24: I keep the protected replacement handle open through publication.
+    checked.verify();
+    // I keep the protected replacement handle open through publication.
     check(SetFileInformationByHandle(file.handle, FileRenameInfo, rename, static_cast<DWORD>(rename_bytes.size())),
           "Could not publish private replacement file");
+    checked.verify();
     file.published = true;
 }
 }

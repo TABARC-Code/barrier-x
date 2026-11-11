@@ -19,6 +19,27 @@ struct Descriptor {
     explicit Descriptor(int fd) : value(fd) {}
     ~Descriptor() { if (value >= 0) { _close(value); } }
 };
+void protect_directory(const std::wstring& path) {
+    PSECURITY_DESCRIPTOR owner_descriptor = nullptr;
+    PSID owner = nullptr;
+    require(GetNamedSecurityInfoW(const_cast<wchar_t*>(path.c_str()), SE_FILE_OBJECT,
+                                  OWNER_SECURITY_INFORMATION, &owner, nullptr, nullptr, nullptr,
+                                  &owner_descriptor) == ERROR_SUCCESS, "read test directory owner");
+    LPWSTR owner_text = nullptr;
+    require(ConvertSidToStringSidW(owner, &owner_text), "format test directory owner");
+    const std::wstring sddl = L"D:P(A;OICI;FA;;;" + std::wstring(owner_text) + L")(A;OICI;FA;;;SY)";
+    LocalFree(owner_text); LocalFree(owner_descriptor);
+    PSECURITY_DESCRIPTOR raw = nullptr;
+    require(ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl.c_str(), SDDL_REVISION_1, &raw, nullptr),
+            "private test directory ACL");
+    PACL acl = nullptr; BOOL present = FALSE, defaulted = FALSE;
+    require(GetSecurityDescriptorDacl(raw, &present, &acl, &defaulted) && present && acl,
+            "read private test directory ACL");
+    const DWORD result = SetNamedSecurityInfoW(const_cast<wchar_t*>(path.c_str()), SE_FILE_OBJECT,
+        DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION, nullptr, nullptr, acl, nullptr);
+    LocalFree(raw);
+    require(result == ERROR_SUCCESS, "protect test directory");
+}
 struct Fixture {
     std::wstring directory;
     std::vector<std::wstring> files;
@@ -26,13 +47,8 @@ struct Fixture {
         wchar_t temporary[MAX_PATH];
         require(GetTempPathW(MAX_PATH, temporary) != 0, "temporary path");
         directory = std::wstring(temporary) + L"BXFile-" + std::to_wstring(GetCurrentProcessId()) + L"-" + std::to_wstring(GetTickCount64());
-        PSECURITY_DESCRIPTOR raw = nullptr;
-        // Deliberately public test directory: the file must not inherit this ACL.
-        require(ConvertStringSecurityDescriptorToSecurityDescriptorW(L"D:(A;OICI;FA;;;WD)", SDDL_REVISION_1, &raw, nullptr), "test directory ACL");
-        SECURITY_ATTRIBUTES attributes{sizeof(attributes), raw, FALSE};
-        BOOL made = CreateDirectoryW(directory.c_str(), &attributes);
-        LocalFree(raw);
-        require(made, "create test directory");
+        require(CreateDirectoryW(directory.c_str(), nullptr), "create test directory");
+        protect_directory(directory);
     }
     std::wstring path(const wchar_t* name) { files.push_back(directory + L"\\" + name); return files.back(); }
     ~Fixture() { for (auto& file : files) { DeleteFileW(file.c_str()); } RemoveDirectoryW(directory.c_str()); }
@@ -139,30 +155,23 @@ void parent_symlink() {
     require(_read(file.value, bytes, sizeof(bytes)) == 13 && std::string(bytes, 13) == "test identity",
             "linked parent changed identity");
 }
-std::wstring pinned_parent, moved_parent;
-void try_moving_pinned_parent() {
-    require(!MoveFileW(pinned_parent.c_str(), moved_parent.c_str()), "checked parent renamed while pinned");
-}
-void parent_pin() {
+void unsafe_parent() {
     Fixture f;
-    pinned_parent = f.directory + L"\\pinned";
-    moved_parent = f.directory + L"\\moved";
-    const auto path = pinned_parent + L"\\key.pem";
-    require(CreateDirectoryW(pinned_parent.c_str(), nullptr), "create pinned parent");
+    const auto parent = f.directory + L"\\public";
+    const auto path = parent + L"\\key.pem";
+    const auto created = parent + L"\\new.pem";
+    require(CreateDirectoryW(parent.c_str(), nullptr), "create unsafe parent");
     struct Cleanup {
-        std::wstring path;
+        std::wstring parent, path, created;
         ~Cleanup() {
-            barrier::set_private_file_parent_check_hook(nullptr);
-            DeleteFileW(path.c_str()); RemoveDirectoryW(moved_parent.c_str()); RemoveDirectoryW(pinned_parent.c_str());
+            DeleteFileW(created.c_str()); DeleteFileW(path.c_str()); RemoveDirectoryW(parent.c_str());
         }
-    } cleanup{path};
-    barrier::set_private_file_parent_check_hook(try_moving_pinned_parent);
+    } cleanup{parent, path, created};
     write_key(path);
-    barrier::set_private_file_parent_check_hook(nullptr);
-    Descriptor file(barrier::read_private_file(path));
-    char bytes[13];
-    require(_read(file.value, bytes, sizeof(bytes)) == 13 && std::string(bytes, 13) == "test identity",
-            "pinned parent lost identity");
+    public_acl(parent);
+    rejected([&] { Descriptor file(barrier::read_private_file(path)); });
+    rejected([&] { Descriptor file(barrier::create_private_file(created)); });
+    rejected([&] { barrier::replace_private_file(path, "replacement"); });
 }
 void directory() {
     Fixture f;
@@ -312,10 +321,13 @@ void other_user() {
     Handle token(raw);
     { Impersonation caller(token.get());
       Handle denied(CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr));
-      require(!denied && GetLastError() == ERROR_ACCESS_DENIED, "another user read private identity");
+      require(!denied && GetLastError() == ERROR_ACCESS_DENIED, "another user read private identity"); }
+    public_acl(f.directory);
+    { Impersonation caller(token.get());
       Handle created(CreateFileW(foreign.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, 0, nullptr));
       require(static_cast<bool>(created), "create foreign identity"); }
-    // The public fixture ACL lets the test open this file; owner checking must still reject it.
+    protect_directory(f.directory);
+    // The file remains foreign-owned after the parent is made safe again.
     bool ownership = false;
     try { Descriptor file(barrier::read_private_file(foreign)); }
     catch (const std::runtime_error& error) { ownership = std::string(error.what()).find("another owner") != std::string::npos; }
@@ -327,7 +339,7 @@ void other_user() {
 int main() {
     struct Test { const char* name; void (*run)(); } tests[] = {
         {"creation", creation}, {"migration", migration}, {"collision", collision}, {"hardlink", hardlink},
-        {"symlink", symlink}, {"parent symlink", parent_symlink}, {"parent pin", parent_pin},
+        {"symlink", symlink}, {"parent symlink", parent_symlink}, {"unsafe parent", unsafe_parent},
         {"directory", directory}, {"size limit", size_limit}, {"sharing", sharing},
         {"replacement", replacement}, {"streams", streams}, {"remote path", remote_path},
         {"permission failure", permission_failure},
