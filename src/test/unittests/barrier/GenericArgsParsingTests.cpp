@@ -313,3 +313,19 @@ TEST(GenericArgsParsingTests, parseGenericArgs_dragDropCmdOnLinux_enableDragDrop
     EXPECT_EQ(1, i);
 }
 #endif
+
+TEST(GenericArgsParsingTests, RetentionAcceptsOnlyDocumentedChoices)
+{
+    for (const char* value : {"0","5","10","12","15","22","28","30","60"}) {
+        const char* argv[] = {"stub", "--log-retention-days", value};
+        int i = 1; ArgsBase args; ArgParser parser(nullptr); parser.setArgsBase(args);
+        ASSERT_TRUE(parser.parseGenericArgs(3, argv, i));
+        EXPECT_EQ(std::stoi(value), args.m_logRetentionDays);
+    }
+    for (const char* value : {"-1","1","05","60x","99999999999999999",""}) {
+        const char* argv[] = {"stub", "--log-retention-days", value};
+        int i = 1; ArgsBase args; ArgParser parser(nullptr); parser.setArgsBase(args);
+        EXPECT_FALSE(parser.parseGenericArgs(3, argv, i));
+        EXPECT_EQ(0, args.m_logRetentionDays);
+    }
+}

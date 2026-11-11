@@ -1,6 +1,6 @@
 # barrier-x
 
-Development version: **2.4.34-snapshot**, based on Barrier 2.4.
+Development version: **2.4.35-snapshot**, based on Barrier 2.4.
 
 Optional [Tor remote-link plugin](plugins/tor/README.md): a separate loopback transport, disabled by default.
 
@@ -152,3 +152,5 @@ __Q: Is it possible to use Barrier on Mac OS X / OS X versions prior to 10.12?__
 >      - *(see [#109](https://github.com/debauchee/barrier/issues/109) and [#1251](https://github.com/debauchee/barrier/issues/1251) for status or to volunteer your talents)*
 >
 > The complete list of open issues can be found in the ['Issues' tab on GitHub](https://github.com/debauchee/barrier/issues?q=is%3Aissue+is%3Aopen). Help is always appreciated.
+
+Log deletion and automatic retention controls are described in [Log controls](docs/logs.md).

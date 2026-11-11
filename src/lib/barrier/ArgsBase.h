@@ -34,6 +34,7 @@ public:
     std::string            m_exename;
     const char*            m_logFilter;
     const char*            m_logFile;
+    int m_logRetentionDays = 0;
     const char*            m_display;
     String                m_name;
     bool                m_disableTray;

@@ -17,6 +17,7 @@
  */
 
 #include "AppConfig.h"
+#include "io/LogStore.h"
 #include "QUtility.h"
 
 #include <QtCore>
@@ -87,13 +88,7 @@ const QString &AppConfig::logFilename() const { return m_LogFilename; }
 
 QString AppConfig::barrierLogDir() const
 {
-#if defined(Q_OS_WIN)
-    // on windows, we want to log to program files
-    return barrierProgramDir() + "log/";
-#else
-    // on unix, we'll log to the standard log dir
-    return "/var/log/";
-#endif
+    return QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/logs/";
 }
 
 QString AppConfig::barrierProgramDir() const
@@ -147,6 +142,8 @@ void AppConfig::loadSettings()
     m_Interface = settings().value("interface").toString();
     m_LogLevel = settings().value("logLevel", 3).toInt(); // level 3: INFO
     m_LogToFile = settings().value("logToFile", false).toBool();
+    m_LogRetentionDays = settings().value("logRetentionDays", 0).toInt();
+    if (!barrier::valid_log_retention(m_LogRetentionDays)) { m_LogRetentionDays = 0; }
     m_LogFilename = settings().value("logFilename", barrierLogDir() + "barrier.log").toString();
     m_WizardLastRun = settings().value("wizardLastRun", 0).toInt();
     m_Language = settings().value("language", QLocale::system().name()).toString();
@@ -174,6 +171,7 @@ void AppConfig::saveSettings()
     settings().setValue("interface", m_Interface);
     settings().setValue("logLevel", m_LogLevel);
     settings().setValue("logToFile", m_LogToFile);
+    settings().setValue("logRetentionDays", m_LogRetentionDays);
     settings().setValue("logFilename", m_LogFilename);
     settings().setValue("wizardLastRun", kWizardVersion);
     settings().setValue("language", m_Language);

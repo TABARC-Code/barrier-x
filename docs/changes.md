@@ -1,5 +1,12 @@
 # barrier-x changes
 
+## 2.4.35-snapshot - 11 November 2026
+
+- I add confirmed deletion of saved logs and a separate display clear control.
+- I add the nine retention choices, with 0 switching automatic deletion off.
+- I check and lock log files before clearing, appending or rotating them.
+- I use the user application-data folder for new log configurations.
+
 ## 2.4.34-snapshot - 10 November 2026
 
 - I validate complete clipboard messages before changing clipboard contents.

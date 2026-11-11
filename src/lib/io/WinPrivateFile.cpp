@@ -74,12 +74,12 @@ void check_path(const std::wstring& path) {
         throw std::runtime_error("Identity streams are unsupported");
     }
 }
-void check_file(HANDLE file) {
+void check_file(HANDLE file, DWORD maximum = 1024 * 1024) {
     BY_HANDLE_FILE_INFORMATION info{};
     check(GetFileInformationByHandle(file, &info), "Could not inspect identity file");
     if (GetFileType(file) != FILE_TYPE_DISK ||
         (info.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) ||
-        info.nNumberOfLinks != 1 || info.nFileSizeHigh || info.nFileSizeLow > 1024 * 1024) {
+        info.nNumberOfLinks != 1 || info.nFileSizeHigh || info.nFileSizeLow > maximum) {
         throw std::runtime_error("Identity must be a regular file with one link, at most 1 MiB");
     }
 }
@@ -147,13 +147,13 @@ int create_private_file(const std::wstring& path) {
     }
 }
 
-int read_private_file(const std::wstring& path) {
+static int open_checked_file(const std::wstring& path, bool log_edit) {
     check_path(path);
     // No write/delete sharing: the checked file stays put until the snapshot is read.
-    Handle file(CreateFileW(path.c_str(), GENERIC_READ | READ_CONTROL | WRITE_DAC, 0, nullptr, OPEN_EXISTING,
+    Handle file(CreateFileW(path.c_str(), GENERIC_READ | READ_CONTROL | (log_edit ? GENERIC_WRITE : WRITE_DAC), 0, nullptr, OPEN_EXISTING,
                             FILE_FLAG_OPEN_REPARSE_POINT, nullptr));
     if (file.value == INVALID_HANDLE_VALUE) { fail(GetLastError(), "Could not open private identity file"); }
-    check_file(file.value);
+    check_file(file.value, log_edit ? 2 * 1024 * 1024 : 1024 * 1024);
     PSID owner = nullptr;
     PSECURITY_DESCRIPTOR raw = nullptr;
     DWORD error = GetSecurityInfo(file.value, SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION,
@@ -174,14 +174,20 @@ int read_private_file(const std::wstring& path) {
         }
     }
     if (!allowed) { throw std::runtime_error("Identity belongs to another owner; explicit repair is required"); }
-    auto bytes = private_acl(owner, system.data());
-    error = SetSecurityInfo(file.value, SE_FILE_OBJECT, DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
-                            nullptr, nullptr, reinterpret_cast<PACL>(bytes.data()), nullptr);
-    if (error) { fail(error, "Could not restrict identity permissions"); }
+    if (!log_edit) {
+        auto bytes = private_acl(owner, system.data());
+        error = SetSecurityInfo(file.value, SE_FILE_OBJECT, DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+                                nullptr, nullptr, reinterpret_cast<PACL>(bytes.data()), nullptr);
+        if (error) { fail(error, "Could not restrict identity permissions"); }
+    }
+    // I don't rewrite a configured log's ACL before recognising its contents.
     verify_acl(file.value, owner, system.data());
-    check_file(file.value);
-    return descriptor(file, _O_RDONLY);
+    check_file(file.value, log_edit ? 2 * 1024 * 1024 : 1024 * 1024);
+    return descriptor(file, log_edit ? _O_RDWR : _O_RDONLY);
 }
+
+int read_private_file(const std::wstring& path) { return open_checked_file(path, false); }
+int edit_private_log(const std::wstring& path) { return open_checked_file(path, true); }
 
 void replace_private_file(const std::wstring& path, const std::string& bytes) {
     check_path(path);

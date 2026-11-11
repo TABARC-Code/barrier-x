@@ -68,6 +68,7 @@ class AppConfig: public QObject
         const QString& networkInterface() const;
         int logLevel() const;
         bool logToFile() const;
+        int logRetentionDays() const { return m_LogRetentionDays; }
         const QString& logFilename() const;
         const QString logFilenameCmd() const;
         QString logLevelText() const;
@@ -126,6 +127,7 @@ protected:
         QString m_Interface;
         int m_LogLevel;
         bool m_LogToFile;
+        int m_LogRetentionDays = 0;
         QString m_LogFilename;
         int m_WizardLastRun;
         ProcessMode m_ProcessMode;

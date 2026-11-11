@@ -690,3 +690,18 @@ log-file storage, installed service authorisation and runtime provenance.
 Today's OpenSSL notices name fixes in 3.5.10, but no checked release/tag/checksum
 is available yet. I don't claim an upgrade or an established trigger through
 this application's ordinary TLS calls.
+
+
+## Follow-up: 2.4.35-snapshot
+
+I add confirmed deletion of the configured log and its `.1` backup, alongside
+saved age-based retention and a separate display clear control. File operations
+hold checked, locked descriptors rather than deleting an active pathname. The
+engine checks quiet logs without needing the GUI. New log configurations use
+user application data instead of a system/program directory.
+
+The [log controls](logs.md) explain whole-file expiry, stopped-process behaviour,
+legacy-file handling and partial failures. This doesn't erase filesystem
+snapshots or exported copies. Windows ancestors, extended ACLs and native
+Windows/macOS integration remain open. The scoped [review](../production/security/security-audit-2026-11-11-logs.md)
+and [build evidence](build.md) describe the checks actually completed.

@@ -20,6 +20,7 @@
 #define LOGWINDOW__H
 
 #include <QDialog>
+#include <QDateTime>
 
 #include "ui_LogWindowBase.h"
 
@@ -31,12 +32,20 @@ class LogWindow : public QDialog, public Ui::LogWindowBase
         LogWindow(QWidget *parent);
 
         void startNewInstance();
+        void clearLog();
+        void setRetentionDays(int days);
+    signals:
+        void deleteSavedLogsRequested();
+    public:
 
         void appendRaw(const QString& text);
         void appendInfo(const QString& text);
         void appendDebug(const QString& text);
         void appendError(const QString& text);
 
+    private:
+        int m_retentionDays = 0;
+        QDateTime m_historyStarted;
     private slots:
         void on_m_pButtonHide_clicked();
         void on_m_pButtonClearLog_clicked();

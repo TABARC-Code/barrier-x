@@ -31,6 +31,11 @@
 #include <QScrollBar>
 #include <QRadioButton>
 #include "../src/SettingsDialog.h"
+#include "../src/LogWindow.h"
+#include "io/LogStore.h"
+#include <QMessageBox>
+#include <QTextEdit>
+#include <QFileInfo>
 #include <QTimer>
 #include <QDialog>
 #include <QGroupBox>
@@ -847,4 +852,77 @@ TEST_F(DiscoveryTests, TranslatedLabelsDoNotBecomeScreenIdentifiers)
     EXPECT_TRUE(static_cast<QAbstractItemModel&>(model).dropMimeData(
         mime.get(), Qt::MoveAction, -1, -1, model.index(0, 1)));
     EXPECT_EQ(QString("Unnamed"), screens[1].name());
+}
+
+TEST_F(DiscoveryTests, LogRetentionChoicesPersistAndReachEngine)
+{
+    settings->setValue("logToFile", true);
+    settings->setValue("logFilename", temporary.filePath("barrier.log"));
+    create(false);
+    SettingsDialog dialog(window.get(), *config);
+    auto* choice = dialog.findChild<QComboBox*>("m_pComboLogRetention");
+    ASSERT_NE(nullptr, choice);
+    const QList<int> expected{0,5,10,12,15,22,28,30,60};
+    ASSERT_EQ(expected.size(), choice->count());
+    for (int i=0; i<expected.size(); ++i) { EXPECT_EQ(expected[i], choice->itemData(i).toInt()); }
+    choice->setCurrentIndex(choice->findData(22));
+    QEvent language(QEvent::LanguageChange); QApplication::sendEvent(&dialog, &language);
+    EXPECT_EQ(22, choice->currentData().toInt());
+    static_cast<QDialog*>(&dialog)->accept();
+    EXPECT_EQ(22, config->logRetentionDays());
+    EXPECT_EQ(22, settings->value("logRetentionDays").toInt());
+    QStringList args; QString executable; ASSERT_TRUE(window->clientArgs(args, executable));
+    auto index = args.indexOf("--log-retention-days"); ASSERT_GE(index, 0);
+    EXPECT_EQ(QString("22"), args.at(index + 1));
+}
+TEST_F(DiscoveryTests, LogRetentionCancelAndInvalidSavedValueKeepOff)
+{
+    settings->setValue("logRetentionDays", 999); create(false);
+    EXPECT_EQ(0, config->logRetentionDays());
+    SettingsDialog dialog(window.get(), *config);
+    auto* choice = dialog.findChild<QComboBox*>("m_pComboLogRetention"); ASSERT_NE(nullptr, choice);
+    choice->setCurrentIndex(choice->findData(60)); static_cast<QDialog*>(&dialog)->reject();
+    EXPECT_EQ(0, config->logRetentionDays());
+}
+TEST_F(DiscoveryTests, ManualLogDeletionNeedsConfirmationAndClearsOnlyLogs)
+{
+    const auto filename = temporary.filePath("barrier.log");
+    settings->setValue("logFilename", filename); create(false);
+    const auto path = barrier::fs::u8path(filename.toStdString());
+    barrier::append_log(path, "private log", 0, 1700000000);
+    QFile identity(temporary.filePath("identity.pem")); ASSERT_TRUE(identity.open(QIODevice::WriteOnly)); identity.write("keep"); identity.close();
+    QTimer::singleShot(0, [] {
+        auto* box = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+        if (box) { box->done(QMessageBox::Cancel); }
+    });
+    EXPECT_FALSE(SettingsDialog::deleteSavedLogs(window.get(), filename));
+    EXPECT_GT(QFileInfo(filename).size(), 0);
+    QTimer::singleShot(0, [] {
+        auto* box = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+        if (box) { box->done(QMessageBox::Yes); }
+    });
+    EXPECT_TRUE(SettingsDialog::deleteSavedLogs(window.get(), filename));
+    EXPECT_EQ(0, QFileInfo(filename).size());
+    ASSERT_TRUE(identity.open(QIODevice::ReadOnly)); EXPECT_EQ(QByteArray("keep"), identity.readAll());
+}
+TEST_F(DiscoveryTests, LogDisplayHasSeparateClearAndDeleteControls)
+{
+    LogWindow log(nullptr);
+    log.appendInfo("private");
+    auto* output = log.findChild<QTextEdit*>("m_pLogOutput"); ASSERT_NE(nullptr, output);
+    EXPECT_FALSE(output->toPlainText().isEmpty());
+    auto* clear = log.findChild<QPushButton*>("m_pButtonClearLog"); ASSERT_NE(nullptr, clear); clear->click();
+    EXPECT_TRUE(output->toPlainText().isEmpty());
+    bool requested = false;
+    QObject::connect(&log, &LogWindow::deleteSavedLogsRequested, [&] { requested = true; });
+    log.findChild<QPushButton*>("m_pButtonDeleteSavedLogs")->click(); EXPECT_TRUE(requested);
+}
+
+TEST_F(DiscoveryTests, AutomaticLogDeletionRunsAtStartup) {
+    const auto filename = temporary.filePath("barrier.log");
+    const auto path = barrier::fs::u8path(filename.toStdString());
+    barrier::append_log(path, "overdue", 0, std::time(nullptr) - 6*86400);
+    settings->setValue("logFilename", filename); settings->setValue("logRetentionDays", 5);
+    create(false); QApplication::processEvents();
+    EXPECT_EQ(0, QFileInfo(filename).size());
 }

@@ -81,3 +81,6 @@ set_tests_properties(certificate-storage PROPERTIES TIMEOUT 90)
 
 add_test(NAME ipc-framing COMMAND unittests --gtest_filter=IpcMessageReaderTests.*:IpcProxyTests.*:IpcCommandEncodingTests.*)
 set_tests_properties(ipc-framing PROPERTIES TIMEOUT 30)
+
+add_test(NAME log-retention COMMAND unittests --gtest_filter=LogStoreTests.*:GenericArgsParsingTests.Retention*)
+set_tests_properties(log-retention PROPERTIES TIMEOUT 30)

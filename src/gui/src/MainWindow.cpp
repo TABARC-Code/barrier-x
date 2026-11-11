@@ -37,6 +37,8 @@
 #include "common/Version.h"
 #include "net/FingerprintDatabase.h"
 #include "net/SecureUtils.h"
+#include "io/LogStore.h"
+#include <ctime>
 
 #include <QtCore>
 #include <QtGui>
@@ -127,6 +129,25 @@ MainWindow::MainWindow(QSettings& settings, AppConfig& appConfig) :
     setAttribute(Qt::WA_X11NetWmWindowTypeDialog, true);
 
     setupUi(this);
+    m_pLogWindow->setRetentionDays(this->appConfig().logRetentionDays());
+    connect(m_pLogWindow, &LogWindow::deleteSavedLogsRequested, this, [this] {
+        if (SettingsDialog::deleteSavedLogs(this, this->appConfig().logFilename())) { m_pLogWindow->clearLog(); }
+    });
+    auto logCleanup = new QTimer(this);
+    logCleanup->setInterval(60000);
+    const auto expireLogs = [this] {
+        try {
+            barrier::expire_logs(barrier::fs::u8path(this->appConfig().logFilename().toStdString()),
+                                 this->appConfig().logRetentionDays(), std::time(nullptr));
+            m_logCleanupWarning = false;
+        } catch (const std::exception&) {
+            if (!m_logCleanupWarning) { appendLogError(tr("Automatic log deletion failed. Check log ownership, permissions or another active writer.")); }
+            m_logCleanupWarning = true;
+        }
+    };
+    connect(logCleanup, &QTimer::timeout, this, expireLogs);
+    logCleanup->start();
+    QTimer::singleShot(0, this, expireLogs);
     peerTrustError->hide();
     setWindowIcon(QIcon(barrierLargeIcon));
     createMenuBar();
@@ -690,6 +711,7 @@ bool MainWindow::clientArgs(QStringList& args, QString& app)
     {
         appConfig().persistLogDir();
         args << "--log" << appConfig().logFilenameCmd();
+        args << "--log-retention-days" << QString::number(appConfig().logRetentionDays());
     }
 
     // check auto config first, if it is disabled or no server detected,
@@ -788,6 +810,7 @@ bool MainWindow::serverArgs(QStringList& args, QString& app)
         appConfig().persistLogDir();
 
         args << "--log" << appConfig().logFilenameCmd();
+        args << "--log-retention-days" << QString::number(appConfig().logRetentionDays());
     }
 
     if (!appConfig().getRequireClientCertificate()) {
@@ -1191,7 +1214,17 @@ void MainWindow::on_m_pActionAbout_triggered()
 
 void MainWindow::on_m_pActionSettings_triggered()
 {
-    if (SettingsDialog(this, appConfig()).exec() == QDialog::Accepted) {
+    const auto oldLogPath = appConfig().logFilename();
+    const int oldRetention = appConfig().logRetentionDays();
+    const bool oldLogging = appConfig().logToFile();
+    SettingsDialog dialog(this, appConfig());
+    connect(&dialog, &SettingsDialog::logsDeleted, m_pLogWindow, &LogWindow::clearLog);
+    if (dialog.exec() == QDialog::Accepted) {
+        m_pLogWindow->setRetentionDays(appConfig().logRetentionDays());
+        if (m_ExpectedRunningState == kStarted &&
+            (oldLogPath != appConfig().logFilename() || oldRetention != appConfig().logRetentionDays() || oldLogging != appConfig().logToFile())) {
+            restartBarrier();
+        }
         m_pLabelScreenName->setText(getScreenName());
         m_pLabelIpAddresses->setText(getIPAddresses());
         copyAddresses->setEnabled(!m_CopyableAddresses.isEmpty());

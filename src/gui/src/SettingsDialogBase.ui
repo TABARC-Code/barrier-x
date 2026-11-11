@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>368</width>
+    <width>520</width>
     <height>428</height>
    </rect>
   </property>
@@ -302,6 +302,29 @@
         </property>
        </widget>
       </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="logRetentionLabel">
+        <property name="text"><string>&amp;Auto-delete logs:</string></property>
+        <property name="buddy"><cstring>m_pComboLogRetention</cstring></property>
+       </widget>
+      </item>
+      <item row="2" column="1" colspan="2">
+       <widget class="QComboBox" name="m_pComboLogRetention">
+        <property name="accessibleName"><string>Automatic log deletion age</string></property>
+       </widget>
+      </item>
+      <item row="3" column="0" colspan="3">
+       <widget class="QLabel" name="logRetentionHelp">
+        <property name="wordWrap"><bool>true</bool></property>
+        <property name="text"><string>0 disables age-based deletion. Other values clear each whole log when its oldest entry reaches that age, including newer entries in that file. Checks run every minute while the app or engine is running. Changing logging options briefly restarts running sharing.</string></property>
+       </widget>
+      </item>
+      <item row="4" column="0" colspan="3">
+       <widget class="QPushButton" name="m_pButtonDeleteLogs">
+        <property name="text"><string>Delete saved logs now…</string></property>
+        <property name="autoDefault"><bool>false</bool></property>
+       </widget>
+      </item>
      </layout>
     </widget>
    </item>
@@ -343,6 +366,8 @@
   <tabstop>m_pComboLogLevel</tabstop>
   <tabstop>m_pCheckBoxLogToFile</tabstop>
   <tabstop>m_pLineEditLogFilename</tabstop>
+  <tabstop>m_pComboLogRetention</tabstop>
+  <tabstop>m_pButtonDeleteLogs</tabstop>
   <tabstop>m_pButtonBrowseLog</tabstop>
  </tabstops>
  <resources/>

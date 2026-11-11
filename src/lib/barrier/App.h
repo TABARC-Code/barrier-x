@@ -164,6 +164,7 @@ private:
     "  -1, --no-restart         do not try to restart on failure.\n" \
     "      --restart            restart the server automatically if it fails. (*)\n" \
     "  -l  --log <file>         write log messages to file.\n" \
+    "      --log-retention-days <days>  clear whole logs after 5,10,12,15,22,28,30,60 days; 0 is off.\n" \
     "      --no-tray            disable the system tray icon.\n" \
     "      --enable-drag-drop   enable file drag & drop.\n" \
     "      --enable-crypto      enable the crypto (ssl) plugin (default, deprecated).\n" \

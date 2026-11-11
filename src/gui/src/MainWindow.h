@@ -191,6 +191,7 @@ public slots:
         SslCertificate* m_pSslCertificate;
         QStringList m_PendingClientNames;
         LogWindow *m_pLogWindow;
+        bool m_logCleanupWarning = false;
 
         bool m_fingerprint_expanded = false;
         QString m_CopyableAddresses;

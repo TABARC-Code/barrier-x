@@ -1041,3 +1041,31 @@ whitespace. The [security review](../production/security/security-audit-2026-11-
 records fixed issues and remaining coverage. Today's OpenSSL fix release can't
 be pinned from a verified archive/tag/checksum yet; no replacement dependency
 build is claimed. Existing source selections remain unchanged.
+
+
+## Log deletion and retention, 2.4.35
+
+11 November 2026. I build the complete manual-only Qt 6 GUI, engines and tests
+with GCC 14.2 and the existing Debian 13 compatibility SDK. All fifteen local
+CTest entries pass with the optional transport plugin enabled. The engine
+suite contains 266 cases, GUI units 99, dashboard 35 and transport checks 16;
+selected CTest suites overlap those counts. The Qt reader reports 40 passes
+and one explicit Unix-listener skip because AF_UNIX creation is denied here.
+
+Eleven new POSIX log-store cases cover exact choices, age boundaries and future
+clocks, current/backup scope, renewed writing, permissions, unknown contents,
+links, unsafe ancestors, busy files, legacy dates, oversized files, FIFOs,
+rotation and quiet-engine expiry/shutdown. The argument parser exercises each
+allowed choice and rejects malformed/out-of-range values. Five GUI cases check
+saved choices, cancellation, language refresh, engine arguments, confirmed
+manual deletion, separate display controls and startup expiry.
+
+Twenty-seven selected log-store/argument cases also pass under ASan/UBSan,
+with `detect_leaks=0` and `halt_on_error=1`. No leak-scan or thread-sanitiser pass
+is claimed for this iteration. The final wording adjustment is rebuilt and the
+GUI suites rerun. I check the final diff and matching version declarations.
+
+No native Windows/macOS run, installed-service deletion, inherited-ACL review,
+clean-machine installation or new Qt 5 check is claimed. Existing Windows logs
+with broad/inherited ACLs require explicit repair; editing them doesn't rewrite
+the ACL before recognising contents. No dependency selection changes here.

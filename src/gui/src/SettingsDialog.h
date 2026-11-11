@@ -32,6 +32,10 @@ class SettingsDialog : public QDialog, public Ui::SettingsDialogBase
 
     public:
         SettingsDialog(QWidget* parent, AppConfig& config);
+        static bool deleteSavedLogs(QWidget* parent, const QString& filename);
+
+    signals:
+        void logsDeleted();
 
     protected:
         void accept();
@@ -42,11 +46,13 @@ class SettingsDialog : public QDialog, public Ui::SettingsDialogBase
     private:
         AppConfig& m_appConfig;
         BarrierLocale m_Locale;
+        void fillLogRetention(int days);
 
     private slots:
         void on_m_pComboLanguage_currentIndexChanged(int index);
         void on_m_pCheckBoxLogToFile_stateChanged(int );
         void on_m_pButtonBrowseLog_clicked();
+        void on_m_pButtonDeleteLogs_clicked();
 };
 
 #endif

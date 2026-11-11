@@ -7,6 +7,8 @@ namespace barrier {
 // The returned CRT descriptor owns the checked, non-inheritable file handle.
 int create_private_file(const std::wstring& path);
 int read_private_file(const std::wstring& path);
+// Exclusive checked editing for bounded application logs.
+int edit_private_log(const std::wstring& path);
 // Callers serialise updates. Parent directories must still be trusted.
 void replace_private_file(const std::wstring& path, const std::string& bytes);
 }

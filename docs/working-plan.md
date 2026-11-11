@@ -1,11 +1,11 @@
 # Working plan
 
-10 November 2026. The five-area completion programme is in
-[completion-plan.md](completion-plan.md). Development is 2.4.34-snapshot.
+11 November 2026. The five-area completion programme is in
+[completion-plan.md](completion-plan.md). Development is 2.4.35-snapshot.
 POSIX identity reads and writes now use checked ancestor traversal, including
 GUI creation of missing identity folders. Native Windows GUI compilation and
 service-reader tests pass; key-binding round trips and a dashboard trust-context
-case still fail. I investigate those next. Engine trust paths, Windows parents,
+case still fail. I investigate those next. Windows parents,
 extended ACLs, packaging and reviewed actions remain open.
 
 The detailed backlog
@@ -19,7 +19,7 @@ list of things I'd quite like to finish eventually.
 | 2 | Qt and discovery libraries, BX-005 | Partial, 2.4.31. DNS-SD is optional and Qt 5/6 selection is explicit. Windows Release GUI compilation and service-reader tests pass with the pinned, patched Qt SDK; key-binding/dashboard tests fail. macOS application validation and live discovery failure handling remain open. |
 | 3 | Windows packaging, BX-005/BX-024 | Planned. Collect the actual runtime DLLs and notices, check libssl/libcrypto versions, provider modules and search paths, then test installation, upgrade and removal on a clean machine. No borrowed DLL pile. |
 | 4 | SSL shutdown, BX-001 | Partial, 2.4.27. Atomic state and serial close pass five concurrent-shutdown cases, including real paired TLS application I/O and local ThreadSanitizer. Real network/multiplexer shutdown, reconnect and cancellation remain open. |
-| 5 | Trust and key recovery, BX-002/BX-004/BX-007 | Partial, 2.4.32. POSIX GUI trust and identity reads/writes share checked ancestor traversal. GUI identity-folder creation is handle-relative. Engine trust loading, Windows parents, public fingerprint storage and macOS extended ACLs remain open. Preserve keys/pins during any explicit recovery operation. |
+| 5 | Trust and key recovery, BX-002/BX-004/BX-007 | Partial, 2.4.32. POSIX GUI trust and identity reads/writes share checked ancestor traversal. GUI identity-folder creation is handle-relative. Windows parents, public fingerprint storage and macOS extended ACLs remain open. Preserve keys/pins during any explicit recovery operation. |
 | 6 | Protocol and sharing limits, BX-006/BX-010/BX-011 | Planned. Bound total queued bytes and simultaneous transfers, then add clipboard/file direction controls, acceptance, cancellation and honest progress. Check malformed lengths and unsafe destinations before adding formats. |
 | 7 | Input recovery, BX-007/BX-009/BX-019 | Planned. Release held keys on loss of connection. Show focus, pause and local-return controls; test sleep, lock and console switching. A process being alive doesn't tell me where my keyboard went. |
 | 8 | Monitor layout and Wayland, BX-008/BX-014 | Later. Add crossing previews and keyboard access to the existing layout editor. Design portal/libei capabilities from measured compositor behaviour before promising support. |
@@ -223,3 +223,10 @@ disabled by default while those protections are unfinished. I also need the
 verified OpenSSL corrected release when its archive and checksum are published.
 Native Windows/macOS review, UAC/session tests and clean-machine packaging still
 need their actual platforms. A successful source scan isn't a release sign-off.
+
+## Log housekeeping, BX-033
+
+I add the requested manual deletion and retention controls in 2.4.35. The
+next checks are native Windows service/user access, macOS inherited ACLs and
+a clean installation with the new default log folder. The exact scope and
+whole-file expiry behaviour are in [logs.md](logs.md). No folder-wide purge.

@@ -208,6 +208,15 @@ ArgParser::parseGenericArgs(int argc, const char* const* argv, int& i)
     else if (isArg(i, argc, argv, "-l", "--log", 1)) {
         argsBase().m_logFile = argv[++i];
     }
+    else if (isArg(i, argc, argv, NULL, "--log-retention-days", 1)) {
+        const std::string value = argv[++i];
+        const std::string allowed[] = {"0", "5", "10", "12", "15", "22", "28", "30", "60"};
+        bool accepted = false;
+        for (const auto& choice : allowed) {
+            if (value == choice) { argsBase().m_logRetentionDays = std::stoi(value); accepted = true; break; }
+        }
+        if (!accepted) { return false; }
+    }
     else if (isArg(i, argc, argv, "-f", "--no-daemon")) {
         // not a daemon
         argsBase().m_daemon = false;

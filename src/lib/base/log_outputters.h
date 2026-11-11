@@ -26,6 +26,9 @@
 #include <list>
 #include <fstream>
 #include <string>
+#include <mutex>
+#include <thread>
+#include <condition_variable>
 
 //! Stop traversing log chain outputter
 /*!
@@ -71,7 +74,7 @@ message is ignored.
 
 class FileLogOutputter : public ILogOutputter {
 public:
-    FileLogOutputter(const char* logFile);
+    FileLogOutputter(const char* logFile, int retentionDays = 0);
     virtual ~FileLogOutputter();
 
     // ILogOutputter overrides
@@ -83,7 +86,14 @@ public:
     void                setLogFilename(const char* title);
 
 private:
-    std::string            m_fileName;
+    void reportFailure();
+    std::string m_fileName;
+    int m_retentionDays;
+    bool m_stop = false;
+    bool m_warned = false;
+    std::mutex m_fileMutex;
+    std::condition_variable m_changed;
+    std::thread m_cleanupThread;
 };
 
 //! Write log to system log

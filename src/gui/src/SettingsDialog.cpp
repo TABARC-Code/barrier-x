@@ -24,6 +24,7 @@
 #include "AppConfig.h"
 #include "SslCertificate.h"
 #include "MainWindow.h"
+#include "io/LogStore.h"
 
 #include <QtCore>
 #include <QtGui>
@@ -46,6 +47,7 @@ SettingsDialog::SettingsDialog(QWidget* parent, AppConfig& config) :
     m_pComboLogLevel->setCurrentIndex(appConfig().logLevel());
     m_pCheckBoxLogToFile->setChecked(appConfig().logToFile());
     m_pLineEditLogFilename->setText(appConfig().logFilename());
+    fillLogRetention(appConfig().logRetentionDays());
     setIndexFromItemData(m_pComboLanguage, appConfig().language());
     m_pCheckBoxAutoHide->setChecked(appConfig().getAutoHide());
     m_pCheckBoxAutoStart->setChecked(appConfig().getAutoStart());
@@ -72,6 +74,7 @@ void SettingsDialog::accept()
     m_appConfig.setLogLevel(m_pComboLogLevel->currentIndex());
     m_appConfig.setLogToFile(m_pCheckBoxLogToFile->isChecked());
     m_appConfig.setLogFilename(m_pLineEditLogFilename->text());
+    m_appConfig.m_LogRetentionDays = m_pComboLogRetention->currentData().toInt();
     m_appConfig.setLanguage(m_pComboLanguage->itemData(m_pComboLanguage->currentIndex()).toString());
     m_appConfig.setElevateMode(static_cast<ElevateMode>(m_pComboElevate->currentIndex()));
     m_appConfig.setAutoHide(m_pCheckBoxAutoHide->isChecked());
@@ -98,12 +101,14 @@ void SettingsDialog::changeEvent(QEvent* event)
         case QEvent::LanguageChange:
             {
                 int logLevelIndex = m_pComboLogLevel->currentIndex();
+                const int retention = m_pComboLogRetention->currentData().toInt();
 
                 m_pComboLanguage->blockSignals(true);
                 retranslateUi(this);
                 m_pComboLanguage->blockSignals(false);
 
                 m_pComboLogLevel->setCurrentIndex(logLevelIndex);
+                fillLogRetention(retention);
                 break;
             }
 
@@ -138,4 +143,38 @@ void SettingsDialog::on_m_pComboLanguage_currentIndexChanged(int index)
 {
     QString ietfCode = m_pComboLanguage->itemData(index).toString();
     QBarrierApplication::getInstance()->switchTranslator(ietfCode);
+}
+
+
+void SettingsDialog::fillLogRetention(int days)
+{
+    m_pComboLogRetention->clear();
+    for (const int value : {0, 5, 10, 12, 15, 22, 28, 30, 60}) {
+        m_pComboLogRetention->addItem(value ? tr("%1 days").arg(value) : tr("0 days (off)"), value);
+    }
+    m_pComboLogRetention->setCurrentIndex(m_pComboLogRetention->findData(days));
+}
+bool SettingsDialog::deleteSavedLogs(QWidget* parent, const QString& filename)
+{
+    QMessageBox question(QMessageBox::Warning, tr("Delete saved logs"),
+        tr("Clear the saved contents of this application's configured log and its .1 backup?\n%1\n\n"
+           "This also clears the log display. Exported copies and system logs are not included. Files may remain empty so logging can continue.").arg(filename),
+        QMessageBox::Yes | QMessageBox::Cancel, parent);
+    question.setTextFormat(Qt::PlainText);
+    question.setDefaultButton(QMessageBox::Cancel);
+    if (question.exec() != QMessageBox::Yes) { return false; }
+    try {
+        barrier::clear_logs(barrier::fs::u8path(filename.toStdString()));
+        return true;
+    } catch (const std::exception&) {
+        QMessageBox::warning(parent, tr("Logs were not fully deleted"),
+            tr("I couldn't clear all configured log files. Check ownership, permissions, file type or another active writer. "
+               "No unrelated files are included. Retry after stopping sharing if a log is busy."));
+        return false;
+    }
+}
+void SettingsDialog::on_m_pButtonDeleteLogs_clicked()
+{
+    // I use the saved path, not an uncommitted filename in the editor.
+    if (deleteSavedLogs(this, appConfig().logFilename())) { emit logsDeleted(); }
 }

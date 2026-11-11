@@ -140,9 +140,9 @@ void
 App::setupFileLogging()
 {
     if (argsBase().m_logFile != NULL) {
-        m_fileLog = new FileLogOutputter(argsBase().m_logFile);
+        m_fileLog = new FileLogOutputter(argsBase().m_logFile, argsBase().m_logRetentionDays);
         CLOG->insert(m_fileLog);
-        LOG((CLOG_DEBUG1 "logging to file (%s) enabled", argsBase().m_logFile));
+        LOG((CLOG_DEBUG1 "file logging enabled"));
     }
 }
 

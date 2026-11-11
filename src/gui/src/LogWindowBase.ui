@@ -66,9 +66,15 @@
       </spacer>
      </item>
      <item>
+      <widget class="QPushButton" name="m_pButtonDeleteSavedLogs">
+       <property name="text"><string>Delete saved logs…</string></property>
+       <property name="autoDefault"><bool>false</bool></property>
+      </widget>
+     </item>
+     <item>
       <widget class="QPushButton" name="m_pButtonClearLog">
        <property name="text">
-        <string>&amp;Clear Log</string>
+        <string>Clear &amp;display</string>
        </property>
       </widget>
      </item>

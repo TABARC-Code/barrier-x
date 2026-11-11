@@ -20,11 +20,12 @@
 #include "arch/Arch.h"
 #include "base/String.h"
 #include "io/filesystem.h"
-#include <fstream>
+#include "io/LogStore.h"
+#include <chrono>
+#include <ctime>
+#include <cstdio>
+#include <stdexcept>
 
-enum EFileLogOutputter {
-    kFileSizeLimit = 1024 // kb
-};
 
 //
 // StopLogOutputter
@@ -237,57 +238,56 @@ BufferedLogOutputter::write(ELevel, const char* message)
 // FileLogOutputter
 //
 
-FileLogOutputter::FileLogOutputter(const char* logFile)
+FileLogOutputter::FileLogOutputter(const char* logFile, int retentionDays) :
+    m_retentionDays(retentionDays)
 {
+    if (!barrier::valid_log_retention(retentionDays)) { throw std::invalid_argument("Invalid log retention"); }
     setLogFilename(logFile);
+    if (retentionDays) {
+        m_cleanupThread = std::thread([this] {
+            std::unique_lock<std::mutex> lock(m_fileMutex);
+            do {
+                try { barrier::expire_logs(barrier::fs::u8path(m_fileName), m_retentionDays, std::time(nullptr)); }
+                catch (const std::exception&) { reportFailure(); }
+            } while (!m_changed.wait_for(lock, std::chrono::seconds(60), [this] { return m_stop; }));
+        });
+    }
 }
-
-FileLogOutputter::~FileLogOutputter()
-{
-}
-
-void
-FileLogOutputter::setLogFilename(const char* logFile)
+FileLogOutputter::~FileLogOutputter() { close(); }
+void FileLogOutputter::setLogFilename(const char* logFile)
 {
     assert(logFile != NULL);
+    std::lock_guard<std::mutex> lock(m_fileMutex);
     m_fileName = logFile;
 }
-
-bool
-FileLogOutputter::write(ELevel level, const char *message)
+void FileLogOutputter::reportFailure()
 {
-    bool moveFile = false;
-
-    std::ofstream m_handle;
-    barrier::open_utf8_path(m_handle, m_fileName, std::fstream::app);
-    if (m_handle.is_open() && m_handle.fail() != true) {
-        m_handle << message << std::endl;
-
-        // when file size exceeds limits, move to 'old log' filename.
-        size_t p = m_handle.tellp();
-        if (p > (kFileSizeLimit * 1024)) {
-            moveFile = true;
-        }
+    if (!m_warned) {
+        std::fputs("Log file operation failed; check ownership, permissions, file type or another active writer.\n", stderr);
+        m_warned = true;
     }
-    m_handle.close();
-
-    if (moveFile) {
-        std::string oldLogFilename = barrier::string::sprintf("%s.1", m_fileName.c_str());
-        remove(oldLogFilename.c_str());
-        rename(m_fileName.c_str(), oldLogFilename.c_str());
-    }
-
+}
+bool FileLogOutputter::write(ELevel, const char* message)
+{
+    if (!message) { return true; }
+    std::lock_guard<std::mutex> lock(m_fileMutex);
+    try {
+        barrier::append_log(barrier::fs::u8path(m_fileName), message, m_retentionDays, std::time(nullptr));
+        m_warned = false;
+    } catch (const std::exception&) { reportFailure(); }
     return true;
 }
-
-void
-FileLogOutputter::open(const char *title) {}
-
-void
-FileLogOutputter::close() {}
-
-void
-FileLogOutputter::show(bool showIfEmpty) {}
+void FileLogOutputter::open(const char*) {}
+void FileLogOutputter::close()
+{
+    {
+        std::lock_guard<std::mutex> lock(m_fileMutex);
+        m_stop = true;
+    }
+    m_changed.notify_all();
+    if (m_cleanupThread.joinable()) { m_cleanupThread.join(); }
+}
+void FileLogOutputter::show(bool) {}
 
 //
 // MesssageBoxLogOutputter
