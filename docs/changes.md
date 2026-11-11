@@ -1,5 +1,11 @@
 # barrier-x changes
 
+## 2.4.40-snapshot - 11 November 2026
+
+- I run Windows private-file fixtures beneath the same private Local AppData boundary used by the application.
+- I keep the deliberately broad parent as an explicit refusal case.
+- I record shared temporary-directory ancestry as unsupported private storage.
+
 ## 2.4.39-snapshot - 11 November 2026
 
 - I reject Windows parent folders which grant unsafe write access to another principal.

@@ -68,5 +68,8 @@ reparse points. Native run 43103242776 passes linked-parent refusal but proves
 that an open directory handle doesn't pin its name against a same-user rename.
 Version 2.4.39 therefore checks owner and ACL entries for unsafe writers and
 rechecks each component's volume and file identity around the final operation.
-Native execution is pending at this source checkpoint. The directory owner still
-controls its folder, and inherited deny-ACE policy remains under review.
+Native run 43105163943 compiles this, then refuses the runner's shared temporary
+ancestry. Version 2.4.40 moves native fixtures under private Local AppData while
+retaining the explicit broad-parent refusal case. Execution is pending. The
+directory owner still controls its folder, and inherited deny-ACE policy remains
+under review.

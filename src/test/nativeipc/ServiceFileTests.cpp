@@ -329,9 +329,9 @@ struct Fixture {
             DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION, nullptr, nullptr, acl, nullptr) == ERROR_SUCCESS, "restrict fixture access");
     }
     Fixture() {
-        wchar_t path[MAX_PATH]; DWORD length = GetTempPathW(MAX_PATH, path);
-        require(length && length < MAX_PATH, "temporary path");
-        directory = std::wstring(path) + L"BXServiceFile-" + std::to_wstring(GetCurrentProcessId()) + L"-" + std::to_wstring(GetTickCount64());
+        wchar_t path[MAX_PATH]; DWORD length = GetEnvironmentVariableW(L"LOCALAPPDATA", path, MAX_PATH);
+        require(length && length < MAX_PATH, "local application data path");
+        directory = std::wstring(path) + L"\\BXServiceFile-" + std::to_wstring(GetCurrentProcessId()) + L"-" + std::to_wstring(GetTickCount64());
         require(CreateDirectoryW(directory.c_str(), nullptr), "fixture directory");
         restrict(directory, directory, true);
     }

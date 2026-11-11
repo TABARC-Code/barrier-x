@@ -44,9 +44,10 @@ struct Fixture {
     std::wstring directory;
     std::vector<std::wstring> files;
     Fixture() {
-        wchar_t temporary[MAX_PATH];
-        require(GetTempPathW(MAX_PATH, temporary) != 0, "temporary path");
-        directory = std::wstring(temporary) + L"BXFile-" + std::to_wstring(GetCurrentProcessId()) + L"-" + std::to_wstring(GetTickCount64());
+        wchar_t local_data[MAX_PATH];
+        const DWORD length = GetEnvironmentVariableW(L"LOCALAPPDATA", local_data, MAX_PATH);
+        require(length && length < MAX_PATH, "local application data path");
+        directory = std::wstring(local_data) + L"\\BXFile-" + std::to_wstring(GetCurrentProcessId()) + L"-" + std::to_wstring(GetTickCount64());
         require(CreateDirectoryW(directory.c_str(), nullptr), "create test directory");
         protect_directory(directory);
     }

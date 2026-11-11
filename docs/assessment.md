@@ -756,5 +756,15 @@ the calling user, LocalSystem, the active console user or local administrators
 is refused. Each component is also reopened and compared by volume serial and
 file index around the final operation. The test fixtures now begin private;
 the explicit unsafe-parent case grants Everyone access and must be rejected.
-Native execution of 2.4.39 is pending. Deny-ACE ordering and installed paths
-still need separate review.
+Native run 43105163943 compiles 2.4.39, then refuses the hosted runner's shared
+temporary ancestry before reaching the private fixtures. The application default
+is Local AppData, not that build-worker folder.
+
+## Follow-up: 2.4.40-snapshot
+
+I move the three native storage fixtures beneath the runner user's Local AppData
+folder, then apply the same protected owner/System ACL used by the tests. This
+matches the application's default storage boundary. The explicit unsafe-parent
+case still grants Everyone full control and must be refused, so changing the
+fixture root doesn't quietly weaken the production rule. Native execution is
+pending. Deny-ACE ordering and installed paths still need separate review.

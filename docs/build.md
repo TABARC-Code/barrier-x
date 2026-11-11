@@ -1194,3 +1194,24 @@ and [file access-rights](https://learn.microsoft.com/en-us/windows/win32/fileio/
 documentation. I conservatively reject unsafe allow entries even where a deny
 entry might later reduce them. Deny ordering and application installation paths
 remain open for native review.
+
+Windows native run
+[43105163943](https://github.com/TABARC-Code/barrier-x/actions/runs/43105163943)
+compiles the ACL implementation. The pipe target passes, while the three storage
+targets refuse the runner's shared temporary ancestry before reaching their
+private fixture folders. This is expected policy applied to the wrong test root,
+not native evidence for the storage behaviour.
+
+## Windows private fixture boundary, 2.4.40
+
+11 November 2026. I place the native private-file, log and temporary-service
+fixtures beneath Local AppData, the same private user boundary used by new
+application log configurations. Each fixture then applies its protected
+owner/System ACL before production storage code runs. The deliberately broad
+parent remains a separate negative case.
+
+The Linux application code is unchanged from 2.4.39. The complete local Qt 6
+rebuild succeeds and all fifteen CTest entries pass in 34.11 seconds, with the
+existing explicit Unix-listener exclusion. Native Windows execution is pending
+at this source checkpoint; the prior compile pass does not establish the adjusted
+fixtures or the storage outcomes.

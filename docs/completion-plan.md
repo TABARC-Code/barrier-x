@@ -49,7 +49,8 @@ an address or discovered display name is not identity proof.
 | 2.4.36 native log checks | Twelve Windows log scenarios pass in run 42981547370; macOS passes six selected suites including retention in run 42981547400 | Windows parents, extended ACL review and installed-application tests |
 | 2.4.37 service log checks | Windows native run 42993099755 passes log retention, deletion, resumed writes and all allowed/refused ownership cases | Installed-application and interactive use |
 | 2.4.38 Windows private-file parents | Linked-parent refusal passes in native run 43103242776; same-user rename disproves the intended sharing-based pin | Replace the false pin assumption; owner/ACL policy and installed-application paths |
-| 2.4.39 Windows parent authority | Parent owner/ACL checks and volume/file identity rechecks replace the failed sharing assumption | Native execution, inherited deny-ACE policy and installed-application paths |
+| 2.4.39 Windows parent authority | Code compiles in run 43105163943; all storage targets refuse the runner's shared temporary ancestry before their fixtures | Use a private test boundary; inherited deny-ACE policy and installed-application paths |
+| 2.4.40 Windows private fixture boundary | Native fixtures use private Local AppData while retaining an explicit world-writable-parent refusal case | Native execution and installed-application paths |
 | Reviewed actions | Design only | Registry, target enforcement, transport, GUI, scheduling and negative tests |
 
 I update this table as evidence arrives. A workflow file or a successful compiler

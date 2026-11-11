@@ -47,10 +47,10 @@ struct Fixture {
     barrier::fs::path directory;
     std::vector<barrier::fs::path> files;
     Fixture() {
-        wchar_t temporary[MAX_PATH]{};
-        auto length = GetTempPathW(MAX_PATH, temporary);
-        require(length && length < MAX_PATH, "temporary folder");
-        directory = barrier::fs::path(temporary) / (L"BXLogs-" + std::to_wstring(GetCurrentProcessId()) + L"-" + std::to_wstring(GetTickCount64()));
+        wchar_t local_data[MAX_PATH]{};
+        const auto length = GetEnvironmentVariableW(L"LOCALAPPDATA", local_data, MAX_PATH);
+        require(length && length < MAX_PATH, "local application data folder");
+        directory = barrier::fs::path(local_data) / (L"BXLogs-" + std::to_wstring(GetCurrentProcessId()) + L"-" + std::to_wstring(GetTickCount64()));
         require(CreateDirectoryW(directory.c_str(), nullptr), "create fixture folder");
         protect_directory(directory);
     }

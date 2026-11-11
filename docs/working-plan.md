@@ -1,7 +1,7 @@
 # Working plan
 
 11 November 2026. The five-area completion programme is in
-[completion-plan.md](completion-plan.md). Development is 2.4.39-snapshot.
+[completion-plan.md](completion-plan.md). Development is 2.4.40-snapshot.
 POSIX identity reads and writes now use checked ancestor traversal, including
 GUI creation of missing identity folders. Native Windows GUI compilation and
 service-reader tests pass; key-binding round trips and a dashboard trust-context
@@ -243,5 +243,8 @@ The temporary LocalSystem log cases pass on 2.4.37. Version 2.4.38 refuses
 reparse parents, but native run 43103242776 proves that an open directory handle
 doesn't pin its name against a same-user rename. In 2.4.39 I check owner and ACL
 entries for unsafe writers and recheck volume/file identities around the final
-operation. Native execution is pending at this source checkpoint. Inherited
-deny-ACE policy, installed-application and desktop tests remain separate work.
+operation. Native run 43105163943 compiles this but refuses the hosted runner's
+shared temporary ancestry before reaching the fixtures. Version 2.4.40 places
+those fixtures under private Local AppData, matching the application default.
+Native execution is pending. Inherited deny-ACE policy, installed-application
+and desktop tests remain separate work.
