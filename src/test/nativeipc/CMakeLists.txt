@@ -31,3 +31,13 @@ target_link_libraries(nativeservicefiletests PRIVATE advapi32 wtsapi32 netapi32 
 target_compile_definitions(nativeservicefiletests PRIVATE _WIN32_WINNT=0x0601 NOMINMAX WIN32_LEAN_AND_MEAN)
 add_test(NAME native-service-private-files COMMAND nativeservicefiletests)
 set_tests_properties(native-service-private-files PROPERTIES TIMEOUT 60)
+
+# I keep log checks independent of Qt and OpenSSL so a queued desktop build isn't a blind spot.
+add_executable(nativelogtests LogStoreTests.cpp ../../lib/io/LogStore.cpp
+    ../../lib/io/WinPrivateFile.cpp ../../lib/io/filesystem.cpp
+    ../../lib/common/win32/encoding_utilities.cpp)
+target_include_directories(nativelogtests PRIVATE ../../lib ../../../ext/gulrak-filesystem/include)
+target_compile_definitions(nativelogtests PRIVATE _WIN32_WINNT=0x0601 NOMINMAX WIN32_LEAN_AND_MEAN SYSAPI_WIN32=1)
+target_link_libraries(nativelogtests PRIVATE advapi32 wtsapi32)
+add_test(NAME native-log-store COMMAND nativelogtests)
+set_tests_properties(native-log-store PROPERTIES TIMEOUT 60)

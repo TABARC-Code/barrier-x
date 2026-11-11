@@ -1,7 +1,7 @@
 # Working plan
 
 11 November 2026. The five-area completion programme is in
-[completion-plan.md](completion-plan.md). Development is 2.4.35-snapshot.
+[completion-plan.md](completion-plan.md). Development is 2.4.36-snapshot.
 POSIX identity reads and writes now use checked ancestor traversal, including
 GUI creation of missing identity folders. Native Windows GUI compilation and
 service-reader tests pass; key-binding round trips and a dashboard trust-context
@@ -16,7 +16,7 @@ list of things I'd quite like to finish eventually.
 | Order | Work | State and finish point |
 | --- | --- | --- |
 | 1 | Windows TLS and engine build, BX-005 | Implemented in 2.4.17 for x64 Release: external OpenSSL 3.5.9, client/server/service builds and ten CTest entries passed. The legacy installer remains refused; GUI and packaging follow below. |
-| 2 | Qt and discovery libraries, BX-005 | Partial, 2.4.31. DNS-SD is optional and Qt 5/6 selection is explicit. Windows Release GUI compilation and service-reader tests pass with the pinned, patched Qt SDK; key-binding/dashboard tests fail. macOS application validation and live discovery failure handling remain open. |
+| 2 | Qt and discovery libraries, BX-005 | Partial, 2.4.31. DNS-SD is optional and Qt 5/6 selection is explicit. Windows Release GUI compilation and service-reader tests pass with the pinned, patched Qt SDK; key-binding/dashboard tests fail. macOS offscreen GUI/selected engine checks pass in 2.4.35 run 42930635192; interactive desktop, installation and live discovery failure handling remain open. |
 | 3 | Windows packaging, BX-005/BX-024 | Planned. Collect the actual runtime DLLs and notices, check libssl/libcrypto versions, provider modules and search paths, then test installation, upgrade and removal on a clean machine. No borrowed DLL pile. |
 | 4 | SSL shutdown, BX-001 | Partial, 2.4.27. Atomic state and serial close pass five concurrent-shutdown cases, including real paired TLS application I/O and local ThreadSanitizer. Real network/multiplexer shutdown, reconnect and cancellation remain open. |
 | 5 | Trust and key recovery, BX-002/BX-004/BX-007 | Partial, 2.4.32. POSIX GUI trust and identity reads/writes share checked ancestor traversal. GUI identity-folder creation is handle-relative. Windows parents, public fingerprint storage and macOS extended ACLs remain open. Preserve keys/pins during any explicit recovery operation. |
@@ -230,3 +230,10 @@ I add the requested manual deletion and retention controls in 2.4.35. The
 next checks are native Windows service/user access, macOS inherited ACLs and
 a clean installation with the new default log folder. The exact scope and
 whole-file expiry behaviour are in [logs.md](logs.md). No folder-wide purge.
+
+I add twelve standalone Windows log-store scenarios in 2.4.36 so storage checks
+can run without waiting for Qt or OpenSSL. Native execution is pending at this
+checkpoint. macOS 2.4.35 offscreen GUI and selected engine checks now pass in
+run 42930635192. The Windows GUI compiles and its five log-control dashboard
+cases pass in run 42930635323; known key round trips and one trust-context case
+still fail the workflow. Full desktop/service access and installation checks follow.

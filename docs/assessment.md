@@ -705,3 +705,13 @@ legacy-file handling and partial failures. This doesn't erase filesystem
 snapshots or exported copies. Windows ancestors, extended ACLs and native
 Windows/macOS integration remain open. The scoped [review](../production/security/security-audit-2026-11-11-logs.md)
 and [build evidence](build.md) describe the checks actually completed.
+
+## Follow-up: 2.4.36-snapshot
+
+I add a standalone Windows log-store harness using the production filesystem,
+private-file and logging code. The twelve scenarios check functional deletion
+and retention as well as refused access, preserved contents and unchanged ACLs.
+The existing second-user fixture now checks foreign-owner refusal by the log
+editor too. Hosted native execution remains pending at this source checkpoint;
+new test source is not a Windows pass. macOS now selects the portable retention
+suite too. Application behaviour is unchanged.

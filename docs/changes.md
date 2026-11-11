@@ -1,5 +1,12 @@
 # barrier-x changes
 
+## 2.4.36-snapshot - 11 November 2026
+
+- I add a standalone Windows log-storage check target.
+- I cover deletion, expiry, busy files, links, access rules and Unicode paths.
+- I check that foreign-owned files are refused by the log editor.
+- I include log retention in the macOS checks.
+
 ## 2.4.35-snapshot - 11 November 2026
 
 - I add confirmed deletion of saved logs and a separate display clear control.

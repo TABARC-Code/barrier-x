@@ -37,7 +37,7 @@ jobs:
           -DCMAKE_OSX_DEPLOYMENT_TARGET=14.4 -DCMAKE_OSX_SYSROOT=macosx
       - name: Build GUI, engine and tests
         run: cmake --build build --target barrier barrierc barriers guiunittests guiipctests guidiscoverytests unittests --parallel 3
-      - name: Check native identity, approval and reader
+      - name: Check native identity, approval, logs and reader
         env:
           QT_QPA_PLATFORM: offscreen
-        run: ctest --test-dir build -R '^(guiunittests|gui-discovery|gui-ipc|ssl-lifecycle|certificate-storage)$' --output-on-failure -V
+        run: ctest --test-dir build -R '^(guiunittests|gui-discovery|gui-ipc|ssl-lifecycle|certificate-storage|log-retention)$' --output-on-failure -V

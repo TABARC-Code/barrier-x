@@ -19,5 +19,5 @@ jobs:
         run: cmake -S src/test/nativeipc -B native-build -A x64
       - name: Compile native storage, channel and service adapters
         run: cmake --build native-build --config Debug --parallel 2
-      - name: Check private files and pipe credentials
+      - name: Check log storage, private files and pipe credentials
         run: ctest --test-dir native-build -C Debug --output-on-failure -V

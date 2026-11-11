@@ -49,3 +49,6 @@ an address or discovered display name is not identity proof.
 
 I update this table as evidence arrives. A workflow file or a successful compiler
 invocation alone doesn't prove an installation works on a clean machine.
+
+| 2.4.35 native log controls | macOS GUI/engine and five selected CTest entries pass in run 42930635192; the Windows GUI compiles and all five log-control dashboard cases pass in run 42930635323 | Interactive use, extended ACLs, full retention suite and installation; Windows still fails known key round trips and one trust-context dashboard case |
+| 2.4.36 native log checks | Twelve standalone Windows scenarios and macOS retention selection added | Native execution pending at this source checkpoint |

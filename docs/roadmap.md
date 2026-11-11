@@ -2,7 +2,7 @@
 
 Updated 11 November 2026. Starting point: upstream-derived commit
 `653e4badeb88f61de901581667d4465d7b1e2d52` on `master`.
-Current development version: **2.4.35-snapshot**. Confirmed log deletion and age-based retention
+Current development version: **2.4.36-snapshot**. Confirmed log deletion and age-based retention
 now cover the configured log and its backup. Clipboard decoding is bounded
 before state changes, and the engine validates pin storage. Identified clipboard payload and path/argument dumps are removed.
 The [security review](../production/security/security-audit-2026-11-10-full.md)
@@ -119,7 +119,7 @@ A warning button isn't an authorisation boundary. No action runner is implemente
 | BX-029 | Implemented, 2.4.8-snapshot | Incremental, bounded engine IPC frames, strict validation and correct command elevation encoding | Thirteen regressions and three localhost round trips passed; local ASan/UBSan passed. Split/coalesced frames, both limits, invalid fields/directions and proxy dispatch covered; Qt reader hardening follows in 2.4.10; caller authentication and aggregate queue limits remain open |
 | BX-030 | Implemented, 2.4.10-snapshot | Non-blocking bounded Qt service reader, reconnect recovery and explicit protocol errors | Full Linux GUI build, 58 existing GUI tests and the Qt socket suite passed; QtTest reported 39 passes including suite hooks, also under local ASan/UBSan. Windows/macOS and interactive desktop validation remain open |
 | BX-032 | In progress, 2.4.33-snapshot | Optional external Tor transport plugin 0.1.0: fixed onion target, loopback SOCKS bridge, bounded relay and private POSIX service preset | Sixteen local checks cover strict parsing, backpressure, cancellation, caps, reconnects, real TLS, preset safety, archive execution and shutdown; CMake build/install component verified. Tor is not installed locally, so public-network behaviour, actual client-authorisation rejection, latency and native Windows/macOS checks remain open. No native plugin loader or GUI integration claimed. |
-| BX-033 | In progress, 2.4.35-snapshot | Confirmed log deletion, nine retention choices, checked file access and engine/GUI expiry | Eleven POSIX storage cases, strict argument parsing and five GUI cases pass; all fifteen local CTest entries pass, with one Unix socket subtest skipped. Twenty-seven selected cases pass under ASan/UBSan. Native Windows/macOS, inherited ACLs and Windows ancestor handling remain open; see logs.md. |
+| BX-033 | In progress, 2.4.35-snapshot | Confirmed log deletion, nine retention choices, checked file access and engine/GUI expiry | Eleven POSIX storage cases, strict argument parsing and five GUI cases pass; all fifteen local CTest entries pass, with one Unix socket subtest skipped. Twenty-seven selected cases pass under ASan/UBSan. A standalone Windows log-store harness follows in 2.4.36, with twelve native scenarios pending hosted execution; macOS also selects the portable retention suite. Full Windows/macOS integration, inherited ACL review and Windows ancestor handling remain open; see logs.md. |
 | BX-031 | Planned | Four reviewed actions and a separately unlocked one-off script editor | Target-side authorisation, exact script/target approval, expiry and replay rejection, bounded execution and cancellation need design and tests; no runner implemented |
 
 ## Next four weeks

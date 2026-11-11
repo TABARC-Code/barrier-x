@@ -264,6 +264,7 @@ void other_user() {
     try { Descriptor file(barrier::read_private_file(foreign)); }
     catch (const std::runtime_error& error) { ownership = std::string(error.what()).find("another owner") != std::string::npos; }
     require(ownership, "foreign owner was not checked");
+    rejected([&] { Descriptor file(barrier::edit_private_log(foreign)); });
     rejected([&] { barrier::replace_private_file(foreign, "replacement"); });
     require(NetUserDel(nullptr, account.name.c_str()) == NERR_Success, "remove test account"); account.created = false;
 }

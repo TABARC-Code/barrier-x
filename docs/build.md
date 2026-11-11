@@ -1069,3 +1069,37 @@ No native Windows/macOS run, installed-service deletion, inherited-ACL review,
 clean-machine installation or new Qt 5 check is claimed. Existing Windows logs
 with broad/inherited ACLs require explicit repair; editing them doesn't rewrite
 the ACL before recognising contents. No dependency selection changes here.
+
+
+## Native log checks, 2.4.36
+
+11 November 2026. I add `native-log-store` to the small Windows SDK harness,
+linking the production log store, checked private-file helper and filesystem
+implementation. It needs neither Qt nor OpenSSL. Twelve scenarios cover every
+retention choice, exact expiry, current/backup scope, resumed logging, busy
+files, preserved unrecognised contents, unchanged broad/inherited ACLs, links,
+alternate streams, oversized files, Unicode rotation, legacy logs and held
+handle behaviour. The existing foreign-owner scenario now calls the log editor.
+The macOS workflow also selects the portable `log-retention` suite.
+
+Native execution of these new selections is pending at this source checkpoint.
+The local host has no Windows SDK/compiler or Windows runtime; I don't count
+source review as a native pass. I parse both workflow files, check their test
+selection and review the final CMake/source diff. The complete local Linux
+rebuild succeeds and all fifteen CTest entries pass in 24.88 seconds.
+
+The preceding 2.4.35 macOS run [42930635192](https://github.com/TABARC-Code/barrier-x/actions/runs/42930635192)
+now passes all five selected CTest entries after compiling the GUI and engine.
+Its logs identify AppleClang 17.0.0.17000013 and OpenSSL 3.5.9, with the existing
+reviewed Qt SDK: 18 SSL/lifecycle cases, 24 certificate cases, 89 GUI units,
+35 dashboard cases and 41 reader passes, with none skipped in the reader.
+This is offscreen native validation, not an interactive desktop, extended-ACL
+or clean-installation pass. The new retention selection wasn't part of that run.
+
+The preceding Windows helper run [42930635170](https://github.com/TABARC-Code/barrier-x/actions/runs/42930635170)
+and Linux run [42930635175](https://github.com/TABARC-Code/barrier-x/actions/runs/42930635175)
+also complete successfully. The full Windows engine/Qt run 42930635323 compiles
+the engine and GUI. All five log-control dashboard cases pass. Its GUI test step
+still fails on the known special-key round trips and trust-context dashboard
+case; those aren't log failures, but the workflow remains red. Existing
+dependency selections are unchanged.

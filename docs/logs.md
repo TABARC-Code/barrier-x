@@ -42,3 +42,14 @@ blocks, snapshots or backups. POSIX mode checks don't cover every extended ACL;
 Windows ancestor handling and native Windows/macOS integration still need
 review. I'd like those checked before treating this as release-ready privacy
 housekeeping. The filesystem always gets a vote.
+
+## Windows checks
+
+The standalone `native-log-store` target exercises the production log store
+without Qt or OpenSSL. It covers all age choices, current/backup deletion and
+continued writing, busy files, unknown contents, broad and inherited ACL
+refusal, links, streams, size limits, Unicode names, rotation, legacy logs and
+handle inheritance. The existing foreign-owner fixture also checks the log
+editor. These tests are added in 2.4.36; native execution is pending at this
+source checkpoint. The macOS workflow also includes the existing portable
+retention suite. Neither replaces installed-service or interactive GUI checks.
