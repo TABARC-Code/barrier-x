@@ -70,6 +70,7 @@ Version 2.4.39 therefore checks owner and ACL entries for unsafe writers and
 rechecks each component's volume and file identity around the final operation.
 Native run 43105163943 compiles this, then refuses the runner's shared temporary
 ancestry. Version 2.4.40 moves native fixtures under private Local AppData while
-retaining the explicit broad-parent refusal case. Execution is pending. The
-directory owner still controls its folder, and inherited deny-ACE policy remains
-under review.
+retaining the explicit broad-parent refusal case; run 43106483102 still refuses
+an ancestor. Version 2.4.41 adds native-only component/mask diagnostics, pending
+execution. The directory owner still controls its folder, and inherited deny-ACE
+policy remains under review.

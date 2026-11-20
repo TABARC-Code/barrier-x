@@ -1,7 +1,7 @@
 # Working plan
 
 11 November 2026. The five-area completion programme is in
-[completion-plan.md](completion-plan.md). Development is 2.4.40-snapshot.
+[completion-plan.md](completion-plan.md). Development is 2.4.41-snapshot.
 POSIX identity reads and writes now use checked ancestor traversal, including
 GUI creation of missing identity folders. Native Windows GUI compilation and
 service-reader tests pass; key-binding round trips and a dashboard trust-context
@@ -246,5 +246,6 @@ entries for unsafe writers and recheck volume/file identities around the final
 operation. Native run 43105163943 compiles this but refuses the hosted runner's
 shared temporary ancestry before reaching the fixtures. Version 2.4.40 places
 those fixtures under private Local AppData, matching the application default.
-Native execution is pending. Inherited deny-ACE policy, installed-application
-and desktop tests remain separate work.
+Run 43106483102 still refuses an ancestor. Version 2.4.41 adds native-only
+component/mask diagnostics; execution is pending. Inherited deny-ACE policy,
+installed-application and desktop tests remain separate work.

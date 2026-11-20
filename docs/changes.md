@@ -1,5 +1,10 @@
 # barrier-x changes
 
+## 2.4.41-snapshot - 11 November 2026
+
+- I report the refused Windows ancestor component and access mask in native checks.
+- I keep that diagnostic detail out of application builds.
+
 ## 2.4.40-snapshot - 11 November 2026
 
 - I run Windows private-file fixtures beneath the same private Local AppData boundary used by the application.

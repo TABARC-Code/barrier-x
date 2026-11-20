@@ -136,7 +136,8 @@ std::vector<std::vector<BYTE>> trusted_parents() {
     }
     return result;
 }
-void check_parent_permissions(HANDLE directory, const std::vector<std::vector<BYTE>>& trusted, bool root) {
+void check_parent_permissions(HANDLE directory, const std::vector<std::vector<BYTE>>& trusted,
+                              bool root, std::size_t component) {
     PSID owner = nullptr;
     PACL acl = nullptr;
     PSECURITY_DESCRIPTOR raw = nullptr;
@@ -177,7 +178,13 @@ void check_parent_permissions(HANDLE directory, const std::vector<std::vector<BY
             principal = reinterpret_cast<OBJECTS_AND_SID*>(entry.Trustee.ptstrName)->pSid;
         }
         if (!trusted_sid(principal, allowed)) {
+#ifdef BARRIER_PRIVATE_FILE_TESTING
+            throw std::runtime_error("Private file parent component " + std::to_string(component) +
+                                     " grants mask " + std::to_string(entry.grfAccessPermissions) +
+                                     " to another principal");
+#else
             throw std::runtime_error("Private file parent grants write access to another principal");
+#endif
         }
     }
 }
@@ -215,6 +222,7 @@ CheckedPath checked_path(const std::wstring& path) {
     const auto trusted = trusted_parents();
     std::size_t component_end = root_end;
     std::size_t component_start = root_end;
+    std::size_t component = 0;
     while (true) {
         const std::wstring current = parent.substr(0, component_end);
         Handle directory(CreateFileW(current.c_str(), FILE_READ_ATTRIBUTES | READ_CONTROL,
@@ -227,7 +235,7 @@ CheckedPath checked_path(const std::wstring& path) {
             (info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
             throw std::runtime_error("Private file parents must be ordinary directories");
         }
-        check_parent_permissions(directory.value, trusted, component_end == root_end);
+        check_parent_permissions(directory.value, trusted, component_end == root_end, component++);
         result.parents.push_back({current, std::move(directory), info});
         if (component_end == parent.size()) { break; }
         const std::size_t separator = parent.find(L'\\', component_start);

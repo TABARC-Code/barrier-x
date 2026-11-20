@@ -22,7 +22,7 @@ target_compile_definitions(nativeipc_adapters PRIVATE _WIN32_WINNT=0x0601 WINVER
 
 add_executable(nativefiletests PrivateFileTests.cpp ../../lib/io/WinPrivateFile.cpp)
 target_link_libraries(nativefiletests PRIVATE advapi32 wtsapi32 netapi32 bcrypt)
-target_compile_definitions(nativefiletests PRIVATE _WIN32_WINNT=0x0601 NOMINMAX WIN32_LEAN_AND_MEAN)
+target_compile_definitions(nativefiletests PRIVATE _WIN32_WINNT=0x0601 NOMINMAX WIN32_LEAN_AND_MEAN BARRIER_PRIVATE_FILE_TESTING=1)
 add_test(NAME native-private-files COMMAND nativefiletests)
 set_tests_properties(native-private-files PROPERTIES TIMEOUT 60)
 
@@ -31,7 +31,7 @@ add_executable(nativeservicefiletests ServiceFileTests.cpp ../../lib/io/WinPriva
     ../../lib/common/win32/encoding_utilities.cpp)
 target_include_directories(nativeservicefiletests PRIVATE ../../lib ../../../ext/gulrak-filesystem/include)
 target_link_libraries(nativeservicefiletests PRIVATE advapi32 wtsapi32 netapi32 bcrypt)
-target_compile_definitions(nativeservicefiletests PRIVATE _WIN32_WINNT=0x0601 NOMINMAX WIN32_LEAN_AND_MEAN SYSAPI_WIN32=1)
+target_compile_definitions(nativeservicefiletests PRIVATE _WIN32_WINNT=0x0601 NOMINMAX WIN32_LEAN_AND_MEAN SYSAPI_WIN32=1 BARRIER_PRIVATE_FILE_TESTING=1)
 add_test(NAME native-service-private-files COMMAND nativeservicefiletests)
 set_tests_properties(native-service-private-files PROPERTIES TIMEOUT 60)
 
@@ -40,7 +40,7 @@ add_executable(nativelogtests LogStoreTests.cpp ../../lib/io/LogStore.cpp
     ../../lib/io/WinPrivateFile.cpp ../../lib/io/filesystem.cpp
     ../../lib/common/win32/encoding_utilities.cpp)
 target_include_directories(nativelogtests PRIVATE ../../lib ../../../ext/gulrak-filesystem/include)
-target_compile_definitions(nativelogtests PRIVATE _WIN32_WINNT=0x0601 NOMINMAX WIN32_LEAN_AND_MEAN SYSAPI_WIN32=1)
+target_compile_definitions(nativelogtests PRIVATE _WIN32_WINNT=0x0601 NOMINMAX WIN32_LEAN_AND_MEAN SYSAPI_WIN32=1 BARRIER_PRIVATE_FILE_TESTING=1)
 target_link_libraries(nativelogtests PRIVATE advapi32 wtsapi32)
 add_test(NAME native-log-store COMMAND nativelogtests)
 set_tests_properties(native-log-store PROPERTIES TIMEOUT 60)

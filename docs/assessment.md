@@ -768,3 +768,11 @@ matches the application's default storage boundary. The explicit unsafe-parent
 case still grants Everyone full control and must be refused, so changing the
 fixture root doesn't quietly weaken the production rule. Native execution is
 pending. Deny-ACE ordering and installed paths still need separate review.
+
+## Follow-up: 2.4.41-snapshot
+
+Native run 43106483102 compiles 2.4.40, but Local AppData ancestry is refused by
+the same broad ACL rule before the private fixtures run. I add native-only
+component and access-mask details to the refusal. Application builds retain the
+short error and disclose no path. This is diagnosis, not a relaxed policy or a
+native pass.

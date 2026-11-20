@@ -1215,3 +1215,12 @@ rebuild succeeds and all fifteen CTest entries pass in 34.11 seconds, with the
 existing explicit Unix-listener exclusion. Native Windows execution is pending
 at this source checkpoint; the prior compile pass does not establish the adjusted
 fixtures or the storage outcomes.
+
+Native run
+[43106483102](https://github.com/TABARC-Code/barrier-x/actions/runs/43106483102)
+also refuses the Local AppData ancestry before the fixtures. Version 2.4.41
+adds the ancestor component number and access mask to native-test errors only.
+The application keeps the shorter refusal and no path is printed. Native
+execution of this diagnostic is pending at the source checkpoint. The local
+Linux `barrierc` target rebuilds and reports 2.4.41-snapshot; the complete
+2.4.40 Linux suite remains the latest full local run.

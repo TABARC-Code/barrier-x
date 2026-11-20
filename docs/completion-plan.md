@@ -50,7 +50,8 @@ an address or discovered display name is not identity proof.
 | 2.4.37 service log checks | Windows native run 42993099755 passes log retention, deletion, resumed writes and all allowed/refused ownership cases | Installed-application and interactive use |
 | 2.4.38 Windows private-file parents | Linked-parent refusal passes in native run 43103242776; same-user rename disproves the intended sharing-based pin | Replace the false pin assumption; owner/ACL policy and installed-application paths |
 | 2.4.39 Windows parent authority | Code compiles in run 43105163943; all storage targets refuse the runner's shared temporary ancestry before their fixtures | Use a private test boundary; inherited deny-ACE policy and installed-application paths |
-| 2.4.40 Windows private fixture boundary | Native fixtures use private Local AppData while retaining an explicit world-writable-parent refusal case | Native execution and installed-application paths |
+| 2.4.40 Windows private fixture boundary | Run 43106483102 compiles the Local AppData fixtures but still refuses an ancestor before their cases | Identify the exact component/mask and retain the broad-parent refusal |
+| 2.4.41 Windows ACL diagnosis | Native-only failures include the ancestor component number and granted access mask | Use the observed mask to narrow policy without exposing application paths |
 | Reviewed actions | Design only | Registry, target enforcement, transport, GUI, scheduling and negative tests |
 
 I update this table as evidence arrives. A workflow file or a successful compiler
