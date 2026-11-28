@@ -32,3 +32,14 @@ CMakeCache.txt
 # Transient in-project-directory dependencies
 /deps/
 /out/build/x64-Debug
+
+**/chat-exports/
+**/chat_exports/
+**/chat-transcripts/
+**/conversation-exports/
+**/conversation-logs/
+**/.claude/projects/
+**/.claude/debug/
+**/.claude/session-env/
+**/.claude/history.jsonl
+**/.claude/settings.local.json
